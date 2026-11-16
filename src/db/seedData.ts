@@ -965,6 +965,8 @@ export const INITIAL_SETTINGS: SiteSettings = {
   siteTitle: '১০ মিনিট স্কুল কোর্স — ৩D ক্লাস সিলেক্টর ও মডার্ন কোর্স পোর্টাল',
   whatsappNumber: '01608-949565',
   whatsappLink: 'https://wa.me/8801814946474',
+  callNumber: '+880 1625171822',
+  messengerLink: 'https://m.me/10minuteschool',
   heroBadge: '১০ মিনিট স্কুল সব কোর্সে সর্বোচ্চ লাইভ প্রাথমিক ছাড়',
   heroTitle: 'টেন মিনিট স্কুল অফিশিয়াল কোর্স পোর্টাল',
   heroSubtitle: 'সরাসরি সর্বোচ্চ প্রাথমিক ছাড়ে যেকোনো একাডেমিক ও ক্যারিয়ার স্কিল প্রোগ্রামে ভর্তি হোন। কোনো প্রোমো কোডের ঝামেলা ছাড়াই ১০০% ডিসকাউন্টেড লাইভ এক্সেস।',

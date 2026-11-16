@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Category, Course, OfferTimer, SiteSettings } from './types.ts';
 import { computeOfferTimerStatus, getCountdownParts } from './lib/offerTimerUtils.ts';
@@ -23,7 +24,7 @@ import {
   BadgeCheck,
   SearchX,
   Headphones,
-  MessageCircle,
+  Phone,
   ArrowRight,
   Sparkles,
 } from 'lucide-react';
@@ -676,6 +677,9 @@ export default function App({
 
   const whatsappNumber = settings?.whatsappNumber || '01608-949565';
   const whatsappLink = settings?.whatsappLink || 'https://wa.me/8801814946474';
+  const callNumber = settings?.callNumber?.trim() || whatsappNumber;
+  const messengerLink = settings?.messengerLink?.trim() || 'https://m.me/10minuteschool';
+  const telHref = `tel:${callNumber.replace(/[^+\d]/g, '') || '01608949565'}`;
 
   // =========================================================
   // ADMIN ROUTES (/admin/login & /admin/dashboard)
@@ -767,6 +771,8 @@ export default function App({
         <FloatingContactWidget
           whatsappLink={whatsappLink}
           whatsappNumber={whatsappNumber}
+          callNumber={callNumber}
+          messengerLink={messengerLink}
         />
       </div>
     );
@@ -824,6 +830,8 @@ export default function App({
         <FloatingContactWidget
           whatsappLink={whatsappLink}
           whatsappNumber={whatsappNumber}
+          callNumber={callNumber}
+          messengerLink={messengerLink}
         />
       </div>
     );
@@ -1176,7 +1184,24 @@ export default function App({
                 </div>
 
                 {/* Skills Pathway */}
-                <div className="glass-card rounded-[24px] overflow-hidden flex flex-col">
+                <div
+                  role="link"
+                  tabIndex={0}
+                  aria-label="দেশসেরা স্কিল প্ল্যাটফর্ম — সকল স্কিলস কোর্স দেখুন"
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.getSelection()?.toString()) {
+                      return;
+                    }
+                    navigate('/skills');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      navigate('/skills');
+                    }
+                  }}
+                  className="glass-card rounded-[24px] overflow-hidden flex flex-col cursor-pointer group select-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/60"
+                >
                   <div className="h-28 bg-gradient-to-br from-rose-600/95 via-[#b91c1c]/95 to-[#4c0519]/95 p-5 flex items-center justify-between text-white">
                     <div>
                       <span className="text-[11px] font-bold tracking-wider text-rose-100">
@@ -1186,7 +1211,10 @@ export default function App({
                         দেশসেরা স্কিল প্ল্যাটফর্ম
                       </h3>
                     </div>
-                    <Terminal className="w-9 h-9 text-white/85 shrink-0" aria-hidden="true" />
+                    <Terminal
+                      className="w-9 h-9 text-white/85 shrink-0 transition-transform duration-200 group-hover:scale-105"
+                      aria-hidden="true"
+                    />
                   </div>
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>
@@ -1197,17 +1225,42 @@ export default function App({
                         Spoken English · IELTS Complete · Web Dev · মার্কেটিং
                       </div>
                     </div>
-                    <a
-                      className="w-full text-center py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white text-xs sm:text-sm font-bold shadow-[0_8px_20px_-8px_rgba(37,99,235,0.55)] transition"
-                      href="#skills-section"
+                    <Link
+                      className="w-full text-center py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white text-xs sm:text-sm font-bold shadow-[0_8px_20px_-8px_rgba(37,99,235,0.55)] transition block"
+                      href="/skills"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                          return;
+                        }
+                        e.preventDefault();
+                        navigate('/skills');
+                      }}
                     >
                       সকল স্কিলস কোর্স দেখুন →
-                    </a>
+                    </Link>
                   </div>
                 </div>
 
                 {/* Admission Pathway */}
-                <div className="glass-card rounded-[24px] overflow-hidden flex flex-col">
+                <div
+                  role="link"
+                  tabIndex={0}
+                  aria-label="ভার্সিটি + গুচ্ছ এডমিশন — এডমিশন কোর্সসমূহ দেখুন"
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.getSelection()?.toString()) {
+                      return;
+                    }
+                    navigate('/admission');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      navigate('/admission');
+                    }
+                  }}
+                  className="glass-card rounded-[24px] overflow-hidden flex flex-col cursor-pointer group select-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/60"
+                >
                   <div className="h-28 bg-gradient-to-br from-[#be123c]/95 via-[#9f1239]/95 to-[#7f1d1d]/95 p-5 flex items-center justify-between text-white">
                     <div>
                       <span className="text-[11px] font-bold tracking-wider text-rose-200">
@@ -1217,7 +1270,10 @@ export default function App({
                         ভার্সিটি + গুচ্ছ এডমিশন
                       </h3>
                     </div>
-                    <Landmark className="w-9 h-9 text-white/85 shrink-0" aria-hidden="true" />
+                    <Landmark
+                      className="w-9 h-9 text-white/85 shrink-0 transition-transform duration-200 group-hover:scale-105"
+                      aria-hidden="true"
+                    />
                   </div>
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>
@@ -1228,12 +1284,20 @@ export default function App({
                         Unit A (Science) · Unit B (Arts) · Unit C (Commerce)
                       </div>
                     </div>
-                    <a
-                      className="w-full text-center py-2.5 rounded-full bg-gradient-to-r from-[#be123c] to-[#881337] hover:from-[#e11d48] hover:to-[#9f1239] text-white text-xs sm:text-sm font-bold shadow-[0_8px_20px_-8px_rgba(190,18,60,0.6)] transition"
-                      href="#admission-section"
+                    <Link
+                      className="w-full text-center py-2.5 rounded-full bg-gradient-to-r from-[#be123c] to-[#881337] hover:from-[#e11d48] hover:to-[#9f1239] text-white text-xs sm:text-sm font-bold shadow-[0_8px_20px_-8px_rgba(190,18,60,0.6)] transition block"
+                      href="/admission"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                          return;
+                        }
+                        e.preventDefault();
+                        navigate('/admission');
+                      }}
                     >
                       এডমিশন কোর্সসমূহ দেখুন →
-                    </a>
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -1518,15 +1582,48 @@ export default function App({
                     </div>
                   </div>
                 </div>
-                <a
-                  className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs sm:text-sm font-bold px-6 py-3 rounded-full transition shrink-0 whitespace-nowrap shadow-md hover:-translate-y-0.5 active:translate-y-0"
-                  href={whatsappLink}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <MessageCircle className="w-5 h-5" aria-hidden="true" />
-                  <span>{whatsappNumber} (WhatsApp)</span>
-                </a>
+                <div className="flex flex-wrap items-center justify-center md:justify-end gap-2.5 sm:gap-3 shrink-0">
+                  {/* Direct Phone Call */}
+                  <a
+                    href={telHref}
+                    aria-label={`সরাসরি কল করুন ${callNumber}`}
+                    title={`সরাসরি কল করুন (${callNumber})`}
+                    className="flex items-center gap-2 bg-gradient-to-r from-[#dc2626] to-[#eb1c24] hover:from-[#b91c1c] hover:to-[#dc2626] text-white text-xs sm:text-sm font-bold px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition shrink-0 whitespace-nowrap shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    <Phone className="w-4 h-4 sm:w-[18px] sm:h-[18px] shrink-0" aria-hidden="true" />
+                    <span>{callNumber}</span>
+                  </a>
+
+                  {/* Direct WhatsApp */}
+                  <a
+                    href={whatsappLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="হোয়াটসঅ্যাপে সরাসরি চ্যাট করুন"
+                    title="হোয়াটসঅ্যাপে সরাসরি চ্যাট করুন"
+                    className="flex items-center gap-2 bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white text-xs sm:text-sm font-bold px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition shrink-0 whitespace-nowrap shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px] fill-white shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm5.78 14.15c-.24.67-1.39 1.28-1.92 1.36-.5.08-1.14.12-3.66-.92-3.22-1.33-5.3-4.57-5.46-4.78-.16-.21-1.3-1.73-1.3-3.3 0-1.57.82-2.34 1.11-2.66.29-.32.64-.4.85-.4.21 0 .43.002.61.01.2.008.47-.076.73.55.27.64.91 2.22.99 2.38.08.16.13.35.03.56-.1.21-.16.34-.31.52-.16.18-.33.4-.47.54-.16.15-.32.32-.14.63.19.31.83 1.37 1.78 2.22 1.22 1.09 2.25 1.42 2.57 1.58.32.16.51.13.7-.08.19-.21.82-.95 1.04-1.28.22-.32.43-.27.73-.16.29.11 1.87.88 2.19 1.04.32.16.53.24.61.37.08.14.08.79-.16 1.46z" />
+                    </svg>
+                    <span>WhatsApp</span>
+                  </a>
+
+                  {/* Direct Facebook Messenger */}
+                  <a
+                    href={messengerLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="মেসেঞ্জারে সরাসরি নক দিন"
+                    title="মেসেঞ্জারে সরাসরি নক দিন"
+                    className="flex items-center gap-2 bg-gradient-to-r from-[#0084FF] to-[#006AFF] hover:from-[#006AFF] hover:to-[#0052cc] text-white text-xs sm:text-sm font-bold px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition shrink-0 whitespace-nowrap shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px] fill-white shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.91 1.455 5.518 3.734 7.227V22l3.373-1.851c.917.254 1.888.39 2.893.39 5.523 0 10-4.145 10-9.258C22 6.145 17.523 2 12 2zm1.066 12.443l-2.585-2.756-5.045 2.756 5.55-5.892 2.65 2.756 4.98-2.756-5.55 5.892z" />
+                    </svg>
+                    <span>Messenger</span>
+                  </a>
+                </div>
               </div>
             </div>
           </section>
@@ -1547,11 +1644,12 @@ export default function App({
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav activeTab={getMobileActiveTab()} onTabChange={handleMobileNav} />
 
-      {/* Floating WhatsApp and Message Contact Stack */}
+      {/* Floating Call, WhatsApp and Messenger Contact Stack */}
       <FloatingContactWidget
         whatsappLink={whatsappLink}
         whatsappNumber={whatsappNumber}
-        messengerLink={settings?.messengerLink || 'https://m.me/10minuteschool'}
+        callNumber={callNumber}
+        messengerLink={messengerLink}
       />
     </div>
   );

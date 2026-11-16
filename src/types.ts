@@ -57,6 +57,7 @@ export interface SiteSettings {
   siteTitle: string;
   whatsappNumber: string;
   whatsappLink: string;
+  callNumber?: string;
   messengerLink?: string;
   heroBadge: string;
   heroTitle: string;

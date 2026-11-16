@@ -36,8 +36,8 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
   onDownloadZip,
   isDownloadingZip = false,
   authToken,
-  whatsappNumber = '01600-000000',
-  whatsappLink = 'https://wa.me/8801600000000',
+  whatsappNumber = '+880 1625171822',
+  whatsappLink = 'https://wa.me/8801625171822',
 }) => {
   // Modal for Policy / Information popups
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -523,7 +523,14 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   <div className="flex items-start gap-2.5">
                     <Phone className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-bold text-white text-xs">16910 / +880 1324-722311</div>
+                      <a
+                        href={whatsappLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold text-white text-xs hover:text-emerald-300 transition inline-block"
+                      >
+                        {whatsappNumber} (WhatsApp)
+                      </a>
                       <div className="text-[10.5px] text-rose-200/80">সকাল ৮টা থেকে রাত ১১টা</div>
                     </div>
                   </div>
@@ -531,7 +538,12 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   <div className="flex items-start gap-2.5">
                     <Mail className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-bold text-white text-xs">support@10msallcourse.com</div>
+                      <a
+                        href="mailto:raselmahmud0755@gmail.com"
+                        className="font-bold text-white text-xs hover:text-rose-200 transition inline-block break-all"
+                      >
+                        raselmahmud0755@gmail.com
+                      </a>
                       <div className="text-[10.5px] text-rose-200/80">যেকোনো জিজ্ঞাসা ও সহায়তায়</div>
                     </div>
                   </div>
@@ -539,7 +551,9 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   <div className="flex items-start gap-2.5">
                     <MapPin className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-bold text-white text-xs">কাওরান বাজার, ঢাকা-১২১৫</div>
+                      <div className="font-bold text-white text-xs leading-relaxed">
+                        (মহাখালী): লিফট-৭, ব্লক-১০৮, রোড-৮, মহাখালী ডিওএইচএস, ঢাকা
+                      </div>
                       <div className="text-[10.5px] text-rose-200/80">বাংলাদেশ</div>
                     </div>
                   </div>

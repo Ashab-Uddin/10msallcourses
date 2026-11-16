@@ -131,6 +131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Settings form local state
   const [siteTitle, setSiteTitle] = useState('');
+  const [callNumber, setCallNumber] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [whatsappLink, setWhatsappLink] = useState('');
   const [messengerLink, setMessengerLink] = useState('');
@@ -241,6 +242,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (data.settings) {
         setSettings(data.settings);
         setSiteTitle(data.settings.siteTitle || '');
+        setCallNumber(data.settings.callNumber || data.settings.whatsappNumber || '');
         setWhatsappNumber(data.settings.whatsappNumber || '');
         setWhatsappLink(data.settings.whatsappLink || '');
         setMessengerLink(data.settings.messengerLink || 'https://m.me/10minuteschool');
@@ -506,6 +508,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const payload = {
         siteTitle: siteTitle.trim(),
+        callNumber: callNumber.trim(),
         whatsappNumber: whatsappNumber.trim(),
         whatsappLink: whatsappLink.trim(),
         messengerLink: messengerLink.trim(),
@@ -1164,18 +1167,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* ===================================================== */
             /* VIEW 3: COURSES DIRECTORY & MANAGEMENT TABLE          */
             /* ===================================================== */
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Header Banner */}
               <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-2xl font-black text-[#2A0F12] tracking-tight leading-snug">
                     {activeTab === 'active_courses'
                       ? 'চালু কোর্সসমূহ (Active Courses)'
                       : activeTab === 'inactive_courses'
                       ? 'বন্ধ কোর্সসমূহ (Inactive Courses)'
                       : 'সকল কোর্স তালিকা (All Courses Directory)'}
                   </h1>
-                  <p className="text-xs text-[#6B4C4F] mt-1">
+                  <p className="text-xs text-[#6B4C4F] mt-1 leading-relaxed">
                     {activeTab === 'active_courses'
                       ? 'এই কোর্সগুলো পাবলিক ওয়েবসাইটে শিক্ষার্থীদের জন্য ভর্তি উন্মুক্ত রয়েছে।'
                       : activeTab === 'inactive_courses'
@@ -1187,7 +1190,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => handleTabSwitch('add_course')}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer shrink-0"
+                  className="w-full sm:w-auto justify-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer shrink-0"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>নতুন কোর্স যোগ করুন</span>
@@ -1196,8 +1199,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* Inactive notice if in inactive tab */}
               {activeTab === 'inactive_courses' && (
-                <div className="glass-surface p-4 rounded-2xl border border-amber-300/70 bg-amber-50/75 text-amber-900 text-xs font-bold flex items-center gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <div className="glass-surface p-4 rounded-2xl border border-amber-300/70 bg-amber-50/75 text-amber-900 text-xs font-bold flex items-start sm:items-center gap-2.5 leading-relaxed">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
                   <span>
                     বন্ধ কোর্সগুলো পাবলিক ওয়েবসাইটে প্রদর্শিত হবে তবে &ldquo;ভর্তি বন্ধ রয়েছে&rdquo; দেখাবে এবং এনরোল বাটন ডিজেবল থাকবে। যেকোনো সময় &ldquo;চালু&rdquo; বাটনে ক্লিক করে আবার লাইভ করতে পারেন।
                   </span>
@@ -1205,7 +1208,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
 
               {/* Filter Controls Strip */}
-              <div className="glass-surface rounded-3xl p-4 sm:p-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="glass-surface rounded-3xl p-4 sm:p-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3">
                 {/* Search Input */}
                 <div className="relative flex-1">
                   <Search className="w-4 h-4 text-[#6B4C4F] absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -1229,11 +1232,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {/* Dropdown Filters */}
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:flex-wrap">
                   <select
                     value={filterCat}
                     onChange={(e) => setFilterCat(e.target.value)}
-                    className="px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
+                    className="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="all">সব ক্যাটাগরি ({toBengaliNumber(courses.length)})</option>
                     {categories.map((c) => (
@@ -1247,7 +1250,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <select
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
-                      className="px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
+                      className="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
                     >
                       <option value="all">সব স্ট্যাটাস</option>
                       <option value="active">চালু (Active)</option>
@@ -1265,7 +1268,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         setFilterCat('all');
                         setFilterStatus('all');
                       }}
-                      className="px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] text-xs font-bold transition cursor-pointer"
+                      className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] text-xs font-bold transition cursor-pointer text-center"
                     >
                       রিসেট
                     </button>
@@ -1273,9 +1276,214 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
-              {/* Main Courses Table */}
+              {/* Main Courses Container: Mobile Cards (< md) + Desktop/Tablet Table (>= md) */}
               <div className="glass-strong rounded-3xl overflow-hidden">
-                <div className="overflow-x-auto">
+                {/* Mobile Card List (Mirrors OfferTimerManager Responsive Card Design) */}
+                <div className="md:hidden p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-2 border-b border-rose-200/50 pb-3">
+                    <div className="min-w-0">
+                      <h2 className="text-sm font-black text-[#2A0F12] truncate">
+                        {activeTab === 'active_courses'
+                          ? 'চালু কোর্স তালিকা'
+                          : activeTab === 'inactive_courses'
+                          ? 'বন্ধ কোর্স তালিকা'
+                          : 'সকল কোর্স তালিকা'}
+                      </h2>
+                      <p className="text-[11px] text-[#6B4C4F] mt-0.5">
+                        কোর্স প্রিভিউ, এডিট ও স্ট্যাটাস নিয়ন্ত্রণ করুন।
+                      </p>
+                    </div>
+                    <span className="shrink-0 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200/80 text-[#b91c1c] text-[11px] font-extrabold tabular-nums">
+                      {toBengaliNumber(displayedCourses.length)}টি
+                    </span>
+                  </div>
+
+                  {displayedCourses.length === 0 ? (
+                    <div className="py-10 text-center space-y-2 text-[#6B4C4F]">
+                      <BookOpen className="w-9 h-9 text-rose-300 mx-auto" />
+                      <p className="text-sm font-bold text-[#2A0F12]">
+                        কোনো কোর্স পাওয়া যায়নি
+                      </p>
+                      <p className="text-xs">
+                        অনুসন্ধান শব্দ অথবা ফিল্টার পরিবর্তন করে আবার চেষ্টা করুন।
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {displayedCourses.map((course) => {
+                        const isToggling = statusTogglingId === course.id;
+                        const categoryLabel =
+                          categoryNameBySlug.get(course.categorySlug) || course.categorySlug;
+
+                        return (
+                          <div
+                            key={course.id}
+                            className="glass-card rounded-2xl p-4 space-y-3 border border-rose-200/60 overflow-hidden"
+                          >
+                            {/* Top Row: Thumbnail + Title + Status Badge + Slug/Badges */}
+                            <div className="flex items-start gap-3 min-w-0">
+                              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#ff5252] to-[#b91c1c] shrink-0 overflow-hidden border border-rose-200 flex items-center justify-center">
+                                {course.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={course.imageUrl}
+                                    alt={course.title}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-[9px] font-black text-white">
+                                    10MS
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex flex-wrap items-start justify-between gap-1.5 min-w-0">
+                                  <h3 className="text-xs font-black text-[#2A0F12] leading-snug break-words min-w-0 flex-1">
+                                    {course.title}
+                                  </h3>
+                                  <span
+                                    className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-extrabold ${
+                                      course.status === 'active'
+                                        ? 'bg-emerald-100/90 text-emerald-800 border-emerald-300'
+                                        : 'bg-amber-100/90 text-amber-800 border-amber-300'
+                                    }`}
+                                  >
+                                    {course.status === 'active'
+                                      ? 'চালু (Active)'
+                                      : 'ভর্তি বন্ধ (Inactive)'}
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[#6B4C4F]">
+                                  <span className="font-mono text-[10px] break-all">
+                                    /go/{course.slug}
+                                  </span>
+                                  {course.shortBadge && (
+                                    <span className="text-[#b91c1c] font-semibold">
+                                      • {course.shortBadge}
+                                    </span>
+                                  )}
+                                  {course.isPopular && (
+                                    <span className="text-amber-600 font-bold">
+                                      ★ জনপ্রিয়
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Inset Info Box (Matches Timer Card Metadata Box) */}
+                            <div className="grid grid-cols-2 gap-2 text-[11px] bg-white/80 rounded-xl p-2.5 border border-rose-100">
+                              <div className="min-w-0">
+                                <span className="text-[10px] text-[#6B4C4F] block">
+                                  ক্যাটাগরি:
+                                </span>
+                                <span className="font-semibold text-[#2A0F12] break-words">
+                                  {categoryLabel}
+                                </span>
+                              </div>
+
+                              <div className="min-w-0">
+                                <span className="text-[10px] text-[#6B4C4F] block">
+                                  মূল্য ও ছাড়:
+                                </span>
+                                <div className="flex flex-wrap items-baseline gap-x-1.5">
+                                  <span className="font-mono font-bold text-emerald-700 tabular-nums">
+                                    ৳{toBengaliNumber(course.discountPrice)}
+                                  </span>
+                                  {course.originalPrice > course.discountPrice && (
+                                    <span className="text-[10px] text-[#6B4C4F]/75 line-through font-mono tabular-nums">
+                                      ৳{toBengaliNumber(course.originalPrice)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="col-span-2 pt-1.5 border-t border-rose-100 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-bold text-[#6B4C4F]">
+                                  ছাড় ও ক্লিক:
+                                </span>
+                                <span className="font-mono font-bold text-[#b91c1c] tabular-nums">
+                                  {course.originalPrice > course.discountPrice
+                                    ? `${toBengaliNumber(course.discountPercent)}% ছাড় • `
+                                    : ''}
+                                  {toBengaliNumber(course.clickCount || 0)} ক্লিক
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons Row */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewingCourse(course)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-[#6B4C4F] hover:border-[#eb1c24] hover:text-[#eb1c24] transition cursor-pointer shrink-0"
+                                title="কার্ড প্রিভিউ দেখুন"
+                                aria-label="কার্ড প্রিভিউ দেখুন"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span className="hidden min-[420px]:inline">Preview</span>
+                              </button>
+
+                              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingCourse(course);
+                                    setActiveTab('course_editor');
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] transition cursor-pointer"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                  <span>Edit</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleStatus(course)}
+                                  disabled={isToggling}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
+                                    course.status === 'active'
+                                      ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  }`}
+                                  title="স্ট্যাটাস পরিবর্তন করতে ক্লিক করুন"
+                                >
+                                  {course.status === 'active' ? (
+                                    <>
+                                      <XCircle className="w-3.5 h-3.5" />
+                                      <span>{isToggling ? 'আপডেট...' : 'বন্ধ করুন'}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>{isToggling ? 'আপডেট...' : 'চালু করুন'}</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteModalCourse(course)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-xs font-bold text-[#b91c1c] hover:bg-[#eb1c24] hover:text-white transition cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop & Tablet Table (Unchanged) */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-rose-50/75 border-b border-rose-200/50 text-[#6B4C4F] font-bold uppercase text-[10px] tracking-wider">
@@ -1428,7 +1636,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {/* Table Footer Count */}
-                <div className="bg-white/50 border-t border-rose-200/50 px-4 py-3 text-xs text-[#6B4C4F] font-semibold flex items-center justify-between tabular-nums">
+                <div className="bg-white/50 border-t border-rose-200/50 px-4 py-3 text-xs text-[#6B4C4F] font-semibold flex flex-wrap items-center justify-between gap-2 tabular-nums">
                   <span>মোট প্রদর্শিত: {toBengaliNumber(displayedCourses.length)}টি কোর্স</span>
                   <span>মোট ডাটাবেস কোর্স: {toBengaliNumber(courses.length)}টি</span>
                 </div>
@@ -1555,7 +1763,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   পোর্টাল সেটিংস ও যোগাযোগ (Settings & Direct Contact)
                 </h1>
                 <p className="text-xs text-[#6B4C4F] mt-1">
-                  সাইট টাইটেল, অফিশিয়াল হোয়াটসঅ্যাপ নম্বর, মেসেঞ্জার লিংক এবং হোমপেজ টেক্সট নিয়ন্ত্রণ।
+                  সাইট টাইটেল, ডিরেক্ট কল নম্বর, অফিশিয়াল হোয়াটসঅ্যাপ নম্বর, মেসেঞ্জার লিংক এবং হোমপেজ টেক্সট নিয়ন্ত্রণ।
                 </p>
               </div>
 
@@ -1582,8 +1790,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {/* 2. Direct Contact Channels */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-black text-[#2A0F12] border-b border-rose-200/50 pb-2">
-                    সরাসরি যোগাযোগ চ্যানেল (WhatsApp & Facebook Messenger)
+                    সরাসরি যোগাযোগ চ্যানেল (Call, WhatsApp & Facebook Messenger)
                   </h3>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                      ডিরেক্ট কল হেল্পলাইন নম্বর (Direct Call Number)
+                    </label>
+                    <input
+                      type="tel"
+                      value={callNumber}
+                      onChange={(e) => setCallNumber(e.target.value)}
+                      placeholder="+880 1625171822"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
+                    />
+                    <p className="text-[11px] text-[#6B4C4F] mt-1">
+                      সাপোর্ট বার এবং ফ্লোটিং কল আইকনে ক্লিক করলে শিক্ষার্থী সরাসরি এই নম্বরে কল করতে পারবে।
+                    </p>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -1625,7 +1849,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
                     />
                     <p className="text-[11px] text-[#6B4C4F] mt-1">
-                      ফ্লোটিং মেসেঞ্জার বাটনে ক্লিক করলে শিক্ষার্থী সরাসরি আপনার ফেসবুক পেজের ইনবক্সে চলে যাবে।
+                      ফ্লোটিং মেসেঞ্জার ও সাপোর্ট বারের মেসেঞ্জার আইকনে ক্লিক করলে শিক্ষার্থী সরাসরি আপনার ফেসবুক পেজের ইনবক্সে চলে যাবে।
                     </p>
                   </div>
                 </div>
