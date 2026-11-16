@@ -973,5 +973,5 @@ export const INITIAL_SETTINGS: SiteSettings = {
   countdownTargetCourse: 'all',
   countdownTargetDate: '',
   defaultAffiliateRef: '10ms_affiliate',
-  updatedAt: '2026-01-01T00:00:00Z',
+  updatedAt: new Date().toISOString(),
 };

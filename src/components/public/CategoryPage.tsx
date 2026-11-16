@@ -110,8 +110,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
       c.title.toLowerCase().includes(q) ||
       c.description.toLowerCase().includes(q) ||
       c.headerTitle.toLowerCase().includes(q) ||
-      c.headerSubtitle.toLowerCase().includes(q) ||
-      (c.targetStudents || '').toLowerCase().includes(q);
+      c.headerSubtitle.toLowerCase().includes(q);
 
     const matchesPrice =
       priceFilter === 'all' ||

@@ -1,14 +1,11 @@
+'use client';
+
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import Link from 'next/link';
 import { Category, ClickRecord, Course, SiteSettings } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { CourseEditorPage } from './CourseEditorPage.tsx';
 import { CourseCard } from '../public/CourseCard.tsx';
-import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
-import { AdminNavbar } from './AdminNavbar.tsx';
-import { AdminFooter } from './AdminFooter.tsx';
 import {
-  LayoutDashboard,
   BookOpen,
   PlusCircle,
   CheckCircle2,
@@ -17,19 +14,22 @@ import {
   Settings,
   LogOut,
   Search,
+  Filter,
   Eye,
   Edit,
   Trash2,
+  Power,
   X,
+  Check,
   Sparkles,
   Clock,
+  Users,
   AlertCircle,
   ArrowRight,
+  TrendingUp,
+  Tag,
   RefreshCw,
   ChevronRight,
-  ShieldCheck,
-  ExternalLink,
-  SlidersHorizontal,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -61,10 +61,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onNavigate,
   onLogout,
   onDataMutated,
-  onDownloadZip,
 }) => {
-  // Determine initial tab from currentPath
-  const getTabFromPath = (p: string): AdminPageTab => {
+  // Determine initial tab from currentPath or URL
+  const getInitialTab = (): AdminPageTab => {
+    const p = typeof window !== 'undefined' ? window.location.pathname : currentPath;
     if (p.includes('/admin/courses/new')) return 'add_course';
     if (p.includes('/admin/courses/active')) return 'active_courses';
     if (p.includes('/admin/courses/inactive')) return 'inactive_courses';
@@ -74,7 +74,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return 'overview';
   };
 
-  const [activeTab, setActiveTab] = useState<AdminPageTab>(() => getTabFromPath(currentPath));
+  const [activeTab, setActiveTab] = useState<AdminPageTab>(getInitialTab);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +85,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     totalCourses: 0,
     activeCourses: 0,
     inactiveCourses: 0,
+    draftCourses: 0,
     popularCourses: 0,
     totalClicks: 0,
   });
@@ -139,18 +140,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }, 3500);
   };
 
-  // Sync tab with external route change without calling setState synchronously inside useEffect
-  const [prevPath, setPrevPath] = useState(currentPath);
-  if (currentPath !== prevPath) {
-    setPrevPath(currentPath);
+  // Sync tab with external route change
+  useEffect(() => {
     if (currentPath) {
-      const nextTab = getTabFromPath(currentPath);
-      setActiveTab(nextTab);
-      if (nextTab === 'add_course') {
+      if (currentPath.includes('/admin/courses/new')) {
+        setActiveTab('add_course');
         setEditingCourse(null);
+      } else if (currentPath.includes('/admin/courses/active')) {
+        setActiveTab('active_courses');
+      } else if (currentPath.includes('/admin/courses/inactive')) {
+        setActiveTab('inactive_courses');
+      } else if (currentPath.includes('/admin/courses')) {
+        setActiveTab('all_courses');
+      } else if (currentPath.includes('/admin/categories')) {
+        setActiveTab('categories');
+      } else if (currentPath.includes('/admin/settings')) {
+        setActiveTab('settings');
+      } else if (currentPath.includes('/admin/overview') || currentPath.includes('/admin/dashboard')) {
+        setActiveTab('overview');
       }
     }
-  }
+  }, [currentPath]);
 
   // Tab switcher with URL pushState
   const handleTabSwitch = (tab: AdminPageTab) => {
@@ -216,23 +226,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [authToken]);
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      await Promise.resolve();
-      if (active) {
-        await fetchDashboardData();
-      }
-    };
-    void load();
-    return () => {
-      active = false;
-    };
+    fetchDashboardData();
   }, [fetchDashboardData]);
 
   // Synchronize browser URL on popstate
   useEffect(() => {
     const handlePopState = () => {
-      setActiveTab(getTabFromPath(window.location.pathname));
+      setActiveTab(getInitialTab());
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -511,75 +511,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleNavigateHome = () => {
-    if (onNavigate) {
-      onNavigate('/');
-    } else if (typeof window !== 'undefined') {
-      window.location.href = '/';
-    }
-  };
-
-  // Keep admin destinations in one place with consistent icons and counters
+  // Keep admin destinations in one place to avoid duplicating navigation.
   const sidebarNavItems = [
-    {
-      id: 'overview' as AdminPageTab,
-      label: 'Overview',
-      icon: <LayoutDashboard className="w-4 h-4 shrink-0" />,
-    },
-    {
-      id: 'all_courses' as AdminPageTab,
-      label: 'All Courses',
-      icon: <BookOpen className="w-4 h-4 shrink-0" />,
-      badge: stats.totalCourses,
-    },
-    {
-      id: 'add_course' as AdminPageTab,
-      label: 'Add New Course',
-      icon: <PlusCircle className="w-4 h-4 shrink-0" />,
-    },
-    {
-      id: 'active_courses' as AdminPageTab,
-      label: 'Active Courses',
-      icon: <CheckCircle2 className="w-4 h-4 shrink-0" />,
-      badge: stats.activeCourses,
-    },
-    {
-      id: 'inactive_courses' as AdminPageTab,
-      label: 'Inactive Courses',
-      icon: <XCircle className="w-4 h-4 shrink-0" />,
-      badge: stats.inactiveCourses,
-    },
-    {
-      id: 'categories' as AdminPageTab,
-      label: 'Course Categories',
-      icon: <Layers className="w-4 h-4 shrink-0" />,
-      badge: categories.length,
-    },
-    {
-      id: 'settings' as AdminPageTab,
-      label: 'Settings',
-      icon: <Settings className="w-4 h-4 shrink-0" />,
-    },
+    { id: 'overview' as AdminPageTab, label: 'Overview' },
+    { id: 'all_courses' as AdminPageTab, label: 'All Courses', badge: stats.totalCourses },
+    { id: 'add_course' as AdminPageTab, label: 'Add New Course' },
+    { id: 'active_courses' as AdminPageTab, label: 'Active Courses', badge: stats.activeCourses },
+    { id: 'inactive_courses' as AdminPageTab, label: 'Inactive Courses', badge: stats.inactiveCourses },
+    { id: 'categories' as AdminPageTab, label: 'Course Categories', badge: categories.length },
+    { id: 'settings' as AdminPageTab, label: 'Settings' },
   ];
 
-  // Keep recentClicks referenced cleanly for overview analytics summary if available
-  const totalRecentClicks = recentClicks.length;
-
   return (
-    <div className="relative min-h-screen text-[#2A0F12] flex flex-col">
-      {/* Main Website Ambient Frosted Glass Backdrop */}
-      <GlassAmbientBackdrop />
-
+    <div className="min-h-screen bg-gradient-to-br from-[#FFF5F5] via-[#FFF8F8] to-[#FDF2F2] text-[#2A0F12] flex flex-col font-sans">
       {/* Toast Notification Container */}
       {toast && (
-        <div className="fixed top-20 right-4 sm:right-6 z-[60] animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
           <div
-            className={`px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-xl text-xs sm:text-sm font-bold flex items-center gap-2.5 max-w-md ${
+            className={`px-4 py-3 rounded-2xl shadow-xl border text-xs sm:text-sm font-bold flex items-center gap-2.5 max-w-md ${
               toast.type === 'success'
-                ? 'bg-emerald-50/95 text-emerald-900 border-emerald-300'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
                 : toast.type === 'error'
-                ? 'bg-rose-50/95 text-rose-900 border-rose-300'
-                : 'bg-[#2A0F12]/95 text-white border-rose-900'
+                ? 'bg-rose-50 text-rose-900 border-rose-300'
+                : 'bg-slate-900 text-white border-slate-700'
             }`}
           >
             {toast.type === 'success' ? (
@@ -594,94 +548,99 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               type="button"
               onClick={() => setToast(null)}
               className="ml-auto text-slate-400 hover:text-slate-700 font-bold cursor-pointer"
-              aria-label="Close notification"
             >
-              <X className="w-4 h-4" />
+              ✕
             </button>
           </div>
         </div>
       )}
 
-      {/* 1. DEDICATED ADMIN FLOATING NAVBAR (Main Website Theme, Admin Content) */}
-      <AdminNavbar
-        activeTab={activeTab}
-        onSelectTab={handleTabSwitch}
-        onNavigateHome={handleNavigateHome}
-        onRequestLogout={() => setShowLogoutConfirm(true)}
-        adminName={adminName}
-        adminEmail={adminEmail}
-        stats={stats}
-        categoriesCount={categories.length}
-      />
+      <header className="sticky top-0 z-40 border-b border-rose-100/80 bg-white/80 backdrop-blur-xl shadow-[0_8px_28px_-18px_rgba(80,20,30,0.3)]">
+        <div className="mx-auto flex min-h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-6">
+          <a
+            href="/"
+            className="shrink-0 rounded-xl border border-rose-200/80 bg-white/70 px-3 py-2 text-xs font-bold text-[#8f242c] transition hover:border-rose-300 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+          >
+            Public Website
+          </a>
+          <a
+            href="/"
+            aria-label="10 Minute School homepage"
+            className="flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+          >
+            <img
+              src="/images/logo-transparent.png"
+              alt="10 Minute School"
+              className="h-8 w-auto max-w-[120px] object-contain sm:max-w-[150px]"
+            />
+            <span className="hidden border-l border-rose-200 pl-2 text-xs font-bold text-[#6B4C4F] sm:inline">
+              Admin Portal
+            </span>
+          </a>
+          <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-4">
+            <span className="hidden max-w-48 truncate text-xs font-semibold text-[#6B4C4F] md:inline">
+              {adminName || adminEmail || 'Admin Manager'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="shrink-0 rounded-xl border border-rose-200/80 bg-white/70 px-3 py-2 text-xs font-bold text-[#8f242c] transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+      </header>
 
-      {/* Mobile Quick Section Strip (Visible below lg breakpoint) */}
-      <div className="relative z-20 lg:hidden max-w-[1440px] w-full mx-auto px-3 sm:px-6 pt-4">
-        <div className="glass-surface rounded-2xl p-2 flex items-center justify-between gap-2">
+      {/* Mobile Sidebar Quick Toggle Bar (Visible on Mobile/Tablet) */}
+      <div className="sticky top-16 z-30 flex items-center justify-between border-b border-rose-100 bg-white/75 px-4 py-2.5 backdrop-blur-md lg:hidden">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             aria-expanded={mobileSidebarOpen}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] px-3 py-1.5 text-xs font-bold text-white shadow-sm cursor-pointer shrink-0"
+            className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-[#b91c1c] transition hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>মেনু</span>
+            Admin menu
           </button>
-
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            {sidebarNavItems.map((item) => {
-              const isActive =
-                activeTab === item.id ||
-                (activeTab === 'course_editor' && item.id === 'all_courses');
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleTabSwitch(item.id)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
-                    isActive
-                      ? 'bg-rose-50 text-[#eb1c24] border border-rose-200/80 shadow-2xs'
-                      : 'text-[#6B4C4F] hover:text-[#2A0F12] hover:bg-white/70'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
+          <span className="truncate text-xs font-bold text-slate-700">
+            {sidebarNavItems.find((i) => i.id === activeTab)?.label || 'Overview'}
+          </span>
         </div>
       </div>
 
-      {/* 2. MIDDLE WORKSPACE: GLASS SIDEBAR + MAIN CONTENT */}
-      <div className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-3 sm:px-6 py-5 sm:py-7 flex flex-col lg:flex-row gap-6 items-start">
-        {/* LEFT SIDEBAR (7 Admin Views) */}
+      {/* ========================================================= */}
+      {/* 2. MIDDLE CONTAINER: MODERN LEFT SIDEBAR + CONTENT AREA   */}
+      {/* ========================================================= */}
+      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 items-start">
+        
+        {/* MODERN LEFT SIDEBAR (Strictly 7 Menu Items) */}
         <aside
           className={`w-full lg:w-72 shrink-0 lg:sticky lg:top-24 space-y-4 ${
             mobileSidebarOpen ? 'block' : 'hidden lg:block'
           }`}
         >
-          <div className="glass-strong rounded-3xl p-4 sm:p-5 space-y-4">
-            {/* Sidebar Identity Header */}
-            <div className="flex items-center justify-between gap-3 px-2 border-b border-rose-200/50 pb-4">
+          <div className="bg-white/85 backdrop-blur-xl rounded-3xl p-4 sm:p-5 border border-rose-100/90 shadow-[0_10px_35px_-10px_rgba(226,43,43,0.08)] space-y-4">
+            
+            {/* Sidebar Brand / Identity Header */}
+            <div className="flex items-center gap-3 px-2 py-1 border-b border-rose-100/80 pb-4">
               <div className="min-w-0">
                 <div className="text-sm font-black text-[#2A0F12] tracking-tight flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-[#E22B2B] shrink-0" />
                   <span className="truncate">Admin Portal</span>
+                  <span className="bg-rose-100 text-[#b91c1c] text-[10px] font-extrabold px-1.5 py-0.2 rounded-md shrink-0">
+                    PRO
+                  </span>
                 </div>
-                <div className="text-[11px] font-medium text-[#6B4C4F] truncate mt-0.5">
+                <div className="text-[11px] font-medium text-[#6B4C4F] truncate">
                   কোর্স ম্যানেজমেন্ট ড্যাশবোর্ড
                 </div>
               </div>
-              <span className="bg-rose-100/90 text-[#b91c1c] border border-rose-200/70 text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0">
-                v2.5
-              </span>
             </div>
 
             {/* Navigation Menu List */}
             <nav className="space-y-1.5 select-none" aria-label="Admin Navigation">
               {sidebarNavItems.map((item) => {
-                const isActive =
-                  activeTab === item.id ||
-                  (activeTab === 'course_editor' && item.id === 'all_courses');
+                const isActive = activeTab === item.id;
 
                 return (
                   <button
@@ -690,23 +649,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onClick={() => handleTabSwitch(item.id)}
                     className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                       isActive
-                        ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_8px_22px_-6px_rgba(226,43,43,0.45)]'
+                        ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-md shadow-red-500/25 scale-[1.01]'
                         : 'text-[#2A0F12] hover:bg-rose-50/90 hover:text-[#b91c1c] bg-transparent'
                     }`}
                   >
-                    <span className="flex items-center gap-2.5 min-w-0">
-                      <span className={isActive ? 'text-white' : 'text-[#6B4C4F]'}>
-                        {item.icon}
-                      </span>
-                      <span className="truncate">{item.label}</span>
-                    </span>
+                    <span>{item.label}</span>
 
                     {typeof item.badge === 'number' && (
                       <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full tabular-nums shrink-0 ${
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                           isActive
                             ? 'bg-white/20 text-white'
-                            : 'bg-rose-100/80 text-[#b91c1c]'
+                            : 'bg-rose-100/70 text-[#b91c1c]'
                         }`}
                       >
                         {toBengaliNumber(item.badge)}
@@ -717,52 +671,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               })}
             </nav>
 
-            {/* Admin Profile & Quick Website Link inside Sidebar */}
-            <div className="pt-4 border-t border-rose-200/50 space-y-2.5">
-              <div className="glass-inset px-3.5 py-2.5 rounded-2xl text-[11px]">
-                <div className="font-bold text-[#2A0F12] truncate">
-                  {adminName || 'Admin Manager'}
-                </div>
-                <div className="text-[#6B4C4F] truncate font-mono text-[10.5px]">
-                  {adminEmail || 'admin@10ms.com'}
-                </div>
+            {/* Admin Profile & Action Footer inside Sidebar */}
+            <div className="pt-4 border-t border-rose-100/80">
+              <div className="px-3 py-2 rounded-xl bg-rose-50/60 border border-rose-100 text-[11px] text-slate-600">
+                <div className="font-bold text-slate-800 truncate">{adminName || 'Admin Manager'}</div>
+                <div className="text-slate-500 truncate">{adminEmail || 'admin@10ms.com'}</div>
               </div>
-
-              <Link
-                href="/"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNavigateHome();
-                }}
-                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-rose-200/70 bg-white/60 hover:bg-rose-50 text-xs font-bold text-[#991b1b] transition"
-              >
-                <span>পাবলিক ওয়েবসাইট দেখুন</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </Link>
             </div>
           </div>
         </aside>
 
         {/* MAIN CONTENT AREA */}
         <main className="flex-1 min-w-0 w-full">
-          {error && courses.length === 0 ? (
-            <div className="glass-strong rounded-3xl p-8 text-center space-y-3">
-              <AlertCircle className="w-9 h-9 text-[#E22B2B] mx-auto" />
-              <h2 className="text-base font-black text-[#2A0F12]">ডেটা লোড করতে সমস্যা হয়েছে</h2>
-              <p className="text-xs text-[#6B4C4F] max-w-md mx-auto">{error}</p>
-              <button
-                type="button"
-                onClick={fetchDashboardData}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold shadow-sm cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>পুনরায় চেষ্টা করুন</span>
-              </button>
-            </div>
-          ) : loading && courses.length === 0 ? (
-            <div className="py-24 text-center space-y-3 glass-strong rounded-3xl p-8">
+          {loading && courses.length === 0 ? (
+            <div className="py-24 text-center space-y-3 bg-white/70 backdrop-blur-md rounded-3xl border border-rose-100 p-8">
               <RefreshCw className="w-8 h-8 text-[#eb1c24] animate-spin mx-auto" />
-              <p className="text-sm font-bold text-[#6B4C4F]">অ্যাডমিন ড্যাশবোর্ড লোড হচ্ছে...</p>
+              <p className="text-sm font-bold text-slate-600">অ্যাডমিন ড্যাশবোর্ড লোড হচ্ছে...</p>
             </div>
           ) : activeTab === 'course_editor' || activeTab === 'add_course' ? (
             /* ===================================================== */
@@ -771,6 +695,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <CourseEditorPage
               course={editingCourse}
               categories={categories}
+              initialStatus="active"
               onBackToList={() => handleTabSwitch('all_courses')}
               onSave={handleSaveCourse}
             />
@@ -779,59 +704,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 2: EXECUTIVE OVERVIEW DASHBOARD                  */
             /* ===================================================== */
             <div className="space-y-6">
-              {/* Overview Header Card */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <div className="text-xs font-semibold text-[#6B4C4F] mb-0.5">
-                    Admin / Executive Overview
-                  </div>
-                  <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
-                    অ্যাডমিন ড্যাশবোর্ড ওভারভিউ (Overview)
-                  </h1>
-                  <p className="text-xs text-[#6B4C4F] mt-1">
-                    কোর্স পরিসংখ্যান, অফার টাইমার নিয়ন্ত্রণ এবং সাম্প্রতিক ডাটাবেস কার্যক্রম এক নজরে দেখুন।
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={fetchDashboardData}
-                    className="px-3.5 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-[#6B4C4F] ${loading ? 'animate-spin' : ''}`} />
-                    <span>রিফ্রেশ</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTabSwitch('add_course')}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    <span>নতুন কোর্স যোগ করুন</span>
-                  </button>
-                </div>
-              </div>
-
+              
               {/* Offer Countdown Banner Quick Controller */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-rose-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#ff5252] to-[#b91c1c] text-white flex items-center justify-center font-bold shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#ff5252] to-[#b91c1c] text-white flex items-center justify-center font-bold shadow-md shadow-red-500/20 shrink-0">
                     <Clock className="w-6 h-6" />
                   </div>
                   <div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <h3 className="text-sm sm:text-base font-black text-[#2A0F12]">
-                        হোমপেজ অফার কাউন্টডাউন টাইমার
+                        হোমপেজ অফার কাউন্টডাউন টাইমার:
                       </h3>
                       <span
-                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                           showCountdownTimer
-                            ? 'bg-emerald-100/90 text-emerald-800 border-emerald-300'
-                            : 'bg-slate-100 text-slate-600 border-slate-300'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : 'bg-slate-100 text-slate-600 border border-slate-300'
                         }`}
                       >
-                        {showCountdownTimer ? 'চালু আছে (ON)' : 'বন্ধ রয়েছে (OFF)'}
+                        {showCountdownTimer ? '● বর্তমান চালু আছে (ON)' : '○ বন্ধ রয়েছে (OFF)'}
                       </span>
                     </div>
                     <p className="text-xs text-[#6B4C4F] mt-0.5">
@@ -840,7 +732,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full md:w-auto justify-end shrink-0">
+                <div className="flex items-center gap-2 w-full md:w-auto justify-end">
                   <button
                     type="button"
                     onClick={handleQuickCountdownToggle}
@@ -856,22 +748,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('settings')}
-                    className="px-3.5 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] text-xs font-bold transition cursor-pointer shadow-2xs"
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition cursor-pointer shadow-2xs"
                   >
                     কাস্টমাইজ করুন
                   </button>
                 </div>
               </div>
 
-              {/* Core Dynamic KPI Statistics Grid */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-rose-200/50 pb-3">
+              {/* Core Dynamic KPI Statistics Grid (4 Primary Cards) */}
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-rose-100 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-rose-100/70 pb-3">
                   <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-[#eb1c24]" />
                     <span>কোর্স ও ক্যাটাগরি মেট্রিক্স (Live Analytics)</span>
                   </h3>
-                  <span className="text-[11px] text-[#6B4C4F] font-semibold tabular-nums">
-                    মোট ক্লিক: {toBengaliNumber(stats.totalClicks || totalRecentClicks)}
+                  <span className="text-[11px] text-slate-500 font-semibold">
+                    ডাটাবেস রিয়েল-টাইম ডাটা
                   </span>
                 </div>
 
@@ -880,16 +772,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('all_courses')}
-                    className="glass-card rounded-2xl p-4 text-left cursor-pointer group"
+                    className="p-4 rounded-2xl bg-white/90 backdrop-blur-md border border-rose-100 hover:border-red-400 hover:shadow-md transition text-left cursor-pointer group shadow-2xs"
                   >
-                    <div className="flex items-center justify-between text-[#6B4C4F] text-xs font-bold mb-2">
+                    <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
                       <span>মোট কোর্স (Total Courses)</span>
                       <BookOpen className="w-4 h-4 text-[#eb1c24] group-hover:scale-110 transition-transform" />
                     </div>
-                    <div className="text-2xl font-black text-[#2A0F12] tabular-nums">
+                    <div className="text-2xl font-black text-[#2A0F12]">
                       {toBengaliNumber(stats.totalCourses)}
                     </div>
-                    <div className="text-[11px] text-[#6B4C4F] mt-1 font-semibold flex items-center gap-1">
+                    <div className="text-[11px] text-slate-500 mt-1 font-semibold flex items-center gap-1">
                       <span>{toBengaliNumber(categories.length)}টি ক্যাটাগরিতে বিভক্ত</span>
                       <ArrowRight className="w-3 h-3 text-[#eb1c24]" />
                     </div>
@@ -899,16 +791,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('active_courses')}
-                    className="glass-card rounded-2xl p-4 text-left cursor-pointer group"
+                    className="p-4 rounded-2xl bg-white/90 backdrop-blur-md border border-emerald-100 hover:border-emerald-400 hover:shadow-md transition text-left cursor-pointer group shadow-2xs"
                   >
-                    <div className="flex items-center justify-between text-[#6B4C4F] text-xs font-bold mb-2">
+                    <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
                       <span>চালু কোর্স (Active Courses)</span>
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                     </div>
-                    <div className="text-2xl font-black text-emerald-700 tabular-nums">
+                    <div className="text-2xl font-black text-emerald-700">
                       {toBengaliNumber(stats.activeCourses)}
                     </div>
-                    <div className="text-[11px] text-emerald-700 mt-1 font-semibold flex items-center gap-1">
+                    <div className="text-[11px] text-emerald-600 mt-1 font-semibold flex items-center gap-1">
                       <span>পাবলিক ওয়েবসাইটে দৃশ্যমান</span>
                       <ArrowRight className="w-3 h-3 text-emerald-600" />
                     </div>
@@ -918,13 +810,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('inactive_courses')}
-                    className="glass-card rounded-2xl p-4 text-left cursor-pointer group"
+                    className="p-4 rounded-2xl bg-white/90 backdrop-blur-md border border-amber-100 hover:border-amber-400 hover:shadow-md transition text-left cursor-pointer group shadow-2xs"
                   >
-                    <div className="flex items-center justify-between text-[#6B4C4F] text-xs font-bold mb-2">
+                    <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
                       <span>বন্ধ কোর্স (Inactive Courses)</span>
                       <XCircle className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
                     </div>
-                    <div className="text-2xl font-black text-amber-700 tabular-nums">
+                    <div className="text-2xl font-black text-amber-700">
                       {toBengaliNumber(stats.inactiveCourses)}
                     </div>
                     <div className="text-[11px] text-amber-700 mt-1 font-semibold flex items-center gap-1">
@@ -937,31 +829,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('categories')}
-                    className="glass-card rounded-2xl p-4 text-left cursor-pointer group"
+                    className="p-4 rounded-2xl bg-white/90 backdrop-blur-md border border-indigo-100 hover:border-indigo-400 hover:shadow-md transition text-left cursor-pointer group shadow-2xs"
                   >
-                    <div className="flex items-center justify-between text-[#6B4C4F] text-xs font-bold mb-2">
+                    <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
                       <span>মোট ক্যাটাগরি</span>
-                      <Layers className="w-4 h-4 text-[#1E63D6] group-hover:scale-110 transition-transform" />
+                      <Layers className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
                     </div>
-                    <div className="text-2xl font-black text-[#1E63D6] tabular-nums">
+                    <div className="text-2xl font-black text-indigo-800">
                       {toBengaliNumber(categories.length)}
                     </div>
-                    <div className="text-[11px] text-[#1E63D6] mt-1 font-semibold flex items-center gap-1">
+                    <div className="text-[11px] text-indigo-600 mt-1 font-semibold flex items-center gap-1">
                       <span>ক্যাটাগরি ম্যানেজ করুন</span>
-                      <ArrowRight className="w-3 h-3 text-[#1E63D6]" />
+                      <ArrowRight className="w-3 h-3 text-indigo-600" />
                     </div>
                   </button>
                 </div>
               </div>
 
               {/* Quick Actions Strip */}
-              <div className="glass-surface rounded-3xl p-5 sm:p-6 space-y-3">
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-rose-100 shadow-sm space-y-3">
                 <h3 className="text-sm font-black text-[#2A0F12]">দ্রুত অ্যাকশন (Quick Actions)</h3>
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('add_course')}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_6px_18px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-red-500/20 hover:scale-102 transition cursor-pointer"
                   >
                     <PlusCircle className="w-4 h-4" />
                     <span>নতুন কোর্স যোগ করুন</span>
@@ -970,47 +862,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('all_courses')}
-                    className="px-4 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                   >
-                    <BookOpen className="w-4 h-4 text-[#eb1c24]" />
+                    <BookOpen className="w-4 h-4 text-slate-500" />
                     <span>সকল কোর্স দেখুন</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('categories')}
-                    className="px-4 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                   >
-                    <Layers className="w-4 h-4 text-[#1E63D6]" />
+                    <Layers className="w-4 h-4 text-indigo-600" />
                     <span>ক্যাটাগরি সাজান</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('settings')}
-                    className="px-4 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                   >
-                    <Settings className="w-4 h-4 text-[#6B4C4F]" />
+                    <Settings className="w-4 h-4 text-slate-500" />
                     <span>পোর্টাল সেটিংস</span>
                   </button>
                 </div>
               </div>
 
               {/* Recently Added Courses Table */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-rose-200/50 pb-3">
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-rose-100 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-rose-100/70 pb-3">
                   <div>
                     <h3 className="text-sm font-black text-[#2A0F12]">
                       সাম্প্রতিক কোর্সসমূহ (Recent Courses)
                     </h3>
-                    <p className="text-xs text-[#6B4C4F] mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5">
                       ডাটাবেস থেকে সর্বশেষ যুক্ত বা আপডেট হওয়া কোর্সের তালিকা।
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('all_courses')}
-                    className="text-xs font-bold text-[#b91c1c] hover:underline flex items-center gap-1 cursor-pointer tabular-nums shrink-0"
+                    className="text-xs font-bold text-[#b91c1c] hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <span>সব দেখুন ({toBengaliNumber(courses.length)})</span>
                     <ChevronRight className="w-4 h-4" />
@@ -1020,7 +912,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-rose-200/50 text-[#6B4C4F] uppercase tracking-wider text-[10px]">
+                      <tr className="border-b border-slate-100 text-slate-500 uppercase tracking-wider text-[10px]">
                         <th className="py-2.5 px-3">কোর্স</th>
                         <th className="py-2.5 px-3">ক্যাটাগরি</th>
                         <th className="py-2.5 px-3">মূল্য ও ছাড়</th>
@@ -1028,16 +920,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-rose-100/70">
+                    <tbody className="divide-y divide-slate-100">
                       {courses.slice(0, 6).map((course) => (
-                        <tr key={course.id} className="hover:bg-rose-50/45 transition">
+                        <tr key={course.id} className="hover:bg-rose-50/50 transition">
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-3">
                               {course.imageUrl ? (
                                 <img
                                   src={course.imageUrl}
                                   alt=""
-                                  className="w-10 h-7 object-cover rounded-md border border-rose-100 shrink-0 bg-white"
+                                  className="w-10 h-7 object-cover rounded-md border border-slate-200 shrink-0"
                                 />
                               ) : (
                                 <div className="w-10 h-7 rounded-md bg-rose-100 flex items-center justify-center text-[#b91c1c] text-[10px] font-bold shrink-0">
@@ -1045,35 +937,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <div className="font-bold text-[#2A0F12] truncate max-w-xs sm:max-w-md">
+                                <div className="font-bold text-slate-900 truncate max-w-xs sm:max-w-md">
                                   {course.title}
                                 </div>
-                                <div className="text-[10px] text-[#6B4C4F] font-mono truncate max-w-xs">
+                                <div className="text-[10px] text-slate-500 font-mono truncate max-w-xs">
                                   /go/{course.slug}
                                 </div>
                               </div>
                             </div>
                           </td>
-                          <td className="py-3 px-3 font-semibold text-[#2A0F12]/80 whitespace-nowrap">
-                            {categories.find((c) => c.slug === course.categorySlug)?.name ||
-                              course.categorySlug}
+                          <td className="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">
+                            {categories.find((c) => c.slug === course.categorySlug)?.name || course.categorySlug}
                           </td>
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <div className="font-mono font-bold text-[#2A0F12] tabular-nums">
+                            <div className="font-mono font-bold text-slate-900">
                               ৳{toBengaliNumber(course.discountPrice)}
                             </div>
                             {course.originalPrice > course.discountPrice && (
-                              <div className="text-[10px] text-[#6B4C4F]/70 line-through font-mono tabular-nums">
+                              <div className="text-[10px] text-slate-400 line-through font-mono">
                                 ৳{toBengaliNumber(course.originalPrice)}
                               </div>
                             )}
                           </td>
                           <td className="py-3 px-3 text-center whitespace-nowrap">
                             <span
-                              className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                              className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                                 course.status === 'active'
-                                  ? 'bg-emerald-100/90 text-emerald-800 border-emerald-200'
-                                  : 'bg-amber-100/90 text-amber-800 border-amber-200'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-800'
                               }`}
                             >
                               {course.status === 'active' ? 'চালু' : 'ভর্তি বন্ধ'}
@@ -1084,7 +975,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setPreviewingCourse(course)}
-                                className="p-1.5 rounded-lg text-[#6B4C4F] hover:text-[#2A0F12] hover:bg-white/80 transition cursor-pointer"
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
                                 title="প্রিভিউ দেখুন"
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -1095,7 +986,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   setEditingCourse(course);
                                   setActiveTab('course_editor');
                                 }}
-                                className="p-1.5 rounded-lg text-[#1E63D6] hover:bg-blue-50 transition cursor-pointer"
+                                className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
                                 title="এডিট করুন"
                               >
                                 <Edit className="w-3.5 h-3.5" />
@@ -1109,19 +1000,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             </div>
-          ) : activeTab === 'all_courses' ||
-            activeTab === 'active_courses' ||
-            activeTab === 'inactive_courses' ? (
+          ) : activeTab === 'all_courses' || activeTab === 'active_courses' || activeTab === 'inactive_courses' ? (
             /* ===================================================== */
             /* VIEW 3: COURSES DIRECTORY & MANAGEMENT TABLE          */
             /* ===================================================== */
             <div className="space-y-6">
+              
               {/* Header Banner */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-rose-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <div className="text-xs font-semibold text-[#6B4C4F] mb-0.5">
-                    Admin / Course Catalog
-                  </div>
+                  <div className="text-xs font-semibold text-slate-500 mb-0.5">Admin / Course Catalog</div>
                   <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
                     {activeTab === 'active_courses'
                       ? 'চালু কোর্সসমূহ (Active Courses)'
@@ -1129,7 +1017,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       ? 'বন্ধ কোর্সসমূহ (Inactive Courses)'
                       : 'সকল কোর্স তালিকা (All Courses Directory)'}
                   </h1>
-                  <p className="text-xs text-[#6B4C4F] mt-1">
+                  <p className="text-xs text-slate-500 mt-1">
                     {activeTab === 'active_courses'
                       ? 'এই কোর্সগুলো পাবলিক ওয়েবসাইটে শিক্ষার্থীদের জন্য ভর্তি উন্মুক্ত রয়েছে।'
                       : activeTab === 'inactive_courses'
@@ -1141,7 +1029,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => handleTabSwitch('add_course')}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer shrink-0"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-red-500/20 hover:scale-102 transition cursor-pointer shrink-0"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>নতুন কোর্স যোগ করুন</span>
@@ -1150,44 +1038,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* Inactive notice if in inactive tab */}
               {activeTab === 'inactive_courses' && (
-                <div className="glass-surface p-4 rounded-2xl border border-amber-300/70 bg-amber-50/75 text-amber-900 text-xs font-bold flex items-center gap-2.5">
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/90 text-amber-900 text-xs font-bold flex items-center gap-2.5">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>
-                    বন্ধ কোর্সগুলো পাবলিক ওয়েবসাইটে প্রদর্শিত হবে তবে &ldquo;ভর্তি বন্ধ রয়েছে&rdquo; দেখাবে এবং এনরোল বাটন ডিজেবল থাকবে। যেকোনো সময় &ldquo;চালু&rdquo; বাটনে ক্লিক করে আবার লাইভ করতে পারেন।
+                    বন্ধ কোর্সগুলো পাবলিক ওয়েবসাইটে প্রদর্শিত হবে তবে "ভর্তি বন্ধ রয়েছে" দেখাবে এবং এনরোল বাটন ডিজেবল থাকবে। যেকোনো সময় "চালু করুন" বাটনে ক্লিক করে আবার লাইভ করতে পারেন।
                   </span>
                 </div>
               )}
 
               {/* Filter Controls Strip */}
-              <div className="glass-surface rounded-3xl p-4 sm:p-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-4 sm:p-5 border border-rose-100 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
                 {/* Search Input */}
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-[#6B4C4F] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="কোর্সের নাম, ব্যাচ বা ট্যাগ দিয়ে খুঁজুন..."
-                    className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-white/90 text-xs text-[#2A0F12] bg-white/85 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
+                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B4C4F] hover:text-[#2A0F12] font-bold cursor-pointer"
-                      aria-label="Clear search"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      ✕
                     </button>
                   )}
                 </div>
 
                 {/* Dropdown Filters */}
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* Category Filter */}
                   <select
                     value={filterCat}
                     onChange={(e) => setFilterCat(e.target.value)}
-                    className="px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
+                    className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="all">সব ক্যাটাগরি ({toBengaliNumber(courses.length)})</option>
                     {categories.map((c) => (
@@ -1197,21 +1085,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     ))}
                   </select>
 
+                  {/* Status Filter (Only shown on 'all_courses' tab) */}
                   {activeTab === 'all_courses' && (
                     <select
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
-                      className="px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
                     >
                       <option value="all">সব স্ট্যাটাস</option>
                       <option value="active">চালু (Active)</option>
                       <option value="inactive">ভর্তি বন্ধ (Inactive)</option>
+                      <option value="draft">ড্রাফট (Draft)</option>
                     </select>
                   )}
 
-                  {(searchQuery ||
-                    filterCat !== 'all' ||
-                    (activeTab === 'all_courses' && filterStatus !== 'all')) && (
+                  {/* Clear filter button */}
+                  {(searchQuery || filterCat !== 'all' || (activeTab === 'all_courses' && filterStatus !== 'all')) && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1219,7 +1108,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         setFilterCat('all');
                         setFilterStatus('all');
                       }}
-                      className="px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] text-xs font-bold transition cursor-pointer"
+                      className="px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] text-xs font-bold transition cursor-pointer"
                     >
                       রিসেট
                     </button>
@@ -1228,22 +1117,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {/* Main Courses Table */}
-              <div className="glass-strong rounded-3xl overflow-hidden">
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl border border-rose-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="bg-rose-50/75 border-b border-rose-200/50 text-[#6B4C4F] font-bold uppercase text-[10px] tracking-wider">
-                        <th className="py-3.5 px-4">কোর্স তথ্য</th>
-                        <th className="py-3.5 px-4">ক্যাটাগরি</th>
-                        <th className="py-3.5 px-4">মূল্য ও ছাড়</th>
-                        <th className="py-3.5 px-4 text-center">স্ট্যাটাস</th>
-                        <th className="py-3.5 px-4 text-right">অ্যাকশন</th>
+                      <tr className="bg-rose-50/60 border-b border-rose-100 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                        <th className="py-3 px-4">কোর্স তথ্য</th>
+                        <th className="py-3 px-4">ক্যাটাগরি</th>
+                        <th className="py-3 px-4">মূল্য ও ছাড়</th>
+                        <th className="py-3 px-4 text-center">স্ট্যাটাস</th>
+                        <th className="py-3 px-4 text-right">অ্যাকশন</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-rose-100/70">
+                    <tbody className="divide-y divide-slate-100">
                       {displayedCourses.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-12 text-center text-[#6B4C4F] font-bold">
+                          <td colSpan={5} className="py-12 text-center text-slate-500 font-bold">
                             কোনো কোর্স পাওয়া যায়নি। অনুসন্ধান শব্দ পরিবর্তন করুন।
                           </td>
                         </tr>
@@ -1251,7 +1140,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         displayedCourses.map((course) => {
                           const isToggling = statusTogglingId === course.id;
                           return (
-                            <tr key={course.id} className="hover:bg-rose-50/45 transition">
+                            <tr key={course.id} className="hover:bg-rose-50/40 transition">
                               {/* Course Details */}
                               <td className="py-3.5 px-4">
                                 <div className="flex items-center gap-3">
@@ -1259,7 +1148,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <img
                                       src={course.imageUrl}
                                       alt=""
-                                      className="w-12 h-8 object-cover rounded-lg border border-rose-100 shrink-0 bg-white"
+                                      className="w-12 h-8 object-cover rounded-lg border border-slate-200 shrink-0"
                                     />
                                   ) : (
                                     <div className="w-12 h-8 rounded-lg bg-rose-100 flex items-center justify-center text-[#b91c1c] text-[10px] font-black shrink-0">
@@ -1267,11 +1156,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                   )}
                                   <div className="min-w-0">
-                                    <div className="font-bold text-[#2A0F12] truncate max-w-xs sm:max-w-md">
+                                    <div className="font-bold text-slate-900 truncate max-w-xs sm:max-w-md">
                                       {course.title}
                                     </div>
-                                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[#6B4C4F] font-medium">
-                                      <span className="px-1.5 py-0.5 rounded bg-white/80 border border-rose-100 text-[#6B4C4F] font-mono text-[10px]">
+                                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500 font-medium">
+                                      <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono text-[10px]">
                                         /go/{course.slug}
                                       </span>
                                       {course.shortBadge && (
@@ -1288,20 +1177,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </td>
 
                               {/* Category */}
-                              <td className="py-3.5 px-4 font-semibold text-[#2A0F12]/80 whitespace-nowrap">
-                                {categories.find((c) => c.slug === course.categorySlug)?.name ||
-                                  course.categorySlug}
+                              <td className="py-3.5 px-4 font-semibold text-slate-700 whitespace-nowrap">
+                                {categories.find((c) => c.slug === course.categorySlug)?.name || course.categorySlug}
                               </td>
 
                               {/* Pricing */}
                               <td className="py-3.5 px-4 whitespace-nowrap">
-                                <div className="font-mono font-bold text-emerald-700 text-sm tabular-nums">
+                                <div className="font-mono font-bold text-emerald-700 text-sm">
                                   ৳{toBengaliNumber(course.discountPrice)}
                                 </div>
                                 {course.originalPrice > course.discountPrice && (
-                                  <div className="text-[10px] text-[#6B4C4F]/75 line-through font-mono tabular-nums">
-                                    ৳{toBengaliNumber(course.originalPrice)} (
-                                    {toBengaliNumber(course.discountPercent)}% ছাড়)
+                                  <div className="text-[10px] text-slate-400 line-through font-mono">
+                                    ৳{toBengaliNumber(course.originalPrice)} ({toBengaliNumber(course.discountPercent)}% ছাড়)
                                   </div>
                                 )}
                               </td>
@@ -1312,17 +1199,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   type="button"
                                   onClick={() => handleToggleStatus(course)}
                                   disabled={isToggling}
-                                  className={`px-3 py-1 rounded-full text-[11px] font-extrabold transition cursor-pointer border inline-flex items-center gap-1.5 mx-auto ${
+                                  className={`px-3 py-1 rounded-full text-[11px] font-extrabold transition cursor-pointer border flex items-center gap-1.5 mx-auto ${
                                     course.status === 'active'
                                       ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                                      : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                                      : course.status === 'inactive'
+                                      ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                                      : 'bg-slate-100 text-slate-700 border-slate-300'
                                   }`}
                                   title="স্ট্যাটাস পরিবর্তন করতে ক্লিক করুন"
                                 >
                                   <span
                                     className={`w-2 h-2 rounded-full ${
                                       course.status === 'active'
-                                        ? 'bg-emerald-500'
+                                        ? 'bg-emerald-500 animate-pulse'
                                         : 'bg-amber-500'
                                     }`}
                                   />
@@ -1331,7 +1220,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       ? 'আপডেট হচ্ছে...'
                                       : course.status === 'active'
                                       ? 'চালু (Active)'
-                                      : 'ভর্তি বন্ধ (Inactive)'}
+                                      : course.status === 'inactive'
+                                      ? 'ভর্তি বন্ধ (Inactive)'
+                                      : 'ড্রাফট (Draft)'}
                                   </span>
                                 </button>
                               </td>
@@ -1342,7 +1233,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setPreviewingCourse(course)}
-                                    className="p-2 rounded-xl text-[#6B4C4F] hover:text-[#2A0F12] hover:bg-white/80 transition cursor-pointer"
+                                    className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
                                     title="কার্ড প্রিভিউ দেখুন"
                                   >
                                     <Eye className="w-4 h-4" />
@@ -1354,7 +1245,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       setEditingCourse(course);
                                       setActiveTab('course_editor');
                                     }}
-                                    className="p-2 rounded-xl text-[#1E63D6] hover:bg-blue-50 transition cursor-pointer"
+                                    className="p-2 rounded-xl text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
                                     title="এডিট করুন"
                                   >
                                     <Edit className="w-4 h-4" />
@@ -1378,8 +1269,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </table>
                 </div>
 
-                {/* Table Footer Count */}
-                <div className="bg-white/50 border-t border-rose-200/50 px-4 py-3 text-xs text-[#6B4C4F] font-semibold flex items-center justify-between tabular-nums">
+                {/* Footer Count */}
+                <div className="bg-slate-50/70 border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500 font-semibold flex items-center justify-between">
                   <span>মোট প্রদর্শিত: {toBengaliNumber(displayedCourses.length)}টি কোর্স</span>
                   <span>মোট ডাটাবেস কোর্স: {toBengaliNumber(courses.length)}টি</span>
                 </div>
@@ -1390,16 +1281,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 4: CATEGORY MANAGEMENT                           */
             /* ===================================================== */
             <div className="space-y-6">
+              
               {/* Header */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-rose-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <div className="text-xs font-semibold text-[#6B4C4F] mb-0.5">
-                    Admin / Taxonomies
-                  </div>
+                  <div className="text-xs font-semibold text-slate-500 mb-0.5">Admin / Taxonomies</div>
                   <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
                     কোর্স ক্যাটাগরি ম্যানেজমেন্ট (Course Categories)
                   </h1>
-                  <p className="text-xs text-[#6B4C4F] mt-1">
+                  <p className="text-xs text-slate-500 mt-1">
                     ক্যাটাগরি তৈরি, টাইটেল পরিবর্তন, সাবটাইটেল এবং প্রদর্শন ক্রম সাজান।
                   </p>
                 </div>
@@ -1415,7 +1305,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setCatDisplayOrder(categories.length + 1);
                     setShowCategoryModal(true);
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer shrink-0"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-red-500/20 hover:scale-102 transition cursor-pointer shrink-0"
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>নতুন ক্যাটাগরি যোগ করুন</span>
@@ -1429,17 +1319,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   return (
                     <div
                       key={cat.id}
-                      className="glass-card rounded-3xl p-5 flex flex-col justify-between space-y-4"
+                      className="bg-white/90 backdrop-blur-md rounded-3xl p-5 border border-rose-100 shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-base font-black text-[#2A0F12]">{cat.name}</h3>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-[#b91c1c] tabular-nums">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-black text-slate-900">{cat.name}</h3>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-[#b91c1c]">
                               ক্রম: {toBengaliNumber(cat.displayOrder)}
                             </span>
                           </div>
-                          <div className="text-xs text-[#6B4C4F] font-mono mt-0.5">
+                          <div className="text-xs text-slate-500 font-mono mt-0.5">
                             /category/{cat.slug}
                           </div>
                           {cat.subtitle && (
@@ -1447,12 +1337,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           )}
                         </div>
 
-                        <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-white/80 border border-rose-100 text-[#2A0F12] whitespace-nowrap tabular-nums shrink-0">
+                        <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 whitespace-nowrap">
                           {toBengaliNumber(catCoursesCount)}টি কোর্স
                         </span>
                       </div>
 
-                      <div className="pt-3 border-t border-rose-200/50 flex items-center justify-between">
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                         <button
                           type="button"
                           onClick={() => {
@@ -1477,7 +1367,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               setCatDisplayOrder(cat.displayOrder || 1);
                               setShowCategoryModal(true);
                             }}
-                            className="p-1.5 rounded-lg text-[#1E63D6] hover:bg-blue-50 transition cursor-pointer"
+                            className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
                             title="এডিট করুন"
                           >
                             <Edit className="w-4 h-4" />
@@ -1503,48 +1393,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 5: PORTAL SETTINGS                               */
             /* ===================================================== */
             <div className="space-y-6">
+              
               {/* Header */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6">
-                <div className="text-xs font-semibold text-[#6B4C4F] mb-0.5">
-                  Admin / Configuration
-                </div>
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-rose-100 shadow-sm">
+                <div className="text-xs font-semibold text-slate-500 mb-0.5">Admin / Configuration</div>
                 <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
                   পোর্টাল সেটিংস ও যোগাযোগ (Settings & Direct Contact)
                 </h1>
-                <p className="text-xs text-[#6B4C4F] mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   সাইট টাইটেল, অফিশিয়াল হোয়াটসঅ্যাপ নম্বর, মেসেঞ্জার লিংক এবং হোমপেজ টেক্সট নিয়ন্ত্রণ।
                 </p>
               </div>
 
-              <form onSubmit={handleSaveSettings} className="glass-strong rounded-3xl p-6 sm:p-7 space-y-6">
+              <form
+                onSubmit={handleSaveSettings}
+                className="bg-white/90 backdrop-blur-md rounded-3xl p-6 sm:p-7 border border-rose-100 shadow-sm space-y-6"
+              >
                 {/* 1. General Site Identity */}
                 <div className="space-y-4">
-                  <h3 className="text-sm font-black text-[#2A0F12] border-b border-rose-200/50 pb-2">
+                  <h3 className="text-sm font-bold text-[#2A0F12] border-b border-rose-100/70 pb-2">
                     ওয়েবসাইট শিরোনাম ও পরিচয় (Branding)
                   </h3>
 
                   <div>
-                    <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
                       সাইট টাইটেল (Site Title)
                     </label>
                     <input
                       type="text"
                       value={siteTitle}
                       onChange={(e) => setSiteTitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
                     />
                   </div>
                 </div>
 
-                {/* 2. Direct Contact Channels */}
+                {/* 2. Direct Contact Channels: WhatsApp & Facebook Messenger */}
                 <div className="space-y-4">
-                  <h3 className="text-sm font-black text-[#2A0F12] border-b border-rose-200/50 pb-2">
-                    সরাসরি যোগাযোগ চ্যানেল (WhatsApp & Facebook Messenger)
+                  <h3 className="text-sm font-bold text-[#2A0F12] border-b border-rose-100/70 pb-2 flex items-center gap-2">
+                    <span>সরাসরি যোগাযোগ চ্যানেল (WhatsApp & Facebook Messenger)</span>
                   </h3>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
                         হোয়াটসঅ্যাপ হেল্পলাইন নম্বর
                       </label>
                       <input
@@ -1552,12 +1444,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         value={whatsappNumber}
                         onChange={(e) => setWhatsappNumber(e.target.value)}
                         placeholder="01608-949565"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
                         হোয়াটসঅ্যাপ ডিরেক্ট চ্যাট লিংক
                       </label>
                       <input
@@ -1565,13 +1457,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         value={whatsappLink}
                         onChange={(e) => setWhatsappLink(e.target.value)}
                         placeholder="https://wa.me/8801814946474"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
                       />
                     </div>
                   </div>
 
+                  {/* Facebook Messenger Direct Inbox Link */}
                   <div>
-                    <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
                       ফেসবুক মেসেঞ্জার ডিরেক্ট ইনবক্স লিংক (Facebook Messenger Link)
                     </label>
                     <input
@@ -1579,27 +1472,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       value={messengerLink}
                       onChange={(e) => setMessengerLink(e.target.value)}
                       placeholder="https://m.me/10minuteschool"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
                     />
-                    <p className="text-[11px] text-[#6B4C4F] mt-1">
+                    <p className="text-[11px] text-slate-500 mt-1">
                       ফ্লোটিং মেসেঞ্জার বাটনে ক্লিক করলে শিক্ষার্থী সরাসরি আপনার ফেসবুক পেজের ইনবক্সে চলে যাবে।
                     </p>
                   </div>
                 </div>
 
                 {/* 3. Countdown Timer Config */}
-                <div className="glass-inset p-4 rounded-2xl border border-rose-200/80 space-y-3">
-                  <div className="flex items-center justify-between gap-4">
+                <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200 space-y-3">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-bold text-[#2A0F12] block">
+                      <span className="text-xs font-bold text-slate-900 block">
                         হোমপেজ অফার কাউন্টডাউন টাইমার
                       </span>
-                      <span className="text-[11px] text-[#6B4C4F]">
+                      <span className="text-[11px] text-slate-500">
                         টাইমার সক্রিয় রাখলে হোমপেজের শীর্ষে লাল ব্যানারে টাইমার দেখাবে।
                       </span>
                     </div>
 
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
                         checked={showCountdownTimer}
@@ -1611,7 +1504,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-[#2A0F12] mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       কাউন্টডাউন টেক্সট লেবেল
                     </label>
                     <input
@@ -1619,14 +1512,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       value={countdownLabel}
                       onChange={(e) => setCountdownLabel(e.target.value)}
                       placeholder="HSC ২৮ আর্লি বার্ড স্পেশাল উপহার সহ ছাড়ে বাকি:"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
                     />
                   </div>
                 </div>
 
                 {/* 4. Affiliate Tracking Tag */}
                 <div>
-                  <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     ডিফল্ট এফিলিয়েট রেফারেল ট্যাগ
                   </label>
                   <input
@@ -1634,7 +1527,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     value={defaultAffiliateRef}
                     onChange={(e) => setDefaultAffiliateRef(e.target.value)}
                     placeholder="10ms_affiliate"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
                   />
                 </div>
 
@@ -1642,7 +1535,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="submit"
                     disabled={savingSettings}
-                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] hover:from-[#eb1c24] hover:to-[#991b1b] transition cursor-pointer disabled:opacity-60"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold shadow-md shadow-red-500/20 hover:from-[#eb1c24] hover:to-[#991b1b] transition cursor-pointer disabled:opacity-60"
                   >
                     {savingSettings ? 'সংরক্ষণ হচ্ছে...' : 'সেটিংস সংরক্ষণ করুন'}
                   </button>
@@ -1653,17 +1546,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </main>
       </div>
 
-      {/* 3. DEDICATED ADMIN FOOTER (Main Website Layered Wave + Burgundy Theme, Admin Content) */}
-      <AdminFooter
-        onSelectTab={handleTabSwitch}
-        onNavigateHome={handleNavigateHome}
-        onRequestLogout={() => setShowLogoutConfirm(true)}
-        onDownloadZip={onDownloadZip}
-        adminName={adminName}
-        adminEmail={adminEmail}
-        stats={stats}
-        categoriesCount={categories.length}
-      />
+      <footer className="mt-auto border-t border-rose-100/80 bg-white/55 px-4 py-5 text-center text-xs text-[#6B4C4F] backdrop-blur-md sm:px-6">
+        Admin Portal <span className="mx-1 text-rose-300">·</span> ১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস
+      </footer>
 
       {/* ========================================================= */}
       {/* 4. MODALS & CONFIRMATION DIALOGS                          */}
@@ -1672,16 +1557,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* CourseCard Live Preview Modal */}
       {previewingCourse && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-md w-full p-6 space-y-4 border border-white/90 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
-              <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-rose-100 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Eye className="w-4 h-4 text-[#eb1c24]" />
                 <span>পাবলিক কোর্স কার্ড প্রিভিউ</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setPreviewingCourse(null)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-rose-50 cursor-pointer"
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1700,7 +1585,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setPreviewingCourse(null)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold cursor-pointer"
               >
                 বন্ধ করুন
               </button>
@@ -1712,15 +1597,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Delete Course Confirmation Modal */}
       {deleteModalCourse && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-sm w-full p-6 space-y-4 border border-white/90 shadow-2xl">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 border border-rose-200 shadow-2xl">
             <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-black text-[#2A0F12]">কোর্সটি মুছে ফেলতে চান?</h3>
-              <p className="text-xs text-[#6B4C4F]">
-                <strong>&ldquo;{deleteModalCourse.title}&rdquo;</strong> কোর্সটি ডাটাবেস এবং ওয়েবসাইট থেকে মুছে ফেলা হবে।
+              <h3 className="text-base font-black text-slate-900">কোর্সটি মুছে ফেলতে চান?</h3>
+              <p className="text-xs text-slate-600">
+                <strong>"{deleteModalCourse.title}"</strong> কোর্সটি ডাটাবেস এবং ওয়েবসাইট থেকে মুছে ফেলা হবে।
               </p>
             </div>
 
@@ -1728,14 +1613,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteModalCourse(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:bg-slate-50 cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 না, বাতিল
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteCourse}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-md cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md cursor-pointer"
               >
                 হ্যাঁ, নিশ্চিত ডিলিট
               </button>
@@ -1749,24 +1634,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <form
             onSubmit={handleSaveCategory}
-            className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-md w-full p-6 space-y-4 border border-white/90 shadow-2xl relative"
+            className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-rose-100 shadow-2xl relative"
           >
-            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
-              <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#eb1c24]" />
                 <span>{editingCategory ? 'ক্যাটাগরি সম্পাদনা' : 'নতুন ক্যাটাগরি তৈরি'}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setShowCategoryModal(false)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-rose-50 cursor-pointer"
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 ক্যাটাগরির নাম <span className="text-red-500">*</span>
               </label>
               <input
@@ -1786,16 +1671,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   }
                 }}
                 placeholder="যেমন: HSC 28 ও HSC 27 অনলাইন ব্যাচ"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 স্লাগ (URL Slug) <span className="text-red-500">*</span>
               </label>
               <div className="flex items-center">
-                <span className="px-2.5 py-2 rounded-l-xl bg-rose-50/70 border border-r-0 border-slate-200 text-[#6B4C4F] text-xs font-mono">
+                <span className="px-2.5 py-2 rounded-l-xl bg-slate-100 border border-r-0 border-slate-200 text-slate-500 text-xs font-mono">
                   /category/
                 </span>
                 <input
@@ -1804,13 +1689,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   value={catSlug}
                   onChange={(e) => setCatSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
                   placeholder="hsc"
-                  className="w-full px-3 py-2 rounded-r-xl border border-slate-200 text-xs font-mono text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
+                  className="w-full px-3 py-2 rounded-r-xl border border-slate-200 text-xs font-mono text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
                 সাবটাইটেল (Subtitle)
               </label>
               <input
@@ -1818,13 +1703,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 value={catSubtitle}
                 onChange={(e) => setCatSubtitle(e.target.value)}
                 placeholder="যেমন: কলেজ একাডেমিক প্রোগ্রাম"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   প্রদর্শন ক্রম (Order)
                 </label>
                 <input
@@ -1832,18 +1717,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   min="1"
                   value={catDisplayOrder}
                   onChange={(e) => setCatDisplayOrder(Number(e.target.value) || 1)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono font-bold"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   ব্যাজ কালার
                 </label>
                 <select
                   value={catBadgeColor}
                   onChange={(e) => setCatBadgeColor(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer font-bold"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer font-bold"
                 >
                   <option value="red">রেড (Red)</option>
                   <option value="amber">অ্যাম্বার (Amber)</option>
@@ -1854,11 +1739,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-rose-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setShowCategoryModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:bg-slate-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 বাতিল
               </button>
@@ -1877,15 +1762,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Delete Category Confirmation Modal */}
       {deleteModalCat && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-sm w-full p-6 space-y-4 border border-white/90 shadow-2xl">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 border border-rose-200 shadow-2xl">
             <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-black text-[#2A0F12]">ক্যাটাগরি মুছে ফেলতে চান?</h3>
-              <p className="text-xs text-[#6B4C4F]">
-                <strong>&ldquo;{deleteModalCat.name}&rdquo;</strong> ক্যাটাগরি মুছে ফেলা হবে।
+              <h3 className="text-base font-black text-slate-900">ক্যাটাগরি মুছে ফেলতে চান?</h3>
+              <p className="text-xs text-slate-600">
+                <strong>"{deleteModalCat.name}"</strong> ক্যাটাগরি মুছে ফেলা হবে।
               </p>
             </div>
 
@@ -1893,14 +1778,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteModalCat(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:bg-slate-50 cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 বাতিল
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteCategory}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-md cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md cursor-pointer"
               >
                 ডিলিট করুন
               </button>
@@ -1912,23 +1797,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-xs w-full p-6 space-y-4 border border-white/90 shadow-2xl text-center">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-[#b91c1c] mx-auto">
+          <div className="bg-white rounded-3xl max-w-xs w-full p-6 space-y-4 border border-slate-200 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700 mx-auto">
               <LogOut className="w-6 h-6" />
             </div>
 
             <div>
-              <h3 className="text-sm font-black text-[#2A0F12]">অ্যাডমিন লগআউট</h3>
-              <p className="text-xs text-[#6B4C4F] mt-1">
-                আপনি কি নিশ্চিতভাবে অ্যাডমিন প্যানেল থেকে বের হতে চান?
-              </p>
+              <h3 className="text-sm font-black text-slate-900">অ্যাডমিন লগআউট</h3>
+              <p className="text-xs text-slate-500 mt-1">আপনি কি নিশ্চিতভাবে অ্যাডমিন প্যানেল থেকে বের হতে চান?</p>
             </div>
 
             <div className="flex items-center gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:bg-slate-50 cursor-pointer"
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 না
               </button>
@@ -1938,7 +1821,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setShowLogoutConfirm(false);
                   onLogout();
                 }}
-                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold cursor-pointer"
+                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold cursor-pointer"
               >
                 লগআউট
               </button>

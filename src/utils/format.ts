@@ -1,20 +1,8 @@
 const BENGALI_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
 
-function formatIndianGrouping(num: number): string {
-  const isNegative = num < 0;
-  const [intPart, decPart] = String(Math.abs(num)).split('.');
-  let formattedInt = intPart;
-  if (intPart.length > 3) {
-    const lastThree = intPart.slice(-3);
-    const rest = intPart.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',');
-    formattedInt = `${rest},${lastThree}`;
-  }
-  return `${isNegative ? '-' : ''}${formattedInt}${decPart !== undefined ? `.${decPart}` : ''}`;
-}
-
 export function toBengaliNumber(value: number | string): string {
   const num = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
-  const formatted = !isNaN(num) && String(value).trim() !== '' ? formatIndianGrouping(num) : String(value);
+  const formatted = !isNaN(num) ? num.toLocaleString('en-IN') : String(value);
   return formatted.replace(/\d/g, (d) => BENGALI_DIGITS[Number(d)]);
 }
 

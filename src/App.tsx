@@ -134,12 +134,6 @@ export default function App() {
     setCurrentHash(rawHash);
   }, [currentPathname]);
 
-  // Auth state initialized from sessionStorage so admin access persists across page refreshes.
-  // We intentionally avoid reading sessionStorage during render to prevent hydration mismatches.
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [adminEmail, setAdminEmail] = useState<string>('');
-  const [adminName, setAdminName] = useState<string>('');
-
   useEffect(() => {
     try {
       setAuthToken(sessionStorage.getItem('10ms_auth_token'));
@@ -149,6 +143,12 @@ export default function App() {
       // sessionStorage may be unavailable during server rendering or restricted environments.
     }
   }, []);
+
+  // Auth state initialized from sessionStorage so admin access persists across page refreshes.
+  // We intentionally avoid reading sessionStorage during render to prevent hydration mismatches.
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [adminEmail, setAdminEmail] = useState<string>('');
+  const [adminName, setAdminName] = useState<string>('');
 
   const handleAdminLogin = (token: string, email: string, name: string) => {
     setAuthToken(token);
@@ -674,7 +674,6 @@ export default function App() {
       c.headerTitle.toLowerCase().includes(q) ||
       c.headerSubtitle.toLowerCase().includes(q) ||
       c.categorySlug.toLowerCase().includes(q) ||
-      (c.targetStudents || '').toLowerCase().includes(q) ||
       c.features.toLowerCase().includes(q);
 
     const matchesCategory =
