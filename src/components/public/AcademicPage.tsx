@@ -18,6 +18,19 @@ import { motion } from 'motion/react';
 export type AcademicLevel = 'ssc' | 'hsc' | 'class';
 export type DepartmentType = 'all' | 'science' | 'business' | 'humanities';
 
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize('NFC')
+    .replace(/য\u09BC/g, 'য়')
+    .replace(/ড\u09BC/g, 'ড়')
+    .replace(/ঢ\u09BC/g, 'ঢ়')
+    .toLowerCase();
+}
+
+function matchesAnyKeyword(haystack: string, keywords: string[]): boolean {
+  return keywords.some((kw) => haystack.includes(normalizeSearchText(kw)));
+}
+
 interface AcademicPageProps {
   level: AcademicLevel;
   batchOrClass: string; // e.g. 'ssc-27', 'ssc-28', 'hsc-26', 'hsc-27', 'hsc-28', 'class6', 'class7', 'class8', 'class9', 'class10'
@@ -134,92 +147,157 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   // Filter courses strictly for this active batch/class
   const batchCourses = useMemo(() => {
     return courses.filter((c) => {
-      const text = `${c.title} ${c.slug} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''} ${c.description} ${c.categorySlug}`.toLowerCase();
+      const text = normalizeSearchText(
+        `${c.title} ${c.slug} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''} ${c.description} ${c.categorySlug}`
+      );
 
       if (level === 'ssc') {
         if (batchOrClass === 'ssc-27') {
-          return (
-            text.includes('ssc 27') ||
-            text.includes('ssc-27') ||
-            text.includes('ssc ২০২৭') ||
-            text.includes('১০ম') ||
-            text.includes('class-10') ||
-            text.includes('দশম')
-          );
+          return matchesAnyKeyword(text, [
+            'ssc 27',
+            'ssc27',
+            'ssc-27',
+            'ssc 2027',
+            'ssc-2027',
+            'ssc ২৭',
+            'ssc ২০২৭',
+            'এসএসসি ২৭',
+            'এসএসসি ২০২৭',
+            'এসএসসি 27',
+            'এসএসসি 2027',
+            '১০ম',
+            'দশম',
+            'class 10',
+            'class-10',
+            'class10',
+          ]);
         }
         if (batchOrClass === 'ssc-28') {
-          return (
-            text.includes('ssc 28') ||
-            text.includes('ssc-28') ||
-            text.includes('ssc ২০২৮') ||
-            text.includes('৯ম') ||
-            text.includes('class-9') ||
-            text.includes('নবম')
-          );
+          return matchesAnyKeyword(text, [
+            'ssc 28',
+            'ssc28',
+            'ssc-28',
+            'ssc 2028',
+            'ssc-2028',
+            'ssc ২৮',
+            'ssc ২০২৮',
+            'এসএসসি ২৮',
+            'এসএসসি ২০২৮',
+            'এসএসসি 28',
+            'এসএসসি 2028',
+            '৯ম',
+            'নবম',
+            'class 9',
+            'class-9',
+            'class9',
+          ]);
         }
       }
 
       if (level === 'hsc') {
         if (batchOrClass === 'hsc-26') {
-          return (
-            text.includes('hsc 26') ||
-            text.includes('hsc-26') ||
-            text.includes('hsc ২৬') ||
-            text.includes('hsc ২০২৬') ||
-            text.includes('varsity') ||
-            text.includes('admission') ||
-            text.includes('এডমিশন') ||
-            text.includes('মেডিকেল') ||
-            text.includes('বুয়েট') ||
-            text.includes('buet')
-          );
+          return matchesAnyKeyword(text, [
+            'hsc 26',
+            'hsc26',
+            'hsc-26',
+            'hsc 2026',
+            'hsc-2026',
+            'hsc ২৬',
+            'hsc ২০২৬',
+            'এইচএসসি ২৬',
+            'এইচএসসি ২০২৬',
+            'এইচএসসি 26',
+            'এইচএসসি 2026',
+            'varsity',
+            'ভার্সিটি',
+            'গুচ্ছ',
+            'gst',
+            'admission',
+            'এডমিশন',
+            'ভর্তি',
+            'মেডিকেল',
+            'medical',
+            'বুয়েট',
+            'buet',
+            'ইঞ্জিনিয়ারিং',
+            'engineering',
+          ]);
         }
         if (batchOrClass === 'hsc-27') {
-          return (
-            text.includes('hsc 27') ||
-            text.includes('hsc-27') ||
-            text.includes('hsc ২৭') ||
-            text.includes('hsc ২০২৭')
-          );
+          return matchesAnyKeyword(text, [
+            'hsc 27',
+            'hsc27',
+            'hsc-27',
+            'hsc 2027',
+            'hsc-2027',
+            'hsc ২৭',
+            'hsc ২০২৭',
+            'এইচএসসি ২৭',
+            'এইচএসসি ২০২৭',
+            'এইচএসসি 27',
+            'এইচএসসি 2027',
+            '২য় বর্ষ',
+            'দ্বিতীয় বর্ষ',
+            '2nd year',
+          ]);
         }
         if (batchOrClass === 'hsc-28') {
-          return (
-            text.includes('hsc 28') ||
-            text.includes('hsc-28') ||
-            text.includes('hsc ২৮') ||
-            text.includes('hsc ২০২৮')
-          );
+          return matchesAnyKeyword(text, [
+            'hsc 28',
+            'hsc28',
+            'hsc-28',
+            'hsc 2028',
+            'hsc-2028',
+            'hsc ২৮',
+            'hsc ২০২৮',
+            'এইচএসসি ২৮',
+            'এইচএসসি ২০২৮',
+            'এইচএসসি 28',
+            'এইচএসসি 2028',
+            '১ম বর্ষ',
+            'প্রথম বর্ষ',
+            '1st year',
+          ]);
         }
       }
 
       if (level === 'class') {
         if (batchOrClass === 'class6') {
-          return text.includes('৬ষ্ঠ') || text.includes('class 6') || text.includes('class-6');
+          return matchesAnyKeyword(text, ['৬ষ্ঠ', 'ষষ্ঠ', 'class 6', 'class-6', 'class6']);
         }
         if (batchOrClass === 'class7') {
-          return text.includes('৭ম') || text.includes('class 7') || text.includes('class-7');
+          return matchesAnyKeyword(text, ['৭ম', 'সপ্তম', 'class 7', 'class-7', 'class7']);
         }
         if (batchOrClass === 'class8') {
-          return text.includes('৮ম') || text.includes('class 8') || text.includes('class-8');
+          return matchesAnyKeyword(text, ['৮ম', 'অষ্টম', 'class 8', 'class-8', 'class8']);
         }
         if (batchOrClass === 'class9') {
-          return (
-            text.includes('৯ম') ||
-            text.includes('class 9') ||
-            text.includes('class-9') ||
-            text.includes('ssc 28') ||
-            text.includes('ssc-28')
-          );
+          return matchesAnyKeyword(text, [
+            '৯ম',
+            'নবম',
+            'class 9',
+            'class-9',
+            'class9',
+            'ssc 28',
+            'ssc-28',
+            'ssc 2028',
+            'ssc ২০২৮',
+            'এসএসসি ২০২৮',
+          ]);
         }
         if (batchOrClass === 'class10') {
-          return (
-            text.includes('১০ম') ||
-            text.includes('class 10') ||
-            text.includes('class-10') ||
-            text.includes('ssc 27') ||
-            text.includes('ssc-27') ||
-            text.includes('দশম')
-          );
+          return matchesAnyKeyword(text, [
+            '১০ম',
+            'দশম',
+            'class 10',
+            'class-10',
+            'class10',
+            'ssc 27',
+            'ssc-27',
+            'ssc 2027',
+            'ssc ২০২৭',
+            'এসএসসি ২০২৭',
+          ]);
         }
       }
 
@@ -229,44 +307,97 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
   // Helper to determine departments for a course
   const getCourseDepartments = (c: Course): ('science' | 'business' | 'humanities')[] => {
-    const text = `${c.title} ${c.slug} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''} ${c.description}`.toLowerCase();
+    const text = normalizeSearchText(
+      `${c.title} ${c.slug} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''} ${c.description}`
+    );
 
-    const isBusiness =
-      text.includes('ব্যবসায়') ||
-      text.includes('বাণিজ্য') ||
-      text.includes('কমার্শ') ||
-      text.includes('commerce') ||
-      text.includes('business') ||
-      text.includes('হিসাববিজ্ঞান') ||
-      text.includes('ফিন্যান্স') ||
-      text.includes('c-unit') ||
-      text.includes('গ’ ইউনিট');
+    if (matchesAnyKeyword(text, ['সকল বিভাগ', 'all department'])) {
+      return ['science', 'business', 'humanities'];
+    }
 
-    const isHumanities =
-      text.includes('মানবিক') ||
-      text.includes('আর্টস') ||
-      text.includes('humanities') ||
-      text.includes('arts') ||
-      text.includes('ইতিহাস') ||
-      text.includes('পৌরনীতি') ||
-      text.includes('ভূগোল') ||
-      text.includes('অর্থনীতি');
+    const isBusiness = matchesAnyKeyword(text, [
+      'ব্যবসায়',
+      'ব্যবসা',
+      'ব্যাবসা',
+      'বাণিজ্য',
+      'কমার্শ',
+      'কমার্স',
+      'commerce',
+      'business',
+      'হিসাববিজ্ঞান',
+      'accounting',
+      'ফিন্যান্স',
+      'finance',
+      'ব্যবস্থাপনা',
+      'management',
+      'মার্কেটিং',
+      'marketing',
+      'c-unit',
+      'c unit',
+      'গ’ ইউনিট',
+      'গ ইউনিট',
+      'iba',
+    ]);
 
-    const isScience =
-      text.includes('বিজ্ঞান') ||
-      text.includes('সায়েন্স') ||
-      text.includes('science') ||
-      text.includes('pcmb') ||
-      text.includes('physics') ||
-      text.includes('chem') ||
-      text.includes('biology') ||
-      text.includes('পদার্থ') ||
-      text.includes('রসায়ন') ||
-      text.includes('উচ্চতর গণিত') ||
-      text.includes('বুয়েট') ||
-      text.includes('মেডিকেল') ||
-      text.includes('ভার্সিটি ‘ক’') ||
-      text.includes('টেস্ট পেপার');
+    const isHumanities = matchesAnyKeyword(text, [
+      'মানবিক',
+      'আর্টস',
+      'humanities',
+      'arts',
+      'ইতিহাস',
+      'history',
+      'পৌরনীতি',
+      'civics',
+      'ভূগোল',
+      'geography',
+      'অর্থনীতি',
+      'economics',
+      'সমাজবিজ্ঞান',
+      'sociology',
+      'যুক্তিবিদ্যা',
+      'logic',
+      'b-unit',
+      'b unit',
+      'খ’ ইউনিট',
+      'খ ইউনিট',
+      'd-unit',
+      'd unit',
+      'ঘ’ ইউনিট',
+      'ঘ ইউনিট',
+    ]);
+
+    const isScience = matchesAnyKeyword(text, [
+      'বিজ্ঞান',
+      'সায়েন্স',
+      'science',
+      'pcmb',
+      'physics',
+      'chem',
+      'chemistry',
+      'biology',
+      'math',
+      'mathematics',
+      'পদার্থ',
+      'রসায়ন',
+      'জীববিজ্ঞান',
+      'বায়োলজি',
+      'গণিত',
+      'উচ্চতর গণিত',
+      'a-unit',
+      'a unit',
+      'ক’ ইউনিট',
+      'ক ইউনিট',
+      'ইঞ্জিনিয়ারিং',
+      'engineering',
+      'বুয়েট',
+      'buet',
+      'মেডিকেল',
+      'medical',
+      'ভার্সিটি ‘ক’',
+      'টেস্ট পেপার',
+      'কৃষি',
+      'agri',
+    ]);
 
     const depts: ('science' | 'business' | 'humanities')[] = [];
     if (isScience) depts.push('science');
@@ -274,7 +405,10 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
     if (isHumanities) depts.push('humanities');
 
     // General or foundational courses apply to all 3 departments
-    if (depts.length === 0 || text.includes('bei') || text.includes('বাংলা, ইংরেজি') || text.includes('মাস্টারক্লাস')) {
+    if (
+      depts.length === 0 ||
+      matchesAnyKeyword(text, ['bei', 'বাংলা, ইংরেজি', 'মাস্টারক্লাস'])
+    ) {
       return ['science', 'business', 'humanities'];
     }
 
@@ -308,25 +442,25 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   // Search filtered courses per department
   const filteredScienceCourses = useMemo(() => {
     if (!searchQuery.trim()) return scienceCourses;
-    const q = searchQuery.toLowerCase();
+    const q = normalizeSearchText(searchQuery);
     return scienceCourses.filter((c) =>
-      `${c.title} ${c.slug} ${c.description || ''}`.toLowerCase().includes(q)
+      normalizeSearchText(`${c.title} ${c.slug} ${c.targetStudents || ''} ${c.description || ''}`).includes(q)
     );
   }, [scienceCourses, searchQuery]);
 
   const filteredBusinessCourses = useMemo(() => {
     if (!searchQuery.trim()) return businessCourses;
-    const q = searchQuery.toLowerCase();
+    const q = normalizeSearchText(searchQuery);
     return businessCourses.filter((c) =>
-      `${c.title} ${c.slug} ${c.description || ''}`.toLowerCase().includes(q)
+      normalizeSearchText(`${c.title} ${c.slug} ${c.targetStudents || ''} ${c.description || ''}`).includes(q)
     );
   }, [businessCourses, searchQuery]);
 
   const filteredHumanitiesCourses = useMemo(() => {
     if (!searchQuery.trim()) return humanitiesCourses;
-    const q = searchQuery.toLowerCase();
+    const q = normalizeSearchText(searchQuery);
     return humanitiesCourses.filter((c) =>
-      `${c.title} ${c.slug} ${c.description || ''}`.toLowerCase().includes(q)
+      normalizeSearchText(`${c.title} ${c.slug} ${c.targetStudents || ''} ${c.description || ''}`).includes(q)
     );
   }, [humanitiesCourses, searchQuery]);
 
@@ -337,9 +471,9 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
       list = list.filter((c) => getCourseDepartments(c).includes(selectedDept));
     }
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = normalizeSearchText(searchQuery);
       list = list.filter((c) =>
-        `${c.title} ${c.slug} ${c.description || ''}`.toLowerCase().includes(q)
+        normalizeSearchText(`${c.title} ${c.slug} ${c.targetStudents || ''} ${c.description || ''}`).includes(q)
       );
     }
     return list;

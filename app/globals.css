@@ -2,6 +2,8 @@
 
 @layer base {
   :root {
+    --font-hind-siliguri: 'Hind Siliguri';
+    --font-jakarta: 'Plus Jakarta Sans';
     --red: #E22B2B;
     --red-dark: #B91C1C;
     --blue: #1E63D6;
