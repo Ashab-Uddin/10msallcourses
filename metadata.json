@@ -1,0 +1,6 @@
+{
+  "name": "10 Minute School Course Marketplace",
+  "description": "১০ মিনিট স্কুলের সকল কোর্সে সরাসরি সর্বোচ্চ প্রাথমিক ছাড়ে ভর্তি নিশ্চিত করার জন্য ডেডিকেটেড অ্যাফিলিয়েট প্ল্যাটফর্ম।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

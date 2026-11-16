@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --red: #E22B2B;
+    --red-dark: #B91C1C;
+    --blue: #1E63D6;
+    --emerald: #059669;
+    --ink: #2A0F12;
+    --ink-muted: #6B4C4F;
+    --glass-bg: rgba(255, 255, 255, 0.58);
+    --glass-bg-strong: rgba(255, 255, 255, 0.80);
+    --glass-bg-inset: rgba(255, 255, 255, 0.52);
+    --glass-border: rgba(255, 255, 255, 0.82);
+    --glass-line: rgba(226, 43, 43, 0.14);
+    --glass-shadow: 0 10px 34px -12px rgba(185, 28, 28, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    --glass-shadow-hover: 0 22px 46px -14px rgba(185, 28, 28, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-hind-siliguri), var(--font-jakarta), 'Hind Siliguri', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #fff6f6 0%, #ffe6e8 48%, #ffd8dc 100%) fixed;
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
+
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Frosted Glass Surfaces */
+.glass-surface {
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(22px) saturate(175%);
+  -webkit-backdrop-filter: blur(22px) saturate(175%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 40px -12px rgba(185, 28, 28, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.glass-inset {
+  background: var(--glass-bg-inset);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--glass-shadow-hover);
+}
+
+/* Floating Ambient Orbs */
+@keyframes glassOrbDrift {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(42px, -32px, 0) scale(1.08);
+  }
+}
+
+.glass-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(76px);
+  pointer-events: none;
+  animation: glassOrbDrift 18s ease-in-out infinite;
+  will-change: transform;
+  contain: layout paint;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-orb {
+    animation: none !important;
+  }
+  .glass-card,
+  .capsule-card {
+    transition: none !important;
+  }
+}
+
+.capsule-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.capsule-card:hover {
+  transform: translateY(-6px) scale(1.02);
+}
+
+.glow-orange-ring {
+  box-shadow: 0 0 0 1.5px rgba(249, 115, 22, 0.45), 0 10px 24px -8px rgba(234, 88, 12, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.glow-cyan-ring {
+  box-shadow: 0 0 0 1.5px rgba(14, 165, 233, 0.45), 0 10px 25px -8px rgba(14, 165, 233, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+}
+

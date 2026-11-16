@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="bn"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>শিখনী কোর্স — সেরা কোর্সে সর্বোচ্চ ছাড়</title>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--r:#E22B2B;--rd:#B91C1C;--ink:#2A0F12;--mu:#7A5A5D;--g:rgba(255,255,255,.58);--gs:rgba(255,255,255,.8);--st:rgba(255,255,255,.75);--ln:rgba(226,43,43,.16);--sh:0 10px 34px -12px rgba(185,28,28,.32)}
+*{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}
+body{font-family:'Hind Siliguri',sans-serif;color:var(--ink);line-height:1.65;background:linear-gradient(135deg,#fff5f5,#ffe0e0 50%,#ffcaca) fixed;overflow-x:hidden}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}a{color:inherit;text-decoration:none}
+:focus-visible{outline:3px solid var(--r);outline-offset:2px}
+.w{max-width:1180px;margin:0 auto;padding:0 22px;position:relative;z-index:1}
+#bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}#bg canvas{position:absolute;inset:0}
+.orb{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5;animation:fl 18s ease-in-out infinite}
+.o1{width:440px;height:440px;background:#ff4d4d;top:-120px;left:-100px}.o2{width:360px;height:360px;background:#ff9a9a;bottom:-80px;right:-60px;animation-delay:-7s}
+@keyframes fl{50%{transform:translate(50px,-40px) scale(1.1)}}
+#glow{position:fixed;left:0;top:0;width:400px;height:400px;margin:-200px 0 0 -200px;border-radius:50%;pointer-events:none;z-index:0;background:radial-gradient(circle,rgba(226,43,43,.2),transparent 65%)}
+#bar{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,#ff7a7a,var(--rd));z-index:99}
+.gl{background:var(--g);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);border:1px solid var(--st);box-shadow:var(--sh)}
+.btn{display:inline-block;background:linear-gradient(135deg,#ff5252,var(--rd));color:#fff;font-weight:600;padding:10px 22px;border-radius:999px;box-shadow:0 8px 20px -8px rgba(226,43,43,.7),inset 0 1px 0 rgba(255,255,255,.35);transition:.2s;font-size:14px;text-align:center}
+.btn:hover{transform:translateY(-2px)}.btn.o{background:var(--gs);color:var(--rd);box-shadow:none;border:1px solid var(--ln)}
+header{position:sticky;top:12px;z-index:50;margin:12px auto 0;max-width:1180px;width:calc(100% - 24px);border-radius:999px}
+.hi{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 20px}
+.lg{display:flex;align-items:center;gap:10px;cursor:pointer}.lm{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#ff6b6b,var(--rd));color:#fff;display:grid;place-items:center;font-weight:700;box-shadow:0 6px 16px -4px rgba(226,43,43,.6)}
+.lt{font-weight:700;font-size:19px;line-height:1.1}.ls{font-size:10px;color:var(--mu)}
+nav{display:flex;gap:4px}nav a{font-size:14px;font-weight:600;padding:7px 13px;border-radius:999px;transition:.2s}nav a:hover,nav a.on{background:rgba(226,43,43,.1);color:var(--r)}
+.bd{background:var(--r);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;margin-left:3px}
+#mt{display:none;font-size:22px}#mn{display:none;padding:6px 16px 14px}#mn a{display:block;padding:10px;border-radius:12px;font-weight:600}
+@media(max-width:900px){nav{display:none}#mt{display:block}header{border-radius:26px}#mn.open{display:block}}
+.hero{text-align:center;padding:72px 0 40px}.hero h1{font-size:clamp(30px,5.4vw,52px);line-height:1.25;margin-bottom:14px;background:linear-gradient(120deg,var(--rd),#ff5a5a 60%,var(--r));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--mu);max-width:620px;margin:0 auto 26px;font-size:16px}
+.promo{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;border-radius:18px;padding:13px 20px;margin:0 auto 24px;max-width:780px}
+.promo b.t{font-size:14px;color:var(--rd)}.cd{display:flex;gap:8px}.cd div{background:var(--gs);border:1px solid var(--ln);border-radius:12px;padding:5px;min-width:54px;text-align:center}.cd b{display:block;font-size:19px;color:var(--r);line-height:1.1;font-variant-numeric:tabular-nums}.cd span{font-size:10px;color:var(--mu)}
+.sb{display:flex;gap:8px;padding:6px;border-radius:999px;max-width:600px;margin:0 auto}.sb input{flex:1;border:0;outline:0;background:transparent;padding:11px 18px;font:inherit;font-size:15px}
+.sec{padding:34px 0}.sh2{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:18px}.sh2 h2{font-size:24px;padding-left:12px;border-left:4px solid var(--r)}
+.pg{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}@media(max-width:900px){.pg{grid-template-columns:1fr}}
+.pc{border-radius:20px;overflow:hidden;display:flex;flex-direction:column;transition:transform .15s,box-shadow .3s}.pc:hover,.cc:hover{box-shadow:0 22px 46px -14px rgba(185,28,28,.5)}
+.pb{padding:24px 20px;color:#fff;font-weight:700;font-size:17px;background:linear-gradient(135deg,rgba(255,82,82,.92),rgba(139,15,15,.92))}.pc:nth-child(2) .pb{background:linear-gradient(135deg,rgba(226,43,43,.92),rgba(80,8,8,.92))}.pc:nth-child(3) .pb{background:linear-gradient(135deg,rgba(255,120,120,.92),rgba(185,28,28,.92))}
+.pd{padding:18px 20px 22px;display:flex;flex-direction:column;gap:10px;flex:1}.pd h3{font-size:18px}.pd p{font-size:14px;color:var(--mu)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}.tab{font-size:13px;font-weight:600;padding:6px 15px;border-radius:999px;background:rgba(255,255,255,.6);border:1px solid var(--ln);color:var(--rd);transition:.2s}.tab:hover,.tab.on{background:var(--r);color:#fff;border-color:var(--r)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
+.cc{border-radius:20px;overflow:hidden;display:flex;flex-direction:column;transition:transform .15s,box-shadow .3s}
+.th{height:120px;display:grid;place-items:center;font-size:40px;font-weight:700;color:#fff;position:relative;background:linear-gradient(135deg,#ff5252,#b91c1c)}.th.d{background:linear-gradient(135deg,#7f1d1d,#2a0f12)}.th.m{background:linear-gradient(135deg,#be123c,#7f1d1d)}
+.dt{position:absolute;top:10px;left:10px;font-size:11.5px;padding:3px 11px;border-radius:999px;background:rgba(255,255,255,.28);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.5)}
+.sv{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.3);backdrop-filter:blur(8px);font-size:17px}.sv.on{background:#fff;color:var(--r)}
+.cb{padding:14px;display:flex;flex-direction:column;flex:1;gap:5px}.cb h4{font-size:15px;line-height:1.4}.cb p{font-size:13px;color:var(--mu);flex:1}
+.pr .n{font-weight:700;font-size:19px;color:var(--r)}.pr .o{margin-left:8px;color:var(--mu);text-decoration:line-through;font-size:13px}
+.ca{display:flex;gap:8px;margin-top:8px}.ca .btn{flex:1;padding:9px}
+.cp{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+.cu{border-radius:20px;padding:20px;position:relative}.cu::before,.cu::after{content:"";position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:#ffe6e6;transform:translateY(-50%)}.cu::before{left:-9px}.cu::after{right:-9px}
+.cu b.k{display:block;font-size:22px;letter-spacing:2px;color:var(--r);border:2px dashed var(--ln);border-radius:12px;padding:6px;text-align:center;margin:10px 0}
+.bl{border-radius:20px;padding:22px}.bl small{color:var(--r);font-weight:600}.bl h3{margin:6px 0;font-size:17px}.bl p{font-size:14px;color:var(--mu)}
+.tr{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;text-align:center}@media(max-width:700px){.tr{grid-template-columns:1fr 1fr}}
+.tr div{border-radius:18px;padding:20px}.tr b{display:block;font-size:27px;color:var(--r)}.tr span{font-size:13px;color:var(--mu)}
+footer{margin:36px 12px 12px;padding:36px 0 22px;border-radius:28px;position:relative;z-index:1}
+.fg{display:grid;grid-template-columns:2fr 1fr 1fr;gap:26px}@media(max-width:700px){.fg{grid-template-columns:1fr}}.fg h5{color:var(--rd);margin-bottom:8px}.fg a{display:block;font-size:14px;color:var(--mu);cursor:pointer;padding:2px 0}.fg a:hover{color:var(--r)}
+.dis{border-top:1px solid var(--ln);margin-top:22px;padding-top:16px;font-size:12px;color:var(--mu)}
+.ov{position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:18px;background:rgba(80,10,10,.35);backdrop-filter:blur(8px)}.ov.open{display:grid}
+.md{width:100%;max-width:540px;border-radius:26px;padding:26px;background:var(--gs);max-height:90vh;overflow:auto}.md h3{font-size:20px;margin-bottom:8px}.md ul{margin:12px 0 16px 20px;color:var(--mu);font-size:14px}
+.x{float:right;font-size:26px;color:var(--r)}
+#ts{position:fixed;bottom:20px;right:20px;z-index:200}#ts div{padding:12px 20px;border-radius:14px;background:rgba(42,15,18,.85);color:#fff;font-size:14px;border-left:4px solid var(--r);margin-top:8px}
+.em{text-align:center;color:var(--mu);padding:40px}.view{display:none}.view.on{display:block}
+.rv{opacity:0;transform:translateY(20px);transition:.7s}.rv.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.rv{opacity:1;transform:none}}
+</style></head><body>
+<div id="bg"><div class="orb o1"></div><div class="orb o2"></div><canvas id="cv"></canvas></div><div id="glow"></div><div id="bar"></div>
+<header class="gl"><div class="hi">
+<div class="lg" onclick="go('home')"><div class="lm">শি</div><div><div class="lt">শিখনী</div><div class="ls">SHIKHONI COURSES</div></div></div>
+<nav><a data-v="home" class="on" onclick="go('home')">কোর্স</a><a onclick="go('home','skills')">স্কিলস</a><a onclick="go('home','admission')">ভর্তি</a><a data-v="offers" onclick="go('offers')">অফার</a><a data-v="blog" onclick="go('blog')">গাইড</a><a data-v="saved" onclick="go('saved')">সেভ করা<span class="bd" id="sc">0</span></a></nav>
+<button id="mt" aria-label="মেনু" onclick="mn.classList.toggle('open')">☰</button></div>
+<div id="mn"><a onclick="go('home')">কোর্স</a><a onclick="go('offers')">অফার</a><a onclick="go('blog')">গাইড ও ব্লগ</a><a onclick="go('saved')">সেভ করা কোর্স</a></div></header>
+<main>
+<div class="view on" id="v-home">
+<section class="hero"><div class="w"><h1>সেরা কোর্সে সর্বোচ্চ ছাড়, সহজ পথে</h1>
+<p>ক্লাস ৬ থেকে HSC, ভর্তি পরীক্ষা ও স্কিল কোর্স — এক জায়গা থেকে বেছে নাও।</p>
+<div class="promo gl"><b class="t">HSC ২৮ আর্লি-বার্ড ছাড় শেষ হচ্ছে —</b><div class="cd"><div><b id="h">00</b><span>ঘণ্টা</span></div><div><b id="m">00</b><span>মিনিট</span></div><div><b id="s">00</b><span>সেকেন্ড</span></div></div></div>
+<div class="sb gl"><input id="q" placeholder="কোর্সের নাম লিখে খুঁজুন..." oninput="draw()" aria-label="সার্চ"><button class="btn" onclick="draw();document.getElementById('cat').scrollIntoView()">খুঁজুন</button></div></div></section>
+<section class="sec"><div class="w"><div class="pg rv">
+<div class="pc gl"><div class="pb">একাডেমিক</div><div class="pd"><h3>পরীক্ষার সেরা প্রস্তুতি</h3><p>লাইভ ক্লাস, প্র্যাকটিস বুক ও মডেল টেস্ট নিয়ে সারা বছরের পরিকল্পনা।</p><button class="btn" style="margin-top:auto" onclick="tab('Academic')">একাডেমিক কোর্স</button></div></div>
+<div class="pc gl"><div class="pb">স্কিল ডেভেলপমেন্ট</div><div class="pd"><h3>ক্যারিয়ার উপযোগী স্কিল</h3><p>IELTS, ফ্রিল্যান্সিং, মার্কেটিং — দেশসেরা মেন্টরদের সাথে।</p><button class="btn" style="margin-top:auto" onclick="tab('Skills')">স্কিল কোর্স</button></div></div>
+<div class="pc gl"><div class="pb">ভর্তি প্রস্তুতি</div><div class="pd"><h3>স্বপ্নের ভার্সিটির প্রস্তুতি</h3><p>গোছানো রুটিন ও নিয়মিত মডেল টেস্ট সহ ইউনিট ভিত্তিক ব্যাচ।</p><button class="btn" style="margin-top:auto" onclick="tab('Admission')">ভর্তি কোর্স</button></div></div>
+</div></div></section>
+<section class="sec" id="cat"><div class="w"><div class="sh2"><h2>সব কোর্স</h2><div class="tabs" id="tabs"></div></div><div class="grid" id="grid"></div></div></section>
+<section class="sec"><div class="w"><div class="tr rv"><div class="gl"><b>৩,০০,০০০+</b><span>শিক্ষার্থী</span></div><div class="gl"><b>৭০+</b><span>মেন্টর</span></div><div class="gl"><b>৯৬%</b><span>কোর্স সম্পন্নের হার</span></div><div class="gl"><b>২৪/৭</b><span>সাপোর্ট</span></div></div></div></section>
+</div>
+<div class="view" id="v-saved"><div class="w sec"><div class="sh2"><h2>সেভ করা কোর্স</h2></div><div class="grid" id="sg"></div></div></div>
+<div class="view" id="v-offers"><div class="w sec"><div class="sh2"><h2>কুপন ও অফার</h2></div><div class="cp" id="cps"></div></div></div>
+<div class="view" id="v-blog"><div class="w sec"><div class="sh2"><h2>গাইড ও ব্লগ</h2></div><div class="cp" id="bls"></div></div></div>
+</main>
+<footer class="gl"><div class="w"><div class="fg"><div><div class="lg"><div class="lm">শি</div><div class="lt">শিখনী</div></div><p style="font-size:13px;color:var(--mu);margin-top:10px;max-width:300px">একাডেমিক পড়াশোনা থেকে ক্যারিয়ার স্কিল — শেখার প্রতিটি ধাপে পাশে।</p></div>
+<div><h5>কোর্স</h5><a onclick="tab('Academic')">একাডেমিক</a><a onclick="tab('Skills')">স্কিলস</a><a onclick="tab('Admission')">ভর্তি</a></div><div><h5>আরও</h5><a onclick="go('offers')">কুপন</a><a onclick="go('blog')">ব্লগ</a><a onclick="go('saved')">সেভ করা</a></div></div>
+<div class="dis">⚠️ শিখনী একটি স্বাধীন কোর্স ডিসকভারি প্ল্যাটফর্ম, ১০ মিনিট স্কুলের অফিসিয়াল সাইট নয়। এখানকার ছাড় ও কুপন অ্যাফিলিয়েট রেফারেলের মাধ্যমে পরিচালিত। © ২০২৬ শিখনী।</div></div></footer>
+<div class="ov" id="ov" onclick="if(event.target===this)cl()"><div class="md" id="mb"></div></div><div id="ts"></div>
+<script>
+var AFF='https://10minuteschool.com/?aff=shikhoni10';
+var C=[
+['Academic','৬','t','৮৫৫০৳ ছাড়','৬ষ্ঠ শ্রেণি — অনলাইন ব্যাচ ২০২৬ (বার্ষিক)','লাইভ ক্লাস ও সাপ্তাহিক মূল্যায়ন সহ পূর্ণ সিলেবাস।',4450,13000],
+['Academic','৬','d','৩৪০০৳ ছাড়','৬ষ্ঠ শ্রেণি — অর্ধ-বার্ষিক প্রস্তুতি','নিয়মিত লাইভ ক্লাস ও মূল্যায়ন।',3100,6500],
+['Academic','SSC','t','১০০০৳ ছাড়','SSC ২৮ [বিজ্ঞান] রেকর্ডেড ব্যাচ','২০২৮ SSC পরীক্ষার্থীদের সম্পূর্ণ পরিকল্পনা।',5000,6000],
+['Academic','৯','m','৯৩০০৳ ছাড়','৯ম শ্রেণি — বার্ষিক প্রস্তুতি + তিন বিষয়','বাংলা, ইংরেজি ও আইসিটি একসাথে।',6300,15600],
+['Academic','HSC','d','আর্লি-বার্ড','HSC ২৮ অনলাইন ব্যাচ','সম্পূর্ণ সিলেবাস, লাইভ ক্লাস ও মডেল টেস্ট।',7500,10000],
+['Skills','IE','d','জনপ্রিয়','IELTS একাডেমিক প্রস্তুতি','লিসেনিং, রিডিং, রাইটিং ও স্পিকিং একসাথে।',3900,5500],
+['Skills','MS','m','নতুন','মাইক্রোসফট অফিস ৩ ইন ১','Word, Excel, PowerPoint দিয়ে কাজ দ্রুত করো।',1200,1800],
+['Skills','FB','t','বেস্ট সেলার','ফেসবুক মার্কেটিং মাস্টারক্লাস','বিক্রি বাড়ানোর ব্যবহারিক কৌশল।',2400,3200],
+['Skills','EN','d','সাশ্রয়ী','স্পোকেন ইংলিশ','আত্মবিশ্বাসের সাথে ইংরেজিতে কথা বলার অনুশীলন।',950,1400],
+['Admission','A','t','ব্যাচ চলমান','ভার্সিটি ভর্তি — Unit A ২০২৬','বিজ্ঞান বিভাগের পূর্ণাঙ্গ প্রস্তুতি।',5500,7000],
+['Admission','B','d','সিট সীমিত','ভার্সিটি ভর্তি — Unit B ২০২৬','মানবিক বিভাগের রুটিন ও মডেল টেস্ট।',5500,7000],
+['Admission','C','m','নতুন ব্যাচ','ভার্সিটি ভর্তি — Unit C ২০২৬','ব্যবসায় শিক্ষা বিভাগের বিশেষ প্রস্তুতি।',5500,7000]];
+var CP=[['SHIKHONI10','যেকোনো কোর্সে বিশেষ ছাড়','সব কোর্স'],['HSC28EARLY','HSC ২৮ আর্লি-বার্ড বোনাস','একাডেমিক'],['SKILL15','স্কিল কোর্সে অতিরিক্ত ছাড়','স্কিলস']];
+var BL=[['প্রস্তুতি','HSC-র শেষ ৯০ দিনের রুটিন','কোন বিষয়ে কতটা সময় দেবে, তার একটি সহজ ছক।'],['ক্যারিয়ার','ফ্রিল্যান্সিং শুরুর প্রথম ধাপ','প্রথম ক্লায়েন্ট পাওয়ার আগে যা শিখতে হবে।'],['ভর্তি','ভার্সিটি ভর্তির মডেল টেস্ট কীভাবে দেবে','ভুল বিশ্লেষণ করে নম্বর বাড়ানোর পদ্ধতি।'],['স্কিল','IELTS-এ ব্যান্ড ৭ পাওয়ার কৌশল','চার মডিউলের জন্য আলাদা পরিকল্পনা।']];
+var cat='all',sv=[];try{sv=JSON.parse(localStorage.getItem('shk')||'[]')}catch(e){}
+function $(i){return document.getElementById(i)}
+function bn(n){return '৳'+String(n).replace(/\d/g,function(d){return '০১২৩৪৫৬৭৮৯'[d]}).replace(/\B(?=(\d{3})+$)/g,',')}
+function toast(t){var d=document.createElement('div');d.textContent=t;$('ts').appendChild(d);setTimeout(function(){d.remove()},2400)}
+function card(c,i){var on=sv.indexOf(i)>-1;return '<div class="cc gl"><div class="th '+c[2]+'"><span class="dt">'+c[3]+'</span><button class="sv '+(on?'on':'')+'" aria-label="সেভ করুন" onclick="save('+i+')">'+(on?'★':'☆')+'</button>'+c[1]+'</div><div class="cb"><h4>'+c[4]+'</h4><p>'+c[5]+'</p><div class="pr"><span class="n">'+bn(c[6])+'</span><span class="o">'+bn(c[7])+'</span></div><div class="ca"><button class="btn o" onclick="info('+i+')">বিস্তারিত</button><a class="btn" href="'+AFF+'" target="_blank" rel="noopener sponsored">ভর্তি হোন</a></div></div></div>'}
+function draw(){var q=$('q').value.trim().toLowerCase(),r='';C.forEach(function(c,i){if((cat=='all'||c[0]==cat)&&(!q||(c[4]+c[5]).toLowerCase().indexOf(q)>-1))r+=card(c,i)});$('grid').innerHTML=r||'<div class="em">কোনো কোর্স পাওয়া যায়নি। অন্য শব্দে খুঁজুন।</div>';
+$('tabs').innerHTML=[['all','সব'],['Academic','একাডেমিক'],['Skills','স্কিলস'],['Admission','ভর্তি']].map(function(t){return '<button class="tab '+(cat==t[0]?'on':'')+'" onclick="tab(\''+t[0]+'\')">'+t[1]+'</button>'}).join('')}
+function tab(t){cat=t;go('home');draw();$('cat').scrollIntoView()}
+function save(i){var k=sv.indexOf(i);k>-1?sv.splice(k,1):sv.push(i);try{localStorage.setItem('shk',JSON.stringify(sv))}catch(e){}toast(k>-1?'সেভ তালিকা থেকে সরানো হয়েছে':'কোর্স সেভ হয়েছে');ref()}
+function ref(){$('sc').textContent=sv.length;draw();$('sg').innerHTML=sv.length?sv.map(function(i){return card(C[i],i)}).join(''):'<div class="em">এখনও কোনো কোর্স সেভ করা হয়নি। কোর্সের ☆ চিহ্নে চাপ দিয়ে সেভ করুন।</div>'}
+function info(i){var c=C[i];$('mb').innerHTML='<button class="x" aria-label="বন্ধ" onclick="cl()">&times;</button><h3>'+c[4]+'</h3><p style="color:var(--mu)">'+c[5]+'</p><ul><li>লাইভ ও রেকর্ডেড ক্লাস</li><li>নিয়মিত পরীক্ষা ও মূল্যায়ন</li><li>সাপোর্ট টিমের সহায়তা</li></ul><div class="pr" style="margin-bottom:14px"><span class="n">'+bn(c[6])+'</span><span class="o">'+bn(c[7])+'</span></div><a class="btn" href="'+AFF+'" target="_blank" rel="noopener sponsored">অফিসিয়াল সাইটে ভর্তি হোন</a>';$('ov').classList.add('open')}
+function cl(){$('ov').classList.remove('open')}addEventListener('keydown',function(e){if(e.key=='Escape')cl()});
+function go(v,a){['home','saved','offers','blog'].forEach(function(x){$('v-'+x).classList.toggle('on',x==v)});mn.classList.remove('open');document.querySelectorAll('nav a[data-v]').forEach(function(l){l.classList.toggle('on',l.dataset.v==v)});if(a){tab(a=='skills'?'Skills':'Admission')}else scrollTo({top:0,behavior:'smooth'})}
+$('cps').innerHTML=CP.map(function(c){return '<div class="cu gl"><small style="color:var(--r);font-weight:600">'+c[2]+'</small><h3>'+c[1]+'</h3><b class="k">'+c[0]+'</b><button class="btn" style="width:100%" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+c[0]+'\');toast(\'কোড কপি হয়েছে: '+c[0]+'\')">কোড কপি করুন</button></div>'}).join('');
+$('bls').innerHTML=BL.map(function(b){return '<div class="bl gl"><small>'+b[0]+'</small><h3>'+b[1]+'</h3><p>'+b[2]+'</p></div>'}).join('');
+var mn=$('mn'),T=Date.now()+(12*60+45)*60000;(function t(){var d=Math.max(0,T-Date.now());if(!d)T=Date.now()+36e5;$('h').textContent=String(Math.floor(d/36e5)).padStart(2,'0');$('m').textContent=String(Math.floor(d%36e5/6e4)).padStart(2,'0');$('s').textContent=String(Math.floor(d%6e4/1e3)).padStart(2,'0');setTimeout(t,1000)})();
+ref();
+/* FX */
+var rm=matchMedia('(prefers-reduced-motion: reduce)').matches,cv=$('cv'),x=cv.getContext('2d'),W,H,P=[],mo={x:-999,y:-999};
+function sz(){W=cv.width=innerWidth;H=cv.height=innerHeight;P=[];for(var i=0;i<Math.min(70,W*H/22000);i++)P.push({x:Math.random()*W,y:Math.random()*H,vx:Math.random()*.8-.4,vy:Math.random()*.8-.4})}
+function an(){x.clearRect(0,0,W,H);P.forEach(function(a,i){a.x+=a.vx;a.y+=a.vy;if(a.x<0||a.x>W)a.vx*=-1;if(a.y<0||a.y>H)a.vy*=-1;var dx=a.x-mo.x,dy=a.y-mo.y,d=Math.hypot(dx,dy);if(d<140){a.x+=dx/d*1.2;a.y+=dy/d*1.2}x.beginPath();x.arc(a.x,a.y,2,0,6.3);x.fillStyle='rgba(226,43,43,.55)';x.fill();for(var j=i+1;j<P.length;j++){var b=P[j],l=Math.hypot(a.x-b.x,a.y-b.y);if(l<130){x.strokeStyle='rgba(226,43,43,'+.22*(1-l/130)+')';x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke()}}});requestAnimationFrame(an)}
+sz();addEventListener('resize',sz);if(!rm)an();
+addEventListener('pointermove',function(e){mo.x=e.clientX;mo.y=e.clientY;$('glow').style.transform='translate('+e.clientX+'px,'+e.clientY+'px)'});
+addEventListener('scroll',function(){var h=document.documentElement;$('bar').style.width=h.scrollTop/(h.scrollHeight-h.clientHeight||1)*100+'%'},{passive:true});
+var tl;if(!rm)document.addEventListener('pointermove',function(e){var c=e.target.closest&&e.target.closest('.cc,.pc');if(tl&&tl!==c)tl.style.transform='';tl=c;if(!c)return;var r=c.getBoundingClientRect(),a=(e.clientX-r.left)/r.width-.5,b=(e.clientY-r.top)/r.height-.5;c.style.transform='perspective(800px) rotateX('+-b*7+'deg) rotateY('+a*7+'deg) translateY(-4px)'});
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});document.querySelectorAll('.rv').forEach(function(e){io.observe(e)});
+</script></body></html>
