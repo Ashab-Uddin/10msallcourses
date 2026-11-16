@@ -3,7 +3,7 @@ import { Category, Course, SiteSettings } from '../types.ts';
 export const INITIAL_CATEGORIES: Category[] = [
   {
     id: 1,
-    name: 'HSC 28 ও HSC 27 অনলাইন ব্যাচ',
+    name: 'HSC অনলাইন ব্যাচ',
     slug: 'hsc',
     subtitle: 'কলেজ একাডেমিক প্রোগ্রাম',
     badgeColor: 'red',
@@ -13,7 +13,7 @@ export const INITIAL_CATEGORIES: Category[] = [
   },
   {
     id: 2,
-    name: '১০ম শ্রেণি- অনলাইন ব্যাচ',
+    name: '৬ - ১০ শ্রেণি',
     slug: 'school',
     subtitle: 'SSC ২০২৭ প্রস্তুতি ও বোর্ড পরীক্ষার ১০০% রিভিশন প্রোগ্রাম',
     badgeColor: 'amber',

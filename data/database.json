@@ -2,7 +2,7 @@
   "categories": [
     {
       "id": 1,
-      "name": "HSC 28 ও HSC 27 অনলাইন ব্যাচ",
+      "name": "HSC অনলাইন ব্যাচ",
       "slug": "hsc",
       "subtitle": "কলেজ একাডেমিক প্রোগ্রাম",
       "badgeColor": "red",
@@ -12,7 +12,7 @@
     },
     {
       "id": 2,
-      "name": "১০ম শ্রেণি- অনলাইন ব্যাচ",
+      "name": "৬ - ১০ শ্রেণি",
       "slug": "school",
       "subtitle": "SSC ২০২৭ প্রস্তুতি ও বোর্ড পরীক্ষার ১০০% রিভিশন প্রোগ্রাম",
       "badgeColor": "amber",
@@ -1139,12 +1139,12 @@
     "heroBadge": "১০ মিনিট স্কুল অফিশিয়াল লার্নিং পার্টনার",
     "heroTitle": "সেরা শিক্ষকদের সাথে ঘরে বসেই নাও সম্পূর্ণ প্রস্তুতি",
     "heroSubtitle": "৬ষ্ঠ-১২ম শ্রেণি, এইচএসসি ও ভর্তি পরীক্ষার সকল কোর্স পেয়ে যান আকর্ষণীয় ছাড়ে...",
-    "showCountdownTimer": true,
+    "showCountdownTimer": false,
     "countdownLabel": "HSC ২৮ আর্লি বার্ড স্পেশাল উপহার সহ ছাড়ে বাকি:",
     "countdownTargetCourse": "all",
     "countdownTargetDate": "",
     "defaultAffiliateRef": "10ms_affiliate",
-    "updatedAt": "2026-11-16T12:00:44.190Z"
+    "updatedAt": "2026-11-16T21:00:00.797Z"
   },
   "inquiries": [
     {

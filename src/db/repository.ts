@@ -302,7 +302,7 @@ export async function createNewCourse(input: any) {
     instructorInfo: input.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল',
     instructorIcon: input.instructorIcon || 'school',
     features: typeof input.features === 'string' ? input.features : JSON.stringify(input.features || []),
-    affiliateUrl: input.affiliateUrl || 'https://10minuteschool.com',
+    affiliateUrl: typeof input.affiliateUrl === 'string' ? input.affiliateUrl.trim() : '',
     isPopular: input.isPopular ?? true,
     status: normalizeCourseStatus(input.status, 'active'),
     clickCount: 0,

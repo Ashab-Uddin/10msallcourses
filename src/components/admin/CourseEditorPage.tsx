@@ -121,7 +121,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     course ? normalizeInitialPrice(course.discountPrice, 0) : ''
   );
   const [affiliateUrl, setAffiliateUrl] = useState(
-    course?.affiliateUrl || 'https://10minuteschool.com'
+    course?.affiliateUrl || ''
   );
   const [description, setDescription] = useState(course?.description || '');
   const duration = course?.duration || '৬ মাস';
@@ -336,7 +336,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       instructorInfo: course?.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল',
       instructorIcon: course?.instructorIcon || 'school',
       features: JSON.stringify(featuresList),
-      affiliateUrl: affiliateUrl.trim() || 'https://10minuteschool.com',
+      affiliateUrl: affiliateUrl.trim(),
       isPopular,
       status: course?.status && course.status !== 'draft' ? course.status : 'active',
       clickCount: course?.clickCount || 0,
@@ -397,6 +397,10 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       setError(pricingValidation.error || 'অবৈধ মূল্য প্রদান করা হয়েছে।');
       return;
     }
+    if (!affiliateUrl.trim()) {
+      setError('ভর্তি / এফিলিয়েট লিংক (Affiliate / Enrollment Target URL) পূরণ করা আবশ্যক।');
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -431,7 +435,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       duration: duration.trim() || '৬ মাস',
       targetStudents: dedupeCommaKeywords(targetStudents),
       features: featuresList,
-      affiliateUrl: affiliateUrl.trim() || 'https://10minuteschool.com',
+      affiliateUrl: affiliateUrl.trim(),
       isPopular,
       status: course?.status && course.status !== 'draft' ? course.status : 'active',
     };
@@ -888,7 +892,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   required
                   value={affiliateUrl}
                   onChange={(e) => setAffiliateUrl(e.target.value)}
-                  placeholder="https://10minuteschool.com/product/..."
+                  placeholder="https://10minuteschool.com/product/course-name"
                   className="w-full px-3.5 py-2.5 rounded-r-xl border border-slate-200/90 text-xs font-mono text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                 />
               </div>
@@ -908,9 +912,14 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
             {/* Image URL & File Upload */}
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  ১. ইমেজ লিংক (CDN Image URL) অথবা ২. কম্পিউটার থেকে ছবি আপলোড (Upload Image):
-                </label>
+                <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    ১. ইমেজ লিংক (CDN Image URL) অথবা ২. কম্পিউটার থেকে ছবি আপলোড (Upload Image):
+                  </label>
+                  <span className="text-[11px] font-medium text-[#6B4C4F]">
+                    Recommended: 1200 × 675 px (16:9)
+                  </span>
+                </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="flex-1 relative">
                     <input
@@ -1141,7 +1150,10 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                 <CourseCard
                   course={previewCourse}
                   onEnrollClick={() => {
-                    window.open(affiliateUrl, '_blank');
+                    const target = affiliateUrl.trim();
+                    if (target) {
+                      window.open(target, '_blank', 'noopener,noreferrer');
+                    }
                   }}
                 />
               </div>

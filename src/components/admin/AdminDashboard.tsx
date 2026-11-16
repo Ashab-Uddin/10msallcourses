@@ -2077,7 +2077,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     );
                   }
                 }}
-                placeholder="যেমন: HSC 28 ও HSC 27 অনলাইন ব্যাচ"
+                placeholder="যেমন: HSC অনলাইন ব্যাচ"
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
               />
             </div>
