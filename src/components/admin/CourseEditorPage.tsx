@@ -7,13 +7,11 @@ import { CourseCard } from '../public/CourseCard.tsx';
 import {
   ArrowLeft,
   Save,
-  FileText,
   Eye,
   X,
   Upload,
   CheckCircle2,
   AlertCircle,
-  Plus,
   Trash2,
   DollarSign,
   Tag,
@@ -27,7 +25,19 @@ interface CourseEditorPageProps {
   categories: Category[];
   onBackToList: () => void;
   onSave: (courseData: any, id?: number) => Promise<void>;
-  initialStatus?: 'active' | 'inactive' | 'draft';
+}
+
+function sanitizePriceInput(raw: string): string {
+  const asciiDigits = raw.replace(/[০-৯]/g, (d) => String('০১২৩৪৫৬৭৮৯'.indexOf(d)));
+  const digitsOnly = asciiDigits.replace(/[^\d]/g, '');
+  if (digitsOnly === '') return '';
+  return digitsOnly.replace(/^0+(?=\d)/, '').replace(/^0+$/, '0');
+}
+
+function normalizeInitialPrice(val: unknown, fallback: number): string {
+  const num = typeof val === 'number' ? val : Number(val);
+  if (!Number.isFinite(num) || num < 0) return String(fallback);
+  return String(Math.round(num));
 }
 
 export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
@@ -35,7 +45,6 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   categories,
   onBackToList,
   onSave,
-  initialStatus = 'active',
 }) => {
   const isEditing = Boolean(course);
 
@@ -45,17 +54,21 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const [categorySlug, setCategorySlug] = useState(
     course?.categorySlug || (categories[0]?.slug ?? 'hsc')
   );
-  const [headerTitle, setHeaderTitle] = useState(course?.headerTitle || '10MS');
-  const [headerSubtitle, setHeaderSubtitle] = useState(course?.headerSubtitle || 'অনলাইন কোর্স');
-  const [shortBadge, setShortBadge] = useState(course?.shortBadge || 'লাইভ ব্যাচ চলমান');
+  const headerTitle = course?.headerTitle || '10MS';
+  const headerSubtitle = course?.headerSubtitle || 'অনলাইন কোর্স';
+  const shortBadge = course?.shortBadge || 'লাইভ ব্যাচ চলমান';
   const [imageUrl, setImageUrl] = useState(course?.imageUrl || '');
   const [imageFit, setImageFit] = useState<'contain' | 'square' | 'video'>(
     (course?.imageFit as any) || 'contain'
   );
   const gradientTheme = course?.gradientTheme || 'red';
   const fullDescription = course?.fullDescription || '';
-  const [originalPrice, setOriginalPrice] = useState<number>(course?.originalPrice ?? 4500);
-  const [discountPrice, setDiscountPrice] = useState<number>(course?.discountPrice ?? 3500);
+  const [originalPriceInput, setOriginalPriceInput] = useState<string>(() =>
+    normalizeInitialPrice(course?.originalPrice, 4500)
+  );
+  const [discountPriceInput, setDiscountPriceInput] = useState<string>(() =>
+    normalizeInitialPrice(course?.discountPrice, 3500)
+  );
   const [affiliateUrl, setAffiliateUrl] = useState(
     course?.affiliateUrl || 'https://10minuteschool.com'
   );
@@ -63,18 +76,20 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     course?.description ||
       'দেশসেরা অভিজ্ঞ শিক্ষকদের পরিচালিত লাইভ ক্লাস ও পূর্ণাঙ্গ পরীক্ষার প্রস্তুতি নিয়ে এগিয়ে থাকুন...'
   );
-  const [duration, setDuration] = useState(course?.duration || '৬ মাস');
-  const [studentCount, setStudentCount] = useState(course?.studentCount || '১২,৫০০+ শিক্ষার্থী');
-  const [rating, setRating] = useState(course?.rating || '৪.৯');
+  const duration = course?.duration || '৬ মাস';
+  const studentCount = course?.studentCount || '১২,৫০০+ শিক্ষার্থী';
+  const rating = course?.rating || '৪.৯';
   const [targetStudents, setTargetStudents] = useState(
-    course?.targetStudents || 'HSC ও সমমান পরীক্ষার্থী'
+    course?.targetStudents || ''
   );
   const [featuresList, setFeaturesList] = useState<string[]>(() =>
     parseFeatures(course?.features || JSON.stringify(['লাইভ ক্লাস', 'লেকচার শিট', 'মডেল টেস্ট', 'ডেইলি সলভিং']))
   );
   const [newFeatureInput, setNewFeatureInput] = useState('');
   const [isPopular, setIsPopular] = useState<boolean>(course?.isPopular ?? true);
-  const [status, setStatus] = useState<string>(course?.status || initialStatus);
+
+  const originalPrice = originalPriceInput === '' ? 0 : Number(originalPriceInput);
+  const discountPrice = discountPriceInput === '' ? 0 : Number(discountPriceInput);
 
   // Preview modal for mobile / quick test
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -100,77 +115,6 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
         .trim()
         .replace(/\s+/g, '-');
       setSlug(autoSlug);
-    }
-  };
-
-  // Quick Preset Handlers for Academic levels
-  const handleQuickAcademicLevel = (levelName: string) => {
-    if (levelName.includes('HSC 26')) {
-      setShortBadge('HSC 26 রিভিশন');
-      setHeaderTitle('এইচএসসি ২৬');
-      setHeaderSubtitle('পূর্ণাঙ্গ একাডেমিক কোর্স');
-      setTargetStudents('HSC ২০২৬ ব্যাচের শিক্ষার্থী');
-      setCategorySlug('hsc');
-    } else if (levelName.includes('HSC 27')) {
-      setShortBadge('HSC 27 অনলাইন ব্যাচ');
-      setHeaderTitle('এইচএসসি ২৭');
-      setHeaderSubtitle('২ বছর মেয়াদী একাডেমিক কোর্স');
-      setTargetStudents('HSC ২০২৭ ব্যাচের শিক্ষার্থী');
-      setCategorySlug('hsc');
-    } else if (levelName.includes('HSC 28')) {
-      setShortBadge('HSC 28 অনলাইন ব্যাচ');
-      setHeaderTitle('এইচএসসি ২৮');
-      setHeaderSubtitle('আর্লি বার্ড একাডেমিক কোর্স');
-      setTargetStudents('HSC ২০২৮ ব্যাচের শিক্ষার্থী');
-      setCategorySlug('hsc');
-    } else if (levelName.includes('SSC 2027')) {
-      setShortBadge('SSC 27 অনলাইন ব্যাচ');
-      setHeaderTitle('এসএসসি ২৭');
-      setHeaderSubtitle('১০ম শ্রেণি অনলাইন ব্যাচ');
-      setTargetStudents('১০ম শ্রেণি ও এসএসসি ২০২৭ শিক্ষার্থী');
-      setCategorySlug('school');
-    } else if (levelName.includes('SSC 2028')) {
-      setShortBadge('SSC 28 অনলাইন ব্যাচ');
-      setHeaderTitle('এসএসসি ২৮');
-      setHeaderSubtitle('৯ম শ্রেণি অনলাইন ব্যাচ');
-      setTargetStudents('৯ম শ্রেণি ও এসএসসি ২০২৮ শিক্ষার্থী');
-      setCategorySlug('school');
-    } else if (levelName.includes('Class 6')) {
-      setShortBadge('৬ষ্ঠ শ্রেণি ব্যাচ');
-      setHeaderTitle('৬ষ্ঠ শ্রেণি');
-      setHeaderSubtitle('বার্ষিক পরীক্ষা ও নতুন কারিকুলাম');
-      setTargetStudents('৬ষ্ঠ শ্রেণির শিক্ষার্থী');
-      setCategorySlug('school');
-    } else if (levelName.includes('Class 7')) {
-      setShortBadge('৭ম শ্রেণি ব্যাচ');
-      setHeaderTitle('৭ম শ্রেণি');
-      setHeaderSubtitle('বার্ষিক পরীক্ষা ও নতুন কারিকুলাম');
-      setTargetStudents('৭ম শ্রেণির শিক্ষার্থী');
-      setCategorySlug('school');
-    } else if (levelName.includes('Class 8')) {
-      setShortBadge('৮ম শ্রেণি ব্যাচ');
-      setHeaderTitle('৮ম শ্রেণি');
-      setHeaderSubtitle('বার্ষিক পরীক্ষা ও নতুন কারিকুলাম');
-      setTargetStudents('৮ম শ্রেণির শিক্ষার্থী');
-      setCategorySlug('school');
-    } else if (levelName.includes('বিজ্ঞান বিভাগ')) {
-      setTitle((prev) => (prev ? `${prev} (বিজ্ঞান বিভাগ)` : 'এইচএসসি অনলাইন ব্যাচ (বিজ্ঞান বিভাগ)'));
-    } else if (levelName.includes('ব্যবসায় শিক্ষা')) {
-      setTitle((prev) => (prev ? `${prev} (ব্যবসায় শিক্ষা)` : 'এইচএসসি অনলাইন ব্যাচ (ব্যবসায় শিক্ষা বিভাগ)'));
-    } else if (levelName.includes('মানবিক বিভাগ')) {
-      setTitle((prev) => (prev ? `${prev} (মানবিক বিভাগ)` : 'এইচএসসি অনলাইন ব্যাচ (মানবিক বিভাগ)'));
-    } else if (levelName.includes('এডমিশন')) {
-      setCategorySlug('admission');
-      setShortBadge('এডমিশন ২০২৬');
-      setHeaderTitle('বিশ্ববিদ্যালয় ভর্তি');
-      setHeaderSubtitle('ভার্সিটি + গুচ্ছ পূর্ণাঙ্গ প্রস্তুতি');
-      setTargetStudents('এডমিশন ও বিশ্ববিদ্যালয় ভর্তিচ্ছু');
-    } else if (levelName.includes('স্কিলস')) {
-      setCategorySlug('skills');
-      setShortBadge('প্রফেশনাল স্কিলস');
-      setHeaderTitle('স্কিল ডেভেলপমেন্ট');
-      setHeaderSubtitle('ক্যারিয়ার ও ফ্রিল্যান্সিং কোর্স');
-      setTargetStudents('সকল আগ্রহী শিক্ষার্থী ও প্রফেশনাল');
     }
   };
 
@@ -237,7 +181,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       features: JSON.stringify(featuresList),
       affiliateUrl: affiliateUrl.trim() || 'https://10minuteschool.com',
       isPopular,
-      status,
+      status: course?.status && course.status !== 'draft' ? course.status : 'active',
       clickCount: course?.clickCount || 0,
     };
   }, [
@@ -261,7 +205,6 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     rating,
     shortBadge,
     slug,
-    status,
     studentCount,
     targetStudents,
     title,
@@ -269,7 +212,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   ]);
 
   // Handle Form Submission
-  const handleSubmit = async (targetStatus?: string) => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
       setError('কোর্সের শিরোনাম (Title) পূরণ করা আবশ্যক।');
       return;
@@ -278,12 +221,20 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       setError('কোর্সের স্লাগ (Slug) পূরণ করা আবশ্যক।');
       return;
     }
+    if (discountPriceInput.trim() === '') {
+      setError('ডিসকাউন্টেড অফার মূল্য (Discount Price) পূরণ করা আবশ্যক।');
+      return;
+    }
+    if (!Number.isFinite(originalPrice) || originalPrice < 0 || !Number.isFinite(discountPrice) || discountPrice < 0) {
+      setError('কোর্সের মূল্য অবশ্যই ০ বা তার বেশি বৈধ সংখ্যা হতে হবে।');
+      return;
+    }
 
     setSaving(true);
     setError(null);
 
-    const finalStatus = targetStatus || status;
-
+    const normalizedOriginalPrice = Math.round(originalPrice);
+    const normalizedDiscountPrice = Math.round(discountPrice);
     const matchedCat = categories.find((c) => c.slug === categorySlug);
     const payload = {
       title: title.trim(),
@@ -304,8 +255,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       fullDescription: fullDescription.trim() || null,
       imageUrl: imageUrl.trim() || null,
       imageFit,
-      originalPrice: Number(originalPrice) || 0,
-      discountPrice: Number(discountPrice) || 0,
+      originalPrice: normalizedOriginalPrice,
+      discountPrice: normalizedDiscountPrice,
       discountPercent: computedDiscountPercent,
       rating: rating.trim() || '৪.৯',
       studentCount: studentCount.trim() || '১২,৫০০+ শিক্ষার্থী',
@@ -314,7 +265,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       features: featuresList,
       affiliateUrl: affiliateUrl.trim() || 'https://10minuteschool.com',
       isPopular,
-      status: finalStatus,
+      status: course?.status && course.status !== 'draft' ? course.status : 'active',
     };
 
     try {
@@ -329,18 +280,18 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Breadcrumb & Action Toolbar */}
-      <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-rose-100/90 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="glass-strong rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onBackToList}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 text-slate-700 hover:text-[#eb1c24] transition cursor-pointer shadow-2xs"
+            className="p-2.5 rounded-xl border border-white/90 bg-white/80 hover:bg-rose-50 text-[#2A0F12] hover:text-[#eb1c24] transition cursor-pointer shadow-2xs shrink-0"
             title="কোর্স লিস্টে ফিরে যান"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#6B4C4F]">
               <span>Admin</span>
               <span>/</span>
               <span>Courses</span>
@@ -349,19 +300,19 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                 {isEditing ? 'Edit Course' : 'Add New Course'}
               </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight mt-0.5">
+            <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight mt-0.5 truncate">
               {isEditing ? `কোর্স এডিট: ${course?.title}` : 'নতুন কোর্স তৈরি করুন'}
             </h1>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end shrink-0">
           <button
             type="button"
             onClick={onBackToList}
             disabled={saving}
-            className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer shadow-2xs"
+            className="px-4 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] font-bold text-xs transition cursor-pointer shadow-2xs"
           >
             বাতিল (Cancel)
           </button>
@@ -369,7 +320,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
           <button
             type="button"
             onClick={() => setShowPreviewModal(true)}
-            className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 text-[#b91c1c] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+            className="px-4 py-2 rounded-xl border border-rose-200/80 bg-rose-50/80 hover:bg-rose-100 text-[#b91c1c] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
           >
             <Eye className="w-4 h-4" />
             <span>প্রিভিউ কার্ড</span>
@@ -377,19 +328,9 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
 
           <button
             type="button"
-            onClick={() => handleSubmit('draft')}
+            onClick={() => handleSubmit()}
             disabled={saving}
-            className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-          >
-            <FileText className="w-4 h-4 text-slate-500" />
-            <span>Save as Draft</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSubmit('active')}
-            disabled={saving}
-            className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-red-500/20 transition cursor-pointer disabled:opacity-60"
+            className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-1.5 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer disabled:opacity-60"
           >
             <Save className="w-4 h-4" />
             <span>{saving ? 'সংরক্ষণ হচ্ছে...' : isEditing ? 'আপডেট করুন (Save)' : 'পাবলিশ করুন (Publish)'}</span>
@@ -410,8 +351,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
         <div className="lg:col-span-7 space-y-6">
           
           {/* Card 1: Primary Information */}
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl p-5 sm:p-6 border border-rose-100 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2 border-b border-rose-100/70 pb-3">
+          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
+            <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <BookOpen className="w-4 h-4 text-[#eb1c24]" />
               <span>প্রাথমিক ও সাধারণ তথ্য (Basic Info)</span>
             </h3>
@@ -451,72 +392,22 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
               </div>
             </div>
 
-            {/* Category & Status Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  ক্যাটাগরি (Category) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={categorySlug}
-                  onChange={(e) => setCategorySlug(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer font-medium"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat.slug} value={cat.slug}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  কোর্স স্ট্যাটাস (Course Status) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer font-bold"
-                >
-                  <option value="active">● চালু (Active / Published)</option>
-                  <option value="inactive">● বন্ধ (Inactive / ভর্তি বন্ধ)</option>
-                  <option value="draft">● ড্রাফট (Draft / Unpublished)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Quick Academic Batch Suggestions */}
+            {/* Category */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
-                কোর্স ট্যাগ ও সেকশন সাজেশন (Quick Batch Fill):
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                ক্যাটাগরি (Category) <span className="text-red-500">*</span>
               </label>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  'HSC 26',
-                  'HSC 27',
-                  'HSC 28',
-                  'SSC 2027 (দশম শ্রেণি)',
-                  'SSC 2028 (নবম শ্রেণি)',
-                  'Class 6 (৬ষ্ঠ শ্রেণি)',
-                  'Class 7 (৭ম শ্রেণি)',
-                  'Class 8 (৮ম শ্রেণি)',
-                  'বিজ্ঞান বিভাগ (Science)',
-                  'ব্যবসায় শিক্ষা (Business)',
-                  'মানবিক বিভাগ (Humanities)',
-                  'ভার্সিটি + গুচ্ছ এডমিশন',
-                  'স্পোকেন ইংলিশ ও স্কিলস',
-                ].map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => handleQuickAcademicLevel(tag)}
-                    className="px-2.5 py-1 rounded-lg border border-rose-200/70 bg-rose-50/60 hover:bg-rose-100 text-[#b91c1c] text-[11px] font-bold transition cursor-pointer"
-                  >
-                    + {tag}
-                  </button>
+              <select
+                value={categorySlug}
+                onChange={(e) => setCategorySlug(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer font-medium"
+              >
+                {categories.map((cat) => (
+                  <option key={cat.slug} value={cat.slug}>
+                    {cat.name}
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
 
             {/* Target Students / Academic Class */}
@@ -528,15 +419,18 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                 type="text"
                 value={targetStudents}
                 onChange={(e) => setTargetStudents(e.target.value)}
-                placeholder="যেমন: HSC ২০২৮ ব্যাচের বিজ্ঞান বিভাগের সকল শিক্ষার্থী"
+                placeholder="যেমন: HSC 28, HSC 27, SSC 2027, Class 8, বিজ্ঞান বিভাগ, মানবিক, ব্যবসায় শিক্ষা"
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
               />
+              <p className="text-[11px] text-[#6B4C4F] mt-1.5 leading-relaxed">
+                সমর্থিত ব্যাচ ও বিভাগ কীওয়ার্ড: <span className="font-semibold text-[#2A0F12]">HSC 26 / 27 / 28, SSC 2027 / 2028, Class 6–8 (৬ষ্ঠ–৮ম শ্রেণি), বিজ্ঞান (Science), ব্যবসায় শিক্ষা (Business / Commerce), মানবিক (Humanities / Arts), এডমিশন / ভার্সিটি / মেডিকেল / বুয়েট</span>। এই কীওয়ার্ড অনুযায়ী কোর্স স্বয়ংক্রিয়ভাবে সংশ্লিষ্ট ব্যাচ ও বিভাগ পেজে যুক্ত হয়।
+              </p>
             </div>
           </div>
 
           {/* Card 2: Pricing & Affiliate Links */}
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl p-5 sm:p-6 border border-rose-100 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2 border-b border-rose-100/70 pb-3">
+          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
+            <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <DollarSign className="w-4 h-4 text-emerald-600" />
               <span>মূল্য, ছাড় ও এনরোলমেন্ট লিংক (Pricing & Links)</span>
             </h3>
@@ -547,10 +441,16 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   পূর্বের মূল মূল্য (Original Price - ৳)
                 </label>
                 <input
-                  type="number"
-                  min="0"
-                  value={originalPrice}
-                  onChange={(e) => setOriginalPrice(Number(e.target.value) || 0)}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={originalPriceInput}
+                  onChange={(e) => setOriginalPriceInput(sanitizePriceInput(e.target.value))}
+                  onBlur={() => {
+                    if (originalPriceInput === '') setOriginalPriceInput('0');
+                    else setOriginalPriceInput(sanitizePriceInput(originalPriceInput));
+                  }}
+                  placeholder="4500"
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono font-bold"
                 />
               </div>
@@ -560,11 +460,17 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   ডিসকাউন্টেড অফার মূল্য (Discount Price - ৳) <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
-                  value={discountPrice}
-                  onChange={(e) => setDiscountPrice(Number(e.target.value) || 0)}
+                  value={discountPriceInput}
+                  onChange={(e) => setDiscountPriceInput(sanitizePriceInput(e.target.value))}
+                  onBlur={() => {
+                    if (discountPriceInput === '') setDiscountPriceInput('0');
+                    else setDiscountPriceInput(sanitizePriceInput(discountPriceInput));
+                  }}
+                  placeholder="3500"
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono font-bold text-emerald-600"
                 />
               </div>
@@ -594,15 +500,15 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   className="w-full px-3.5 py-2.5 rounded-r-xl border border-slate-200/90 text-xs font-mono text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                 />
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                শিক্ষার্থী 'কোর্সে ভর্তি হোন' বাটনে ক্লিক করলে সরাসরি এই লিংকে চলে যাবে।
+              <p className="text-[11px] text-[#6B4C4F] mt-1">
+                শিক্ষার্থী &lsquo;কোর্সে ভর্তি হোন&rsquo; বাটনে ক্লিক করলে সরাসরি এই লিংকে চলে যাবে।
               </p>
             </div>
           </div>
 
           {/* Card 3: Media & Image Settings (Only Image URL and Computer Upload with Live Preview) */}
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl p-5 sm:p-6 border border-rose-100 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2 border-b border-rose-100/70 pb-3">
+          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
+            <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <ImageIcon className="w-4 h-4 text-indigo-600" />
               <span>কোর্স থাম্বনেইল ছবি (Course Thumbnail Image)</span>
             </h3>
@@ -726,8 +632,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
           </div>
 
           {/* Card 4: Description & Features */}
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl p-5 sm:p-6 border border-rose-100 shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2 border-b border-rose-100/70 pb-3">
+          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
+            <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <Tag className="w-4 h-4 text-rose-600" />
               <span>বিবরণ ও মূল ফিচারসমূহ (Description & Features)</span>
             </h3>
@@ -821,19 +727,19 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
 
         {/* RIGHT COLUMN: Sticky Real-Time Live Preview */}
         <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-4">
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-rose-100 shadow-sm space-y-3">
-            <div className="flex items-center justify-between border-b border-rose-100/70 pb-3">
+          <div className="glass-strong rounded-3xl p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-rose-200/50 pb-3">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <Eye className="w-4 h-4 text-[#eb1c24]" />
                 <span className="text-xs sm:text-sm font-black text-[#2A0F12]">
                   লাইভ পাবলিক কার্ড প্রিভিউ
                 </span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-rose-100 text-[#b91c1c] text-[10px] font-bold">
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-[#b91c1c] text-[10px] font-bold">
                 রিয়েল-টাইম
               </span>
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-[#6B4C4F]">
               মেইন ওয়েবসাইটের হুবহু অরিজিনাল সাইজ ও ডাইমেনশনে লাইভ প্রিভিউ:
             </p>
 
@@ -855,16 +761,16 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       {/* Full Preview Modal */}
       {showPreviewModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 border border-rose-100 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-md w-full p-6 space-y-4 border border-white/90 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+              <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2">
                 <Eye className="w-4 h-4 text-[#eb1c24]" />
                 <span>ফুল সাইজ কোর্স কার্ড প্রিভিউ</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setShowPreviewModal(false)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-rose-50 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -883,7 +789,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
               <button
                 type="button"
                 onClick={() => setShowPreviewModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
               >
                 বন্ধ করুন
               </button>

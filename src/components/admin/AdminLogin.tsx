@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ShieldCheck, ArrowLeft, LogIn, Zap, UserCheck, AlertCircle } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, LogIn, Zap, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 
 interface AdminLoginProps {
   onLoginSuccess: (token: string, email: string, name: string) => void;
@@ -84,18 +85,19 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FFF5F5] via-[#FFF8F8] to-[#FDF2F2] text-[#2A0F12] flex flex-col justify-between p-4 sm:p-6 relative overflow-hidden font-sans">
+    <div className="min-h-screen text-[#2A0F12] flex flex-col justify-between p-4 sm:p-6 relative overflow-hidden">
+      <GlassAmbientBackdrop />
       <div className="max-w-md w-full mx-auto my-auto relative z-10">
         <button
           type="button"
           onClick={onBackToSite}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#eb1c24] mb-5 transition cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6B4C4F] hover:text-[#eb1c24] mb-5 px-3 py-1.5 rounded-full glass-surface transition cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>পাবলিক ওয়েবসাইটে ফিরে যান</span>
         </button>
 
-        <div className="bg-white/95 backdrop-blur-xl border border-rose-100 rounded-3xl p-6 sm:p-8 shadow-[0_12px_40px_-8px_rgba(226,43,43,0.12)] space-y-5">
+        <div className="glass-strong rounded-3xl p-6 sm:p-8 space-y-5">
           {/* Logo & Heading */}
           <div className="text-center space-y-2">
             <img
@@ -179,18 +181,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             </button>
           </div>
 
-          <div className="pt-3 border-t border-rose-100 text-[11px] text-slate-500 flex items-center justify-between">
-            <span>Server Authentication v2.0</span>
-            <span className="text-emerald-600 font-bold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="pt-3 border-t border-rose-200/50 text-[11px] text-[#6B4C4F] flex items-center justify-between">
+            <span>Server Authentication v2.5</span>
+            <span className="text-emerald-700 font-bold flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               ডাটাবেস কানেক্টেড
             </span>
           </div>
         </div>
       </div>
 
-      <footer className="text-center text-xs text-slate-400 py-3">
-        © ১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস অ্যাডমিন কনসোল
+      <footer className="relative z-10 text-center text-xs text-[#6B4C4F] font-medium py-3">
+        © ২০২৬ · 10msallcourse.com Admin Console
       </footer>
     </div>
   );

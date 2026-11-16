@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateExistingCourse } from '@/src/db/repository';
+import { normalizeCourseStatus, updateExistingCourse } from '@/src/db/repository';
 import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
 
 export async function PATCH(
@@ -13,7 +13,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
     const data = await updateExistingCourse(Number(id), {
-      status: String(body?.status || 'active'),
+      status: normalizeCourseStatus(body?.status, 'active'),
     });
     return NextResponse.json(data);
   } catch (error) {

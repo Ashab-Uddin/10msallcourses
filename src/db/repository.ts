@@ -104,15 +104,41 @@ function saveLocalStore(store: LocalStore) {
   }
 }
 
+export function parseSafePrice(value: unknown): { valid: boolean; value: number } {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value < 0) return { valid: false, value: 0 };
+    return { valid: true, value: Math.round(value) };
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return { valid: false, value: 0 };
+    const ascii = trimmed.replace(/[০-৯]/g, (d) => String('০১২৩৪৫৬৭৮৯'.indexOf(d)));
+    if (!/^\d+$/.test(ascii)) return { valid: false, value: 0 };
+    const normalized = ascii.replace(/^0+(?=\d)/, '').replace(/^0+$/, '0');
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed < 0) return { valid: false, value: 0 };
+    return { valid: true, value: Math.round(parsed) };
+  }
+  return { valid: false, value: 0 };
+}
+
+export function normalizeCourseStatus(
+  status: unknown,
+  fallback: 'active' | 'inactive' | 'closed' = 'active'
+): 'active' | 'inactive' | 'closed' {
+  if (status === 'active' || status === 'inactive' || status === 'closed') {
+    return status;
+  }
+  return fallback;
+}
+
 export async function getPublicPortalData() {
   const store = ensureLocalStore();
   const activeCategories = store.categories.filter((c) => c.status === 'active');
-  // Draft courses are hidden from the public website; active and inactive (admission closed) courses are shown
-  const publicCourses = store.courses.filter((c) => c.status !== 'draft');
 
   return {
     categories: activeCategories,
-    courses: publicCourses,
+    courses: store.courses,
     settings: store.settings,
   };
 }
@@ -186,6 +212,15 @@ export async function createNewCourse(input: any) {
   const store = ensureLocalStore();
   const newId = store.courses.length > 0 ? Math.max(...store.courses.map((c) => c.id)) + 1 : 1;
 
+  const parsedOriginal = parseSafePrice(input.originalPrice ?? 0);
+  const parsedDiscount = parseSafePrice(input.discountPrice ?? 0);
+  const originalPrice = parsedOriginal.valid ? parsedOriginal.value : 0;
+  const discountPrice = parsedDiscount.valid ? parsedDiscount.value : 0;
+  const discountPercent =
+    originalPrice > 0 && originalPrice > discountPrice
+      ? Math.round(((originalPrice - discountPrice) / originalPrice) * 100)
+      : 0;
+
   const newCourse: Course = {
     id: newId,
     title: input.title,
@@ -201,9 +236,9 @@ export async function createNewCourse(input: any) {
     fullDescription: input.fullDescription || null,
     imageUrl: input.imageUrl || null,
     imageFit: input.imageFit || 'contain',
-    originalPrice: Number(input.originalPrice) || 0,
-    discountPrice: Number(input.discountPrice) || 0,
-    discountPercent: Number(input.discountPercent) || 0,
+    originalPrice,
+    discountPrice,
+    discountPercent,
     rating: input.rating || '৪.৯',
     studentCount: input.studentCount || '১০k+ শিক্ষার্থী',
     duration: input.duration || '৬ মাস',
@@ -213,7 +248,7 @@ export async function createNewCourse(input: any) {
     features: typeof input.features === 'string' ? input.features : JSON.stringify(input.features || []),
     affiliateUrl: input.affiliateUrl || 'https://10minuteschool.com',
     isPopular: input.isPopular ?? true,
-    status: input.status || 'active',
+    status: normalizeCourseStatus(input.status, 'active'),
     clickCount: 0,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -233,10 +268,28 @@ export async function updateExistingCourse(id: number, input: any) {
   }
 
   const existing = store.courses[idx];
+  const parsedOriginal =
+    input.originalPrice !== undefined ? parseSafePrice(input.originalPrice) : { valid: true, value: existing.originalPrice };
+  const parsedDiscount =
+    input.discountPrice !== undefined ? parseSafePrice(input.discountPrice) : { valid: true, value: existing.discountPrice };
+
+  const originalPrice = parsedOriginal.valid ? parsedOriginal.value : existing.originalPrice;
+  const discountPrice = parsedDiscount.valid ? parsedDiscount.value : existing.discountPrice;
+  const discountPercent =
+    originalPrice > 0 && originalPrice > discountPrice
+      ? Math.round(((originalPrice - discountPrice) / originalPrice) * 100)
+      : 0;
+
+  const existingFallback = normalizeCourseStatus(existing.status, 'active');
+
   const updated: Course = {
     ...existing,
     ...input,
     id: existing.id,
+    originalPrice,
+    discountPrice,
+    discountPercent,
+    status: input.status !== undefined ? normalizeCourseStatus(input.status, existingFallback) : existingFallback,
     features:
       typeof input.features === 'string'
         ? input.features
