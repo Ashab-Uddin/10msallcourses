@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Course } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
@@ -13,7 +13,6 @@ import {
   Layers,
   CheckCircle2,
 } from 'lucide-react';
-import { motion } from 'motion/react';
 
 export type AcademicLevel = 'ssc' | 'hsc' | 'class';
 export type DepartmentType = 'all' | 'science' | 'business' | 'humanities';
@@ -55,24 +54,44 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   onEnrollClick,
   sectionHash,
 }) => {
-  const [selectedDept, setSelectedDept] = useState<DepartmentType>('all');
-  const [activeHash, setActiveHash] = useState<string>('');
+  const rawPropHash = (sectionHash || '').replace('#', '');
+  const defaultHash =
+    rawPropHash === 'science' || rawPropHash === 'business-studies' || rawPropHash === 'humanities'
+      ? rawPropHash
+      : '';
+  const defaultDept: DepartmentType =
+    defaultHash === 'science'
+      ? 'science'
+      : defaultHash === 'business-studies'
+        ? 'business'
+        : defaultHash === 'humanities'
+          ? 'humanities'
+          : 'all';
+  const propKey = `${batchOrClass}|${defaultHash}`;
+
+  const [deptOverride, setDeptOverride] = useState<{
+    key: string;
+    dept: DepartmentType;
+    hash: string;
+  } | null>(null);
+
+  const selectedDept = deptOverride?.key === propKey ? deptOverride.dept : defaultDept;
+  const activeHash = deptOverride?.key === propKey ? deptOverride.hash : defaultHash;
+
+  const setSelectedDept = (dept: DepartmentType) => {
+    const hash =
+      dept === 'science'
+        ? 'science'
+        : dept === 'business'
+          ? 'business-studies'
+          : dept === 'humanities'
+            ? 'humanities'
+            : '';
+    setDeptOverride({ key: propKey, dept, hash });
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [priceFilter, setPriceFilter] = useState('all');
-
-  // Synchronize department selection from URL hash smoothly with ZERO page scrolling
-  useEffect(() => {
-    const rawHash = (sectionHash || (typeof window !== 'undefined' ? window.location.hash : '')).replace('#', '');
-    if (rawHash === 'science' || rawHash === 'business-studies' || rawHash === 'humanities') {
-      setActiveHash(rawHash);
-      if (rawHash === 'science') setSelectedDept('science');
-      else if (rawHash === 'business-studies') setSelectedDept('business');
-      else if (rawHash === 'humanities') setSelectedDept('humanities');
-    } else {
-      setActiveHash('');
-      setSelectedDept('all');
-    }
-  }, [sectionHash, batchOrClass]);
 
   // Define toggle buttons per academic level
   const toggleOptions: ToggleOption[] = useMemo(() => {
@@ -144,14 +163,15 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
     };
   }, [level, batchOrClass]);
 
-  // Filter courses strictly for this active batch/class
+  // Filter courses strictly respecting Course Category first, then matching batch/class metadata
   const batchCourses = useMemo(() => {
     return courses.filter((c) => {
       const text = normalizeSearchText(
-        `${c.title} ${c.slug} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''} ${c.description} ${c.categorySlug}`
+        `${c.title} ${c.slug} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''} ${c.description}`
       );
 
       if (level === 'ssc') {
+        if (c.categorySlug !== 'school') return false;
         if (batchOrClass === 'ssc-27') {
           return matchesAnyKeyword(text, [
             'ssc 27',
@@ -196,6 +216,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
       if (level === 'hsc') {
         if (batchOrClass === 'hsc-26') {
+          if (c.categorySlug !== 'hsc' && c.categorySlug !== 'admission') return false;
           return matchesAnyKeyword(text, [
             'hsc 26',
             'hsc26',
@@ -223,6 +244,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
             'engineering',
           ]);
         }
+        if (c.categorySlug !== 'hsc') return false;
         if (batchOrClass === 'hsc-27') {
           return matchesAnyKeyword(text, [
             'hsc 27',
@@ -262,6 +284,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
       }
 
       if (level === 'class') {
+        if (c.categorySlug !== 'school') return false;
         if (batchOrClass === 'class6') {
           return matchesAnyKeyword(text, ['৬ষ্ঠ', 'ষষ্ঠ', 'class 6', 'class-6', 'class6']);
         }
@@ -481,11 +504,15 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
   // Switch department tab smoothly with ZERO page scrolling (in-place tab state)
   const handleDepartmentJump = (dept: 'science' | 'business-studies' | 'humanities' | '') => {
-    setActiveHash(dept);
-    if (dept === 'science') setSelectedDept('science');
-    else if (dept === 'business-studies') setSelectedDept('business');
-    else if (dept === 'humanities') setSelectedDept('humanities');
-    else setSelectedDept('all');
+    const mappedDept: DepartmentType =
+      dept === 'science'
+        ? 'science'
+        : dept === 'business-studies'
+          ? 'business'
+          : dept === 'humanities'
+            ? 'humanities'
+            : 'all';
+    setDeptOverride({ key: propKey, dept: mappedDept, hash: dept });
 
     const targetHash = dept ? `#${dept}` : '';
     const fullPath = `${currentBaseRoute}${targetHash}`;
@@ -503,7 +530,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
       <section className="relative pt-8 sm:pt-10 pb-12 sm:pb-16 overflow-hidden">
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6 relative z-10">
           {/* Breadcrumb Navigation */}
-          <div className="flex items-center gap-2 text-xs text-[#6B4C4F] font-medium mb-6 flex-wrap">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[#6B4C4F] font-medium mb-6 flex-wrap">
             <button
               type="button"
               onClick={() => onNavigate('/')}
@@ -511,21 +538,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
             >
               হোম
             </button>
-            <span className="text-rose-300">/</span>
+            <span className="text-rose-300" aria-hidden="true">/</span>
             <span className="text-[#6B4C4F]">
               {level === 'hsc' ? 'এইচএসসি (HSC)' : level === 'ssc' ? 'এসএসসি (SSC)' : 'স্কুল'}
             </span>
-            <span className="text-rose-300">/</span>
+            <span className="text-rose-300" aria-hidden="true">/</span>
             <span className="text-[#B91C1C] font-bold">{pageDetails.activeName}</span>
-          </div>
+          </nav>
 
           {/* Centered Heading */}
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="text-center max-w-3xl mx-auto mb-8"
-          >
+          <div className="text-center max-w-3xl mx-auto mb-8">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass-inset text-[#B91C1C] text-xs font-bold mb-3 shadow-xs">
               <Sparkles className="w-3.5 h-3.5 text-[#E22B2B]" />
               <span>{pageDetails.badge}</span>
@@ -541,7 +563,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
             <p className="text-xs sm:text-sm md:text-base text-[#6B4C4F] font-normal leading-relaxed max-w-2xl mx-auto">
               {pageDetails.subtitle}
             </p>
-          </motion.div>
+          </div>
 
           {/* DEDICATED TOGGLE PILL FOR ACADEMIC YEARS / CLASSES */}
           <div className="flex items-center justify-center mb-6 w-full px-1">
@@ -848,7 +870,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
                   {filteredScienceCourses.map((c) => (
-                    <CourseCard key={`sci-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} />
+                    <CourseCard key={`sci-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
                   ))}
                 </div>
               )}
@@ -893,7 +915,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
                   {filteredBusinessCourses.map((c) => (
-                    <CourseCard key={`bus-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} />
+                    <CourseCard key={`bus-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
                   ))}
                 </div>
               )}
@@ -938,7 +960,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
                   {filteredHumanitiesCourses.map((c) => (
-                    <CourseCard key={`hum-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} />
+                    <CourseCard key={`hum-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
                   ))}
                 </div>
               )}
@@ -968,16 +990,13 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
-              {filteredBatchCourses.map((course, idx) => (
-                <motion.div
+              {filteredBatchCourses.map((course) => (
+                <div
                   key={`academic-course-${course.id}-${course.slug}`}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: idx * 0.04 }}
                   className="h-full flex flex-col"
                 >
-                  <CourseCard course={course} onEnrollClick={onEnrollClick} />
-                </motion.div>
+                  <CourseCard course={course} onEnrollClick={onEnrollClick} headingLevel="h3" />
+                </div>
               ))}
             </div>
           )}

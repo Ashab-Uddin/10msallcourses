@@ -2,12 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   ChevronRight,
   Download,
-  ExternalLink,
   Layers,
-  LogOut,
   ShieldCheck,
   Sparkles,
   BookOpen,
@@ -19,7 +18,7 @@ import type { AdminPageTab } from './AdminDashboard.tsx';
 interface AdminFooterProps {
   onSelectTab: (tab: AdminPageTab) => void;
   onNavigateHome: () => void;
-  onRequestLogout: () => void;
+  onRequestLogout?: () => void;
   onDownloadZip?: () => void;
   adminName: string;
   adminEmail: string;
@@ -29,17 +28,18 @@ interface AdminFooterProps {
     inactiveCourses: number;
   };
   categoriesCount: number;
+  activeOfferTimersCount?: number;
 }
 
 export const AdminFooter: React.FC<AdminFooterProps> = ({
   onSelectTab,
   onNavigateHome,
-  onRequestLogout,
   onDownloadZip,
   adminName,
   adminEmail,
   stats,
   categoriesCount,
+  activeOfferTimersCount = 0,
 }) => {
   return (
     <footer className="relative z-10 mt-auto pt-12 text-white overflow-hidden select-none">
@@ -89,18 +89,20 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
             {/* Column 1: Admin Panel Branding & Summary */}
             <div className="space-y-3.5">
               <Link
-                href="/"
+                href="/admin/overview"
                 onClick={(e) => {
                   e.preventDefault();
-                  onNavigateHome();
+                  onSelectTab('overview');
                 }}
                 className="inline-block group cursor-pointer"
-                title="মূল ওয়েবসাইটের হোমপেজে যান"
+                title="অ্যাডমিন ড্যাশবোর্ডে ফিরে যান"
               >
                 <div className="bg-white px-3 py-1.5 rounded-xl shadow-md inline-flex items-center transition-transform group-hover:scale-105">
-                  <img
+                  <Image
                     src="/logo.png"
                     alt="10 Minute School"
+                    width={110}
+                    height={28}
                     className="h-7 w-auto object-contain block"
                   />
                 </div>
@@ -210,6 +212,18 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
                 <li>
                   <button
                     type="button"
+                    onClick={() => onSelectTab('offer_timers')}
+                    className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
+                    <span>
+                      Offer Timer ({toBengaliNumber(activeOfferTimersCount)}টি সক্রিয়)
+                    </span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
                     onClick={() => onSelectTab('settings')}
                     className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
                   >
@@ -257,7 +271,7 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
                     লগইনকৃত অ্যাডমিন
                   </div>
                   <div className="font-bold text-white truncate mt-0.5">
-                    {adminName || 'Admin Manager'}
+                    {(adminName || 'Admin Manager').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Admin Manager'}
                   </div>
                   <div className="text-[11px] text-rose-200/85 truncate font-mono">
                     {adminEmail || 'admin@10ms.com'}
@@ -276,33 +290,10 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
             </div>
           </div>
 
-          {/* Sub-Footer: Copyright, Version & Quick Admin Controls */}
+          {/* Sub-Footer: Copyright & Version */}
           <div className="pt-5 border-t border-rose-800/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-rose-200/80">
             <div className="text-center sm:text-left">
               © ২০২৬ | <strong className="text-white">10msallcourse.com</strong> Admin Console · সর্বস্বত্ব সংরক্ষিত · ভার্সন ২.৫
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <Link
-                href="/"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onNavigateHome();
-                }}
-                className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-rose-100 font-bold px-3 py-1.5 rounded-full border border-white/20 transition cursor-pointer text-xs"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
-                <span>মেইন ওয়েবসাইট</span>
-              </Link>
-
-              <button
-                type="button"
-                onClick={onRequestLogout}
-                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb2026] hover:to-[#991b1b] text-white font-bold px-3 py-1.5 rounded-full shadow-sm transition cursor-pointer text-xs"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>লগআউট</span>
-              </button>
             </div>
           </div>
         </div>

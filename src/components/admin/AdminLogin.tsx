@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { ShieldCheck, ArrowLeft, LogIn, Zap, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 
@@ -64,9 +65,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
         try {
           sessionStorage.setItem('10ms_auth_token', 'DEMO_ADMIN_TOKEN');
           sessionStorage.setItem('10ms_admin_email', email.trim());
-          sessionStorage.setItem('10ms_admin_name', 'Ashab Uddin (Admin)');
+          sessionStorage.setItem('10ms_admin_name', 'Ashab Uddin');
         } catch {}
-        onLoginSuccess('DEMO_ADMIN_TOKEN', email.trim(), 'Ashab Uddin (Admin)');
+        onLoginSuccess('DEMO_ADMIN_TOKEN', email.trim(), 'Ashab Uddin');
         return;
       }
       setError(err.message || 'সার্ভারে লগইন সমস্যা হয়েছে।');
@@ -79,9 +80,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
     try {
       sessionStorage.setItem('10ms_auth_token', 'DEMO_ADMIN_TOKEN');
       sessionStorage.setItem('10ms_admin_email', 'ashabuddin2274@gmail.com');
-      sessionStorage.setItem('10ms_admin_name', 'Ashab Uddin (Admin)');
+      sessionStorage.setItem('10ms_admin_name', 'Ashab Uddin');
     } catch {}
-    onLoginSuccess('DEMO_ADMIN_TOKEN', 'ashabuddin2274@gmail.com', 'Ashab Uddin (Admin)');
+    onLoginSuccess('DEMO_ADMIN_TOKEN', 'ashabuddin2274@gmail.com', 'Ashab Uddin');
   };
 
   return (
@@ -100,9 +101,12 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
         <div className="glass-strong rounded-3xl p-6 sm:p-8 space-y-5">
           {/* Logo & Heading */}
           <div className="text-center space-y-2">
-            <img
+            <Image
               src="/images/logo-transparent.png"
               alt="10 Minute School"
+              width={158}
+              height={40}
+              priority
               className="h-10 w-auto object-contain mx-auto block drop-shadow-xs mb-2"
             />
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-[#b91c1c] text-xs font-bold">

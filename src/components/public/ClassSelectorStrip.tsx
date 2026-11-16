@@ -9,7 +9,6 @@ import {
   Lightbulb,
   Backpack,
 } from 'lucide-react';
-import { motion } from 'motion/react';
 
 interface ClassSelectorStripProps {
   onNavigate: (path: string) => void;
@@ -132,13 +131,7 @@ const BATCH_ITEMS: BatchCardItem[] = [
 
 export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({ onNavigate }) => {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.05 }}
-      transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-      className="wrap relative z-20 mt-6"
-    >
+    <div className="wrap relative z-20 mt-6">
       {/* Section Strip Title */}
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
@@ -230,6 +223,6 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({ onNaviga
           );
         })}
       </div>
-    </motion.div>
+    </div>
   );
 };

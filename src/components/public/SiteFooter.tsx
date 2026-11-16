@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import {
   Phone,
   Mail,
@@ -201,6 +202,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
           </div>
 
           <div className="max-w-[1240px] mx-auto relative z-10 space-y-8">
+            <h2 className="sr-only">ফুটার নেভিগেশন ও যোগাযোগ</h2>
             {/* ===================================================== */}
             {/* 4-COLUMN MAIN FOOTER CONTENT                          */}
             {/* ===================================================== */}
@@ -216,9 +218,11 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   title="হোমপেজে ফিরে যান"
                 >
                   <div className="bg-white px-3.5 py-1.5 rounded-xl shadow-md inline-flex items-center transition-transform group-hover:scale-105">
-                    <img
+                    <Image
                       src="/logo.png"
-                      alt="10 Minute School - 10msallcourses"
+                      alt="১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস লোগো"
+                      width={136}
+                      height={36}
                       className="h-8 sm:h-9 w-auto object-contain block"
                     />
                   </div>
@@ -328,10 +332,10 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
               {/* COLUMN 2: কোর্সসমূহ (COURSES & PROGRAMS)             */}
               {/* --------------------------------------------------- */}
               <div>
-                <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
                   <span>কোর্সসমূহ</span>
-                </h4>
+                </h3>
                 <ul className="space-y-2 text-xs text-rose-100/85">
                   <li>
                     <button
@@ -438,10 +442,10 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
               {/* COLUMN 3: সহায়তা ও পলিসি (SUPPORT & POLICIES)        */}
               {/* --------------------------------------------------- */}
               <div>
-                <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                   <span>সহায়তা ও পলিসি</span>
-                </h4>
+                </h3>
                 <ul className="space-y-2 text-xs text-rose-100/85">
                   <li>
                     <button
@@ -511,10 +515,10 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
               {/* COLUMN 4: যোগাযোগ ও অফিসিয়াল ভেরিফিকেশন (CONTACT)   */}
               {/* --------------------------------------------------- */}
               <div className="space-y-3">
-                <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   <span>যোগাযোগ</span>
-                </h4>
+                </h3>
                 <div className="space-y-2.5 text-xs text-rose-100/85">
                   <div className="flex items-start gap-2.5">
                     <Phone className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />

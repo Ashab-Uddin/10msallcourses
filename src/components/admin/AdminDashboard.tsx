@@ -1,12 +1,41 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { Category, ClickRecord, Course, SiteSettings } from '../../types.ts';
+import dynamic from 'next/dynamic';
+import { Category, ClickRecord, Course, OfferTimer, SiteSettings } from '../../types.ts';
+import { computeOfferTimerStatus } from '../../lib/offerTimerUtils.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
-import { CourseEditorPage } from './CourseEditorPage.tsx';
-import { CourseCard } from '../public/CourseCard.tsx';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
 import { AdminFooter } from './AdminFooter.tsx';
+
+const CourseEditorPage = dynamic(
+  () => import('./CourseEditorPage.tsx').then((m) => m.CourseEditorPage),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-strong rounded-3xl p-10 text-center text-sm font-bold text-[#6B4C4F]">
+        কোর্স এডিটর লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
+
+const OfferTimerManager = dynamic(
+  () => import('./OfferTimerManager.tsx').then((m) => m.OfferTimerManager),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-strong rounded-3xl p-10 text-center text-sm font-bold text-[#6B4C4F]">
+        অফার টাইমার ম্যানেজার লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
+
+const CourseCard = dynamic(
+  () => import('../public/CourseCard.tsx').then((m) => m.CourseCard),
+  { ssr: false }
+);
 import {
   LayoutDashboard,
   BookOpen,
@@ -30,6 +59,7 @@ import {
   ShieldCheck,
   ExternalLink,
   SlidersHorizontal,
+  AlarmClock,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -50,6 +80,7 @@ export type AdminPageTab =
   | 'active_courses'
   | 'inactive_courses'
   | 'categories'
+  | 'offer_timers'
   | 'settings'
   | 'course_editor';
 
@@ -70,6 +101,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (p.includes('/admin/courses/inactive')) return 'inactive_courses';
     if (p.includes('/admin/courses')) return 'all_courses';
     if (p.includes('/admin/categories')) return 'categories';
+    if (p.includes('/admin/offer-timers')) return 'offer_timers';
     if (p.includes('/admin/settings')) return 'settings';
     return 'overview';
   };
@@ -93,6 +125,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [categories, setCategories] = useState<Category[]>([]);
   const [recentClicks, setRecentClicks] = useState<ClickRecord[]>([]);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [offerTimers, setOfferTimers] = useState<OfferTimer[]>([]);
+  const [serverNow, setServerNow] = useState<string>('');
+  const [overviewNowMs, setOverviewNowMs] = useState<number>(() => Date.now());
 
   // Settings form local state
   const [siteTitle, setSiteTitle] = useState('');
@@ -165,6 +200,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       active_courses: '/admin/courses/active',
       inactive_courses: '/admin/courses/inactive',
       categories: '/admin/categories',
+      offer_timers: '/admin/offer-timers',
       settings: '/admin/settings',
     };
 
@@ -191,6 +227,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCourses(data.courses || []);
       setCategories(data.categories || []);
       setRecentClicks(data.recentClicks || []);
+      setOfferTimers(data.offerTimers || []);
+      if (data.serverNow) {
+        setServerNow(data.serverNow);
+        const parsedNow = new Date(data.serverNow).getTime();
+        if (Number.isFinite(parsedNow)) {
+          setOverviewNowMs(parsedNow);
+        }
+      } else {
+        setOverviewNowMs(Date.now());
+      }
 
       if (data.settings) {
         setSettings(data.settings);
@@ -216,18 +262,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [authToken]);
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
+    let cancelled = false;
+    const init = async () => {
       await Promise.resolve();
-      if (active) {
+      if (!cancelled) {
         await fetchDashboardData();
       }
     };
-    void load();
+    void init();
     return () => {
-      active = false;
+      cancelled = true;
     };
   }, [fetchDashboardData]);
+
+  const categoryNameBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const cat of categories) {
+      map.set(cat.slug, cat.name);
+    }
+    return map;
+  }, [categories]);
 
   // Synchronize browser URL on popstate
   useEffect(() => {
@@ -519,6 +573,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const activeOfferTimersCount = useMemo(
+    () =>
+      offerTimers.filter(
+        (t) => computeOfferTimerStatus(t, overviewNowMs) === 'active'
+      ).length,
+    [offerTimers, overviewNowMs]
+  );
+
   // Keep admin destinations in one place with consistent icons and counters
   const sidebarNavItems = [
     {
@@ -554,6 +616,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       label: 'Course Categories',
       icon: <Layers className="w-4 h-4 shrink-0" />,
       badge: categories.length,
+    },
+    {
+      id: 'offer_timers' as AdminPageTab,
+      label: 'Offer Timer',
+      icon: <AlarmClock className="w-4 h-4 shrink-0" />,
+      badge: activeOfferTimersCount,
     },
     {
       id: 'settings' as AdminPageTab,
@@ -612,10 +680,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         adminEmail={adminEmail}
         stats={stats}
         categoriesCount={categories.length}
+        activeOfferTimersCount={activeOfferTimersCount}
       />
 
-      {/* Mobile Quick Section Strip (Visible below lg breakpoint) */}
-      <div className="relative z-20 lg:hidden max-w-[1440px] w-full mx-auto px-3 sm:px-6 pt-4">
+      {/* Quick Section Strip (Hidden on Mobile, visible on Tablet up to lg) */}
+      <div className="relative z-20 hidden md:block lg:hidden max-w-[1440px] w-full mx-auto px-3 sm:px-6 pt-4">
         <div className="glass-surface rounded-2xl p-2 flex items-center justify-between gap-2">
           <button
             type="button"
@@ -721,7 +790,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="pt-4 border-t border-rose-200/50 space-y-2.5">
               <div className="glass-inset px-3.5 py-2.5 rounded-2xl text-[11px]">
                 <div className="font-bold text-[#2A0F12] truncate">
-                  {adminName || 'Admin Manager'}
+                  {(adminName || 'Admin Manager').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Admin Manager'}
                 </div>
                 <div className="text-[#6B4C4F] truncate font-mono text-[10.5px]">
                   {adminEmail || 'admin@10ms.com'}
@@ -779,40 +848,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 2: EXECUTIVE OVERVIEW DASHBOARD                  */
             /* ===================================================== */
             <div className="space-y-6">
-              {/* Overview Header Card */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <div className="text-xs font-semibold text-[#6B4C4F] mb-0.5">
-                    Admin / Executive Overview
-                  </div>
-                  <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
-                    অ্যাডমিন ড্যাশবোর্ড ওভারভিউ (Overview)
-                  </h1>
-                  <p className="text-xs text-[#6B4C4F] mt-1">
-                    কোর্স পরিসংখ্যান, অফার টাইমার নিয়ন্ত্রণ এবং সাম্প্রতিক ডাটাবেস কার্যক্রম এক নজরে দেখুন।
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={fetchDashboardData}
-                    className="px-3.5 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-[#6B4C4F] ${loading ? 'animate-spin' : ''}`} />
-                    <span>রিফ্রেশ</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTabSwitch('add_course')}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    <span>নতুন কোর্স যোগ করুন</span>
-                  </button>
-                </div>
-              </div>
-
               {/* Offer Countdown Banner Quick Controller */}
               <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5">
@@ -835,7 +870,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </span>
                     </div>
                     <p className="text-xs text-[#6B4C4F] mt-0.5">
-                      {countdownLabel || 'HSC ২৮ আর্লি বার্ড স্পেশাল উপহার সহ ছাড়ে বাকি:'}
+                      {activeOfferTimersCount > 0
+                        ? `বর্তমানে ${toBengaliNumber(activeOfferTimersCount)}টি কোর্স-ভিত্তিক অফার টাইমার হোমপেজে চলছে।`
+                        : countdownLabel || 'HSC ২৮ আর্লি বার্ড স্পেশাল উপহার সহ ছাড়ে বাকি:'}
                     </p>
                   </div>
                 </div>
@@ -855,10 +892,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => handleTabSwitch('settings')}
+                    onClick={() => handleTabSwitch('offer_timers')}
                     className="px-3.5 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] text-xs font-bold transition cursor-pointer shadow-2xs"
                   >
-                    কাস্টমাইজ করুন
+                    Offer Timer ম্যানেজ
                   </button>
                 </div>
               </div>
@@ -987,6 +1024,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   <button
                     type="button"
+                    onClick={() => handleTabSwitch('offer_timers')}
+                    className="px-4 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  >
+                    <AlarmClock className="w-4 h-4 text-[#eb1c24]" />
+                    <span>Offer Timer</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => handleTabSwitch('settings')}
                     className="px-4 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
                   >
@@ -1036,7 +1082,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {course.imageUrl ? (
                                 <img
                                   src={course.imageUrl}
-                                  alt=""
+                                  alt={course.title}
+                                  loading="lazy"
+                                  decoding="async"
+                                  width={40}
+                                  height={28}
                                   className="w-10 h-7 object-cover rounded-md border border-rose-100 shrink-0 bg-white"
                                 />
                               ) : (
@@ -1055,8 +1105,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </div>
                           </td>
                           <td className="py-3 px-3 font-semibold text-[#2A0F12]/80 whitespace-nowrap">
-                            {categories.find((c) => c.slug === course.categorySlug)?.name ||
-                              course.categorySlug}
+                            {categoryNameBySlug.get(course.categorySlug) || course.categorySlug}
                           </td>
                           <td className="py-3 px-3 whitespace-nowrap">
                             <div className="font-mono font-bold text-[#2A0F12] tabular-nums">
@@ -1119,9 +1168,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* Header Banner */}
               <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <div className="text-xs font-semibold text-[#6B4C4F] mb-0.5">
-                    Admin / Course Catalog
-                  </div>
                   <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
                     {activeTab === 'active_courses'
                       ? 'চালু কোর্সসমূহ (Active Courses)'
@@ -1258,7 +1304,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   {course.imageUrl ? (
                                     <img
                                       src={course.imageUrl}
-                                      alt=""
+                                      alt={course.title}
+                                      loading="lazy"
+                                      decoding="async"
+                                      width={48}
+                                      height={32}
                                       className="w-12 h-8 object-cover rounded-lg border border-rose-100 shrink-0 bg-white"
                                     />
                                   ) : (
@@ -1289,8 +1339,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                               {/* Category */}
                               <td className="py-3.5 px-4 font-semibold text-[#2A0F12]/80 whitespace-nowrap">
-                                {categories.find((c) => c.slug === course.categorySlug)?.name ||
-                                  course.categorySlug}
+                                {categoryNameBySlug.get(course.categorySlug) || course.categorySlug}
                               </td>
 
                               {/* Pricing */}
@@ -1393,9 +1442,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* Header */}
               <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <div className="text-xs font-semibold text-[#6B4C4F] mb-0.5">
-                    Admin / Taxonomies
-                  </div>
                   <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
                     কোর্স ক্যাটাগরি ম্যানেজমেন্ট (Course Categories)
                   </h1>
@@ -1505,9 +1551,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="space-y-6">
               {/* Header */}
               <div className="glass-strong rounded-3xl p-5 sm:p-6">
-                <div className="text-xs font-semibold text-[#6B4C4F] mb-0.5">
-                  Admin / Configuration
-                </div>
                 <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
                   পোর্টাল সেটিংস ও যোগাযোগ (Settings & Direct Contact)
                 </h1>
@@ -1649,6 +1692,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </form>
             </div>
+          ) : activeTab === 'offer_timers' ? (
+            /* ===================================================== */
+            /* VIEW 6: DEDICATED OFFER COUNTDOWN TIMER MANAGEMENT    */
+            /* ===================================================== */
+            <OfferTimerManager
+              authToken={authToken}
+              courses={courses}
+              timers={offerTimers}
+              serverNow={serverNow}
+              onTimersUpdated={(nextTimers, nextServerNow) => {
+                setOfferTimers(nextTimers);
+                if (nextServerNow) {
+                  setServerNow(nextServerNow);
+                  const parsedNow = new Date(nextServerNow).getTime();
+                  if (Number.isFinite(parsedNow)) {
+                    setOverviewNowMs(parsedNow);
+                  }
+                } else {
+                  setOverviewNowMs(Date.now());
+                }
+                onDataMutated();
+              }}
+              onShowToast={showToast}
+            />
           ) : null}
         </main>
       </div>
@@ -1663,6 +1730,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         adminEmail={adminEmail}
         stats={stats}
         categoriesCount={categories.length}
+        activeOfferTimersCount={activeOfferTimersCount}
       />
 
       {/* ========================================================= */}
@@ -1728,7 +1796,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteModalCourse(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:bg-slate-50 cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
               >
                 না, বাতিল
               </button>
@@ -1858,7 +1926,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCategoryModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:bg-slate-50 cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
               >
                 বাতিল
               </button>
@@ -1893,7 +1961,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteModalCat(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:bg-slate-50 cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
               >
                 বাতিল
               </button>
@@ -1928,7 +1996,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:bg-slate-50 cursor-pointer"
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
               >
                 না
               </button>
@@ -1938,7 +2006,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setShowLogoutConfirm(false);
                   onLogout();
                 }}
-                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold cursor-pointer"
+                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] hover:shadow-[0_6px_16px_-4px_rgba(226,43,43,0.45)] text-white text-xs font-bold transition cursor-pointer"
               >
                 লগআউট
               </button>

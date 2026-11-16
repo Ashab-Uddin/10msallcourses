@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   LayoutDashboard,
   BookOpen,
@@ -14,7 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   ExternalLink,
-  ShieldCheck,
+  AlarmClock,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
@@ -32,6 +33,7 @@ interface AdminNavbarProps {
     inactiveCourses: number;
   };
   categoriesCount: number;
+  activeOfferTimersCount?: number;
 }
 
 export const AdminNavbar: React.FC<AdminNavbarProps> = ({
@@ -43,8 +45,12 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
   adminEmail,
   stats,
   categoriesCount,
+  activeOfferTimersCount = 0,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const displayAdminName =
+    (adminName || 'Admin Manager').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Admin Manager';
 
   const isCoursesSection =
     activeTab === 'all_courses' ||
@@ -104,6 +110,12 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
       badge: categoriesCount,
     },
     {
+      id: 'offer_timers',
+      label: 'Offer Timer',
+      icon: <AlarmClock className="w-4 h-4" />,
+      badge: activeOfferTimersCount,
+    },
+    {
       id: 'settings',
       label: 'Settings',
       icon: <Settings className="w-4 h-4" />,
@@ -152,31 +164,27 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
       </div>
 
       <div className="relative z-10 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
-        {/* LEFT: Admin Brand Logo (Clicking opens Main Website Homepage) */}
+        {/* LEFT: Admin Brand Logo (Clicking returns to Admin Dashboard Overview) */}
         <div className="flex items-center gap-3 min-w-0">
           <Link
-            href="/"
+            href="/admin/overview"
             onClick={(e) => {
               e.preventDefault();
               setMobileMenuOpen(false);
-              onNavigateHome();
+              onSelectTab('overview');
             }}
             className="flex items-center gap-2.5 cursor-pointer group shrink-0 select-none py-0.5 transition-transform hover:scale-[1.02] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 rounded-xl"
-            title="মূল ওয়েবসাইটের হোমপেজে যান"
+            title="অ্যাডমিন ড্যাশবোর্ডে ফিরে যান"
           >
-            <img
+            <Image
               src="/images/logo-transparent.png"
               alt="10 Minute School"
+              width={142}
+              height={36}
+              priority
               className="h-8 sm:h-9 w-auto object-contain block drop-shadow-xs"
             />
           </Link>
-
-          <div className="hidden sm:flex items-center gap-2 border-l border-rose-200/80 pl-3 min-w-0">
-            <span className="inline-flex items-center gap-1.5 text-xs font-black text-[#2A0F12] tracking-tight whitespace-nowrap">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#E22B2B] shrink-0" />
-              <span>Admin Console</span>
-            </span>
-          </div>
         </div>
 
         {/* CENTER: Admin Primary Navigation */}
@@ -238,6 +246,32 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
 
           <button
             type="button"
+            onClick={() => handleNavClick('offer_timers')}
+            className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'offer_timers' ? activePillClass : inactivePillClass
+            }`}
+          >
+            <AlarmClock
+              className={`w-3.5 h-3.5 ${
+                activeTab === 'offer_timers' ? 'text-[#eb1c24]' : 'text-[#6B4C4F]'
+              }`}
+            />
+            <span>Offer Timer</span>
+            {activeOfferTimersCount > 0 && (
+              <span
+                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full tabular-nums ${
+                  activeTab === 'offer_timers'
+                    ? 'bg-[#eb1c24]/15 text-[#b91c1c]'
+                    : 'bg-emerald-100 text-emerald-700'
+                }`}
+              >
+                {toBengaliNumber(activeOfferTimersCount)}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleNavClick('settings')}
             className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'settings' ? activePillClass : inactivePillClass
@@ -265,7 +299,7 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
 
           <div className="hidden xl:flex flex-col items-end pr-1 text-right">
             <span className="text-xs font-bold text-[#2A0F12] max-w-[140px] truncate">
-              {adminName || 'Admin Manager'}
+              {displayAdminName}
             </span>
             <span className="text-[10px] font-medium text-[#6B4C4F] max-w-[140px] truncate">
               {adminEmail || 'admin@10ms.com'}
@@ -275,7 +309,7 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
           <button
             type="button"
             onClick={onRequestLogout}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-rose-200/90 bg-rose-50/80 hover:bg-rose-100 text-[#991b1b] text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-rose-200/90 bg-rose-50/80 hover:bg-[#eb1c24] hover:border-[#eb1c24] hover:text-white hover:shadow-[0_6px_16px_-4px_rgba(235,28,36,0.45)] text-[#991b1b] text-xs font-bold transition cursor-pointer whitespace-nowrap shrink-0"
             title="অ্যাডমিন প্যানেল থেকে লগআউট করুন"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -304,7 +338,7 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
           <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-rose-50/70 border border-rose-100">
             <div className="min-w-0">
               <div className="text-xs font-black text-[#2A0F12] truncate">
-                {adminName || 'Admin Manager'}
+                {displayAdminName}
               </div>
               <div className="text-[11px] font-medium text-[#6B4C4F] truncate">
                 {adminEmail || 'admin@10ms.com'}

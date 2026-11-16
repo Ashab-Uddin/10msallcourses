@@ -1,24 +1,116 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
-import { Category, Course, SiteSettings } from './types.ts';
+import dynamic from 'next/dynamic';
+import { Category, Course, OfferTimer, SiteSettings } from './types.ts';
+import { computeOfferTimerStatus, getCountdownParts } from './lib/offerTimerUtils.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
 import { MobileBottomNav, MobileTab } from './components/public/MobileBottomNav.tsx';
-import { CategoryPage } from './components/public/CategoryPage.tsx';
 import { HeaderNav } from './components/public/HeaderNav.tsx';
-import { AcademicPage, AcademicLevel } from './components/public/AcademicPage.tsx';
+import type { AcademicLevel } from './components/public/AcademicPage.tsx';
 import { ClassSelectorStrip } from './components/public/ClassSelectorStrip.tsx';
 import { GlassAmbientBackdrop } from './components/public/GlassAmbientBackdrop.tsx';
 import { FloatingContactWidget } from './components/public/FloatingContactWidget.tsx';
 import { SiteFooter } from './components/public/SiteFooter.tsx';
-import { AdminLogin } from './components/admin/AdminLogin.tsx';
-import { AdminDashboard } from './components/admin/AdminDashboard.tsx';
 import { toBengaliNumber } from './utils/format.ts';
-import { ChevronRight } from 'lucide-react';
-import { motion } from 'motion/react';
-import { INITIAL_CATEGORIES, INITIAL_COURSES, INITIAL_SETTINGS } from './db/seedData.ts';
-//testeste
+import {
+  ChevronRight,
+  AlarmClock,
+  BookOpen,
+  Terminal,
+  Landmark,
+  BadgeCheck,
+  SearchX,
+  Headphones,
+  MessageCircle,
+  ArrowRight,
+  Sparkles,
+} from 'lucide-react';
+
+const CategoryPage = dynamic(
+  () => import('./components/public/CategoryPage.tsx').then((m) => m.CategoryPage),
+  {
+    loading: () => (
+      <div className="max-w-[1240px] mx-auto px-4 py-16 text-center text-sm font-bold text-[#6B4C4F]">
+        ক্যাটাগরি পেজ লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
+
+const AcademicPage = dynamic(
+  () => import('./components/public/AcademicPage.tsx').then((m) => m.AcademicPage),
+  {
+    loading: () => (
+      <div className="max-w-[1240px] mx-auto px-4 py-16 text-center text-sm font-bold text-[#6B4C4F]">
+        ব্যাচ পেজ লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
+
+const AdminLogin = dynamic(
+  () => import('./components/admin/AdminLogin.tsx').then((m) => m.AdminLogin),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-screen flex items-center justify-center text-sm font-bold text-[#6B4C4F]">
+        অ্যাডমিন লগইন লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
+
+const AdminDashboard = dynamic(
+  () => import('./components/admin/AdminDashboard.tsx').then((m) => m.AdminDashboard),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-screen flex items-center justify-center text-sm font-bold text-[#6B4C4F]">
+        অ্যাডমিন ড্যাশবোর্ড লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
+
+export interface AppProps {
+  initialCategories?: Category[];
+  initialCourses?: Course[];
+  initialSettings?: SiteSettings | null;
+  initialOfferTimers?: OfferTimer[];
+  initialHasOfferTimers?: boolean;
+  initialServerNow?: string;
+}
+
+function subscribeSessionAuth(callback: () => void) {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener('storage', callback);
+  window.addEventListener('10ms-auth-change', callback);
+  return () => {
+    window.removeEventListener('storage', callback);
+    window.removeEventListener('10ms-auth-change', callback);
+  };
+}
+
+function subscribeHashChange(callback: () => void) {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener('hashchange', callback);
+  window.addEventListener('popstate', callback);
+  return () => {
+    window.removeEventListener('hashchange', callback);
+    window.removeEventListener('popstate', callback);
+  };
+}
+
+function getSessionItem(key: string): string {
+  try {
+    return typeof window !== 'undefined' ? sessionStorage.getItem(key) || '' : '';
+  } catch {
+    return '';
+  }
+}
+
 type RouteState =
   | { view: 'home' }
   | { view: 'category'; slug: string; subFilter?: string }
@@ -120,65 +212,95 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
   return { view: 'home' };
 }
 
-export default function App() {
+export default function App({
+  initialCategories = [],
+  initialCourses = [],
+  initialSettings = null,
+  initialOfferTimers = [],
+  initialHasOfferTimers = false,
+  initialServerNow,
+}: AppProps) {
   const currentPathname = usePathname() || '/';
-  const [currentPath, setCurrentPath] = useState<string>(currentPathname);
-  const [currentHash, setCurrentHash] = useState<string>('');
-  const [route, setRoute] = useState<RouteState>(() => parseCurrentRoute(currentPathname, ''));
+  const [navOverride, setNavOverride] = useState<{
+    basePathname: string;
+    path: string;
+    hash: string;
+  } | null>(null);
 
-  useEffect(() => {
-    const rawHash = typeof window !== 'undefined' ? window.location.hash : '';
-    const safePath = typeof window !== 'undefined' ? window.location.pathname : currentPathname;
-    setRoute(parseCurrentRoute(safePath, rawHash));
-    setCurrentPath(safePath);
-    setCurrentHash(rawHash);
-  }, [currentPathname]);
+  const windowHash = useSyncExternalStore(
+    subscribeHashChange,
+    () => (typeof window !== 'undefined' ? window.location.hash || '' : ''),
+    () => ''
+  );
 
-  // Auth state initialized from sessionStorage so admin access persists across page refreshes.
-  // We intentionally avoid reading sessionStorage during render to prevent hydration mismatches.
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [adminEmail, setAdminEmail] = useState<string>('');
-  const [adminName, setAdminName] = useState<string>('');
+  const currentPath =
+    navOverride?.basePathname === currentPathname ? navOverride.path : currentPathname;
+  const currentHash =
+    navOverride?.basePathname === currentPathname ? navOverride.hash : windowHash;
 
-  useEffect(() => {
-    try {
-      setAuthToken(sessionStorage.getItem('10ms_auth_token'));
-      setAdminEmail(sessionStorage.getItem('10ms_admin_email') || '');
-      setAdminName(sessionStorage.getItem('10ms_admin_name') || '');
-    } catch {
-      // sessionStorage may be unavailable during server rendering or restricted environments.
-    }
-  }, []);
+  const route = useMemo(
+    () => parseCurrentRoute(currentPath, currentHash),
+    [currentPath, currentHash]
+  );
+
+  // Auth state synchronized via useSyncExternalStore from sessionStorage so admin access
+  // persists across refreshes without hydration mismatches or cascading effect renders.
+  const authToken =
+    useSyncExternalStore(
+      subscribeSessionAuth,
+      () => getSessionItem('10ms_auth_token'),
+      () => ''
+    ) || null;
+  const adminEmail = useSyncExternalStore(
+    subscribeSessionAuth,
+    () => getSessionItem('10ms_admin_email'),
+    () => ''
+  );
+  const adminName = useSyncExternalStore(
+    subscribeSessionAuth,
+    () => getSessionItem('10ms_admin_name'),
+    () => ''
+  );
 
   const handleAdminLogin = (token: string, email: string, name: string) => {
-    setAuthToken(token);
-    setAdminEmail(email);
-    setAdminName(name);
     try {
       sessionStorage.setItem('10ms_auth_token', token);
       sessionStorage.setItem('10ms_admin_email', email);
       sessionStorage.setItem('10ms_admin_name', name);
+      window.dispatchEvent(new Event('10ms-auth-change'));
     } catch {}
     navigate('/admin/dashboard');
   };
 
   const handleAdminLogout = () => {
-    setAuthToken(null);
-    setAdminEmail('');
-    setAdminName('');
     try {
       sessionStorage.removeItem('10ms_auth_token');
       sessionStorage.removeItem('10ms_admin_email');
       sessionStorage.removeItem('10ms_admin_name');
+      window.dispatchEvent(new Event('10ms-auth-change'));
     } catch {}
     navigate('/');
   };
 
-  // Public portal data initialized with instant seed data
-  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
-  const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
-  const [settings, setSettings] = useState<SiteSettings | null>(INITIAL_SETTINGS);
-  const [loading, setLoading] = useState<boolean>(false);
+  // Public portal data initialized from Server Component props (zero initial client waterfall)
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [courses, setCourses] = useState<Course[]>(initialCourses);
+  const [settings, setSettings] = useState<SiteSettings | null>(initialSettings);
+  const [offerTimers, setOfferTimers] = useState<OfferTimer[]>(initialOfferTimers);
+  const [hasOfferTimers, setHasOfferTimers] = useState<boolean>(
+    initialHasOfferTimers || initialOfferTimers.length > 0
+  );
+  const [nowMs, setNowMs] = useState<number>(() => {
+    if (initialServerNow) {
+      const parsed = new Date(initialServerNow).getTime();
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return 0;
+  });
+  const serverOffsetRef = useRef<number>(0);
+  const [loading, setLoading] = useState<boolean>(
+    initialCourses.length === 0 && !currentPathname.startsWith('/admin')
+  );
 
   // Search & Discovery Filter States
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -211,16 +333,8 @@ export default function App() {
   // Live Countdown State
   const [countdown, setCountdown] = useState({ d: '02', h: '08', m: '26', s: '55' });
 
-  // Horizontal scroll refs by category slug
-  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  // Mobile Bottom Navigation & Category Expand States
-  const [mobileTab, setMobileTab] = useState<MobileTab>('home');
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-
-  const toggleExpandCategory = (slug: string) => {
-    setExpandedCategories((prev) => ({ ...prev, [slug]: !prev[slug] }));
-  };
+  // Mobile Bottom Navigation State
+  const [, setMobileTab] = useState<MobileTab>('home');
 
   const navigate = useCallback((fullUrl: string, options?: { noScroll?: boolean }) => {
     const [pathPart, hashPart] = fullUrl.split('#');
@@ -238,24 +352,28 @@ export default function App() {
         window.history.pushState({}, '', fullUrl);
       }
     }
-    setCurrentPath(targetPath);
-    setCurrentHash(targetHash);
-    setRoute(parseCurrentRoute(targetPath, targetHash));
+    setNavOverride({
+      basePathname: currentPathname,
+      path: targetPath,
+      hash: targetHash,
+    });
 
     if (options?.noScroll || isSamePath) {
       return;
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [currentPathname]);
 
   useEffect(() => {
     const handlePopState = () => {
       const p = window.location.pathname;
       const h = window.location.hash || '';
-      setCurrentPath(p);
-      setCurrentHash(h);
-      setRoute(parseCurrentRoute(p, h));
+      setNavOverride({
+        basePathname: currentPathname,
+        path: p,
+        hash: h,
+      });
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -264,7 +382,7 @@ export default function App() {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('hashchange', handlePopState);
     };
-  }, []);
+  }, [currentPathname]);
 
   // Initial scroll to hash if page loaded directly with non-department section (e.g. #courses, #reviews)
   useEffect(() => {
@@ -282,7 +400,26 @@ export default function App() {
     }
   }, []);
 
-  // Countdown timer effect matching user's original script or admin configured target date
+  // Synchronized live clock for real-time course offer countdown timers
+  useEffect(() => {
+    if (initialServerNow) {
+      const parsed = new Date(initialServerNow).getTime();
+      if (Number.isFinite(parsed)) {
+        serverOffsetRef.current = parsed - Date.now();
+      }
+    }
+    const tick = () => {
+      setNowMs(Date.now() + serverOffsetRef.current);
+    };
+    const initTimer = setTimeout(tick, 0);
+    const interval = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(interval);
+    };
+  }, [initialServerNow]);
+
+  // Countdown timer effect matching user's original script or admin configured target date (legacy fallback)
   useEffect(() => {
     let targetTime: number;
 
@@ -324,7 +461,7 @@ export default function App() {
 
   const fetchPublicData = useCallback(async () => {
     try {
-      const res = await fetch('/api/public/data');
+      const res = await fetch('/api/public/data', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data.categories && data.categories.length > 0) {
@@ -332,6 +469,21 @@ export default function App() {
         }
         if (data.courses && data.courses.length > 0) {
           setCourses(data.courses);
+        }
+        if (Array.isArray(data.offerTimers)) {
+          setOfferTimers(data.offerTimers);
+          setHasOfferTimers(
+            typeof data.hasOfferTimers === 'boolean'
+              ? data.hasOfferTimers
+              : data.offerTimers.length > 0
+          );
+        }
+        if (data.serverNow) {
+          const parsed = new Date(data.serverNow).getTime();
+          if (Number.isFinite(parsed)) {
+            serverOffsetRef.current = parsed - Date.now();
+            setNowMs(Date.now() + serverOffsetRef.current);
+          }
         }
         if (data.settings) {
           setSettings(data.settings);
@@ -345,9 +497,13 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [setCategories, setCourses, setSettings]);
+  }, [setCategories, setCourses, setOfferTimers, setHasOfferTimers, setNowMs, setSettings]);
 
   useEffect(() => {
+    // Skip redundant client API fetch if SSR already provided public data or on admin routes
+    if (initialCourses.length > 0 || currentPathname.startsWith('/admin')) {
+      return;
+    }
     let active = true;
     const run = async () => {
       if (active) {
@@ -358,7 +514,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [fetchPublicData]);
+  }, [fetchPublicData, initialCourses.length, currentPathname]);
 
   // Sync browser document.title for all dynamic academic routes and catalog views
   useEffect(() => {
@@ -389,26 +545,29 @@ export default function App() {
     }
   }, [route, categories, settings?.siteTitle]);
 
-  // Handle Instant Direct Affiliate Link & Outbound Tracking (No Details Page, No Confirmation Modal)
-  const handleEnrollClick = (course: Course, referrer = 'course_card') => {
-    const targetUrl = course.affiliateUrl || `/go/${course.slug}`;
-    window.open(targetUrl, '_blank', 'noopener,noreferrer');
-
-    // Asynchronous click recording in background
+  // Record outbound click in background without blocking direct link navigation
+  const recordCourseOutboundClick = (course: Pick<Course, 'id' | 'slug'>, referrer = 'course_card') => {
     fetch(`/api/public/click/${course.slug}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ referrer }),
+      keepalive: true,
     }).catch((err) => {
       console.error('Click tracking error:', err);
     });
 
-    // Update local click count in memory
     setCourses((prev) =>
       prev.map((c) =>
         c.id === course.id ? { ...c, clickCount: (c.clickCount || 0) + 1 } : c
       )
     );
+  };
+
+  // Handle Instant Direct Affiliate Link & Outbound Tracking (No Details Page, No Confirmation Modal)
+  const handleEnrollClick = (course: Course, referrer = 'course_card') => {
+    const targetUrl = course.affiliateUrl || `/go/${course.slug}`;
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    recordCourseOutboundClick(course, referrer);
   };
 
   const handleDirectCourseLink = (slug: string, referrer = 'footer_link') => {
@@ -420,17 +579,14 @@ export default function App() {
     }
   };
 
-  const scrollRow = (slug: string, dir: number) => {
-    const el = rowRefs.current[slug];
-    if (el) {
-      el.scrollBy({ left: dir * 320, behavior: 'smooth' });
-    }
-  };
-
   const handleQuickFilterSelect = (catSlug: string, queryText = '') => {
     if (route.view !== 'home') {
       window.history.pushState({}, '', '/');
-      setRoute({ view: 'home' });
+      setNavOverride({
+        basePathname: currentPathname,
+        path: '/',
+        hash: '',
+      });
     }
     setSelectedCategory(catSlug);
     setSearchQuery(queryText);
@@ -502,6 +658,21 @@ export default function App() {
       navigate('/category/skills');
     }
   };
+
+  const activeOfferTimers = useMemo(() => {
+    if (!nowMs || offerTimers.length === 0) return [];
+    return offerTimers.filter(
+      (timer) => computeOfferTimerStatus(timer, nowMs) === 'active'
+    );
+  }, [offerTimers, nowMs]);
+
+  const coursesById = useMemo(() => {
+    const map = new Map<number, Course>();
+    for (const c of courses) {
+      map.set(c.id, c);
+    }
+    return map;
+  }, [courses]);
 
   const whatsappNumber = settings?.whatsappNumber || '01608-949565';
   const whatsappLink = settings?.whatsappLink || 'https://wa.me/8801814946474';
@@ -726,12 +897,7 @@ export default function App() {
       <main className="relative z-10">
           {/* HERO SECTION WITH GLASS-SHADE SELECTOR */}
           <section className="relative pt-10 sm:pt-12 pb-14 overflow-hidden">
-            <motion.div
-              initial={{ opacity: 0, y: 22 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="wrap relative z-10 text-center"
-            >
+            <div className="wrap relative z-10 text-center">
               <h1
                 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-[#2A0F12] mb-3 max-w-3xl mx-auto"
                 style={{ textWrap: 'balance' }}
@@ -746,79 +912,235 @@ export default function App() {
                   'সরাসরি সর্বোচ্চ প্রাথমিক ছাড়ে যেকোনো একাডেমিক ও ক্যারিয়ার স্কিল প্রোগ্রামে ভর্তি হোন। কোনো প্রোমো কোডের ঝামেলা ছাড়াই ১০০% ডিসকাউন্টেড লাইভ এক্সেস।'}
               </p>
 
-              {/* Urgent Countdown Timer (Frosted Glass Strip) */}
-              {settings?.showCountdownTimer !== false && (
-                <div
-                  onClick={() => {
-                    if (settings?.countdownTargetCourse && settings.countdownTargetCourse !== 'all') {
-                      const match = courses.find((c) => c.slug === settings.countdownTargetCourse);
-                      if (match) {
-                        handleQuickFilterSelect(match.categorySlug, match.title.split('—')[0].trim());
+              {/* Urgent Course Offer Countdown Timers (Frosted Glass Strip / Grid) */}
+              {settings?.showCountdownTimer !== false &&
+                (hasOfferTimers || offerTimers.length > 0 ? (
+                  activeOfferTimers.length > 0 ? (
+                    <div
+                      className={`mb-4 sm:mb-6 mx-auto ${
+                        activeOfferTimers.length === 1
+                          ? 'max-w-4xl'
+                          : 'grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-6xl'
+                      }`}
+                    >
+                      {activeOfferTimers.map((timer) => {
+                        const linkedCourse = coursesById.get(timer.courseId);
+                        const targetAffiliateUrl =
+                          linkedCourse?.affiliateUrl ||
+                          timer.affiliateUrl ||
+                          `/go/${timer.courseSlug}`;
+                        const parts = getCountdownParts(timer.endAt, nowMs);
+                        const courseTitle =
+                          linkedCourse?.title || timer.courseTitle;
+                        const courseImage =
+                          linkedCourse?.imageUrl || timer.courseImageUrl;
+                        const discountBadge = linkedCourse?.discountBadgeText;
+                        const discountPrice = linkedCourse?.discountPrice;
+
+                        const defaultAutoLabel = `${courseTitle} — স্পেশাল অফার`;
+                        const displayOfferLabel =
+                          timer.offerLabel &&
+                          timer.offerLabel.trim() !== defaultAutoLabel
+                            ? timer.offerLabel.trim()
+                            : 'সীমিত সময়ের স্পেশাল অফার!';
+
+                        return (
+                          <a
+                            key={timer.id}
+                            href={targetAffiliateUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() =>
+                              recordCourseOutboundClick(
+                                {
+                                  id: timer.courseId,
+                                  slug: linkedCourse?.slug || timer.courseSlug,
+                                },
+                                'offer_countdown_timer'
+                              )
+                            }
+                            aria-label={`${courseTitle} অফারে ভর্তি হতে ক্লিক করুন`}
+                            className="group glass-surface hover:bg-white/85 border border-rose-200/80 hover:border-[#eb1c24]/60 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 w-full max-w-full overflow-hidden flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5 sm:gap-4 text-left shadow-[0_12px_32px_-10px_rgba(226,43,43,0.18)] hover:shadow-[0_18px_40px_-10px_rgba(226,43,43,0.3)] transition-all duration-200 cursor-pointer tabular-nums"
+                          >
+                            {/* Left: Course Image + Course Name & Offer Info */}
+                            <div className="flex items-start sm:items-center gap-3 sm:gap-3.5 min-w-0 w-full flex-1">
+                              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-[#ff5252] to-[#991b1b] shrink-0 overflow-hidden border border-white/90 shadow-md flex items-center justify-center">
+                                {courseImage ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={courseImage}
+                                    alt={courseTitle}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                ) : (
+                                  <AlarmClock className="w-7 h-7 text-white animate-pulse" />
+                                )}
+                              </div>
+
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-start gap-1.5 w-full min-w-0 text-[11px] font-extrabold text-[#B91C1C]">
+                                  <AlarmClock
+                                    className="w-3.5 h-3.5 text-[#E22B2B] animate-pulse shrink-0 mt-0.5"
+                                    aria-hidden="true"
+                                  />
+                                  <span className="min-w-0 flex-1 break-words line-clamp-2 leading-snug">
+                                    {displayOfferLabel}
+                                  </span>
+                                </div>
+
+                                <div className="text-sm sm:text-base font-black text-[#2A0F12] group-hover:text-[#b91c1c] transition-colors break-words line-clamp-2 leading-snug">
+                                  {courseTitle}
+                                </div>
+
+                                {(typeof discountPrice === 'number' ||
+                                  discountBadge) && (
+                                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] font-bold pt-0.5">
+                                    {typeof discountPrice === 'number' &&
+                                      discountPrice > 0 && (
+                                        <span className="text-emerald-700 font-mono">
+                                          অফার মূল্য: ৳
+                                          {toBengaliNumber(discountPrice)}
+                                        </span>
+                                      )}
+                                    {discountBadge && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100/90 text-[#b91c1c] border border-rose-200 text-[10px] max-w-full">
+                                        <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                                        <span className="truncate">{discountBadge}</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Right: Real-time Countdown + Clickable CTA */}
+                            <div className="flex flex-col sm:items-end gap-2.5 shrink-0 w-full sm:w-auto items-center">
+                              <div className="flex items-center justify-center gap-1 sm:gap-2 w-full sm:w-auto max-w-full">
+                                <div className="glass-inset rounded-xl px-2 sm:px-2.5 py-1 text-center min-w-[44px] sm:min-w-[50px]">
+                                  <b className="text-sm sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
+                                    {parts.d}
+                                  </b>
+                                  <span className="text-[10px] text-[#6B4C4F]">
+                                    দিন
+                                  </span>
+                                </div>
+                                <span className="text-[#E22B2B] font-bold">:</span>
+                                <div className="glass-inset rounded-xl px-2 sm:px-2.5 py-1 text-center min-w-[44px] sm:min-w-[50px]">
+                                  <b className="text-sm sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
+                                    {parts.h}
+                                  </b>
+                                  <span className="text-[10px] text-[#6B4C4F]">
+                                    ঘণ্টা
+                                  </span>
+                                </div>
+                                <span className="text-[#E22B2B] font-bold">:</span>
+                                <div className="glass-inset rounded-xl px-2 sm:px-2.5 py-1 text-center min-w-[44px] sm:min-w-[50px]">
+                                  <b className="text-sm sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
+                                    {parts.m}
+                                  </b>
+                                  <span className="text-[10px] text-[#6B4C4F]">
+                                    মিনিট
+                                  </span>
+                                </div>
+                                <span className="text-[#E22B2B] font-bold">:</span>
+                                <div className="glass-inset rounded-xl px-2 sm:px-2.5 py-1 text-center min-w-[44px] sm:min-w-[50px]">
+                                  <b className="text-sm sm:text-lg text-[#E22B2B] block leading-none font-bold font-mono">
+                                    {parts.s}
+                                  </b>
+                                  <span className="text-[10px] text-[#6B4C4F]">
+                                    সেকেন্ড
+                                  </span>
+                                </div>
+                              </div>
+
+                              <span className="inline-flex items-center justify-center gap-1.5 w-full sm:w-auto px-4 py-2 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] group-hover:from-[#eb1c24] group-hover:to-[#991b1b] text-white text-xs font-extrabold shadow-[0_6px_16px_-4px_rgba(226,43,43,0.45)] transition-all">
+                                <span>অফারটি নিন ও ভর্তি হোন</span>
+                                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                              </span>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  ) : null
+                ) : (
+                  <div
+                    onClick={() => {
+                      if (
+                        settings?.countdownTargetCourse &&
+                        settings.countdownTargetCourse !== 'all'
+                      ) {
+                        const match = courses.find(
+                          (c) => c.slug === settings.countdownTargetCourse
+                        );
+                        if (match) {
+                          handleEnrollClick(match, 'legacy_offer_countdown');
+                        }
                       }
+                    }}
+                    className={`inline-flex flex-col sm:flex-row items-center gap-3 sm:gap-6 glass-surface px-5 py-3 rounded-2xl mb-2 sm:mb-4 tabular-nums ${
+                      settings?.countdownTargetCourse &&
+                      settings.countdownTargetCourse !== 'all'
+                        ? 'cursor-pointer hover:bg-white/80 transition-colors'
+                        : ''
+                    }`}
+                    title={
+                      settings?.countdownTargetCourse &&
+                      settings.countdownTargetCourse !== 'all'
+                        ? 'এই কোর্সের অফারে যেতে ক্লিক করুন'
+                        : undefined
                     }
-                  }}
-                  className={`inline-flex flex-col sm:flex-row items-center gap-3 sm:gap-6 glass-surface px-5 py-3 rounded-2xl mb-2 sm:mb-4 tabular-nums ${
-                    settings?.countdownTargetCourse && settings.countdownTargetCourse !== 'all'
-                      ? 'cursor-pointer hover:bg-white/80 transition-colors'
-                      : ''
-                  }`}
-                  title={settings?.countdownTargetCourse && settings.countdownTargetCourse !== 'all' ? 'এই কোর্সের অফারে যেতে ক্লিক করুন' : undefined}
-                >
-                  <div className="flex items-center gap-2 text-[#B91C1C] text-xs sm:text-sm font-bold">
-                    <span className="material-symbols-outlined text-[20px] text-[#E22B2B] animate-pulse">
-                      alarm
-                    </span>
-                    <span>
-                      {settings?.countdownLabel ||
-                        'HSC ২৮ আর্লি বার্ড স্পেশাল উপহার সহ ছাড়ে বাকি:'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
-                      <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                        {countdown.d}
-                      </b>
-                      <span className="text-[10px] text-[#6B4C4F]">দিন</span>
+                  >
+                    <div className="flex items-center gap-2 text-[#B91C1C] text-xs sm:text-sm font-bold">
+                      <AlarmClock
+                        className="w-5 h-5 text-[#E22B2B] animate-pulse shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>
+                        {settings?.countdownLabel ||
+                          'HSC ২৮ আর্লি বার্ড স্পেশাল উপহার সহ ছাড়ে বাকি:'}
+                      </span>
                     </div>
-                    <span className="text-[#E22B2B] font-bold">:</span>
-                    <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
-                      <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                        {countdown.h}
-                      </b>
-                      <span className="text-[10px] text-[#6B4C4F]">ঘণ্টা</span>
-                    </div>
-                    <span className="text-[#E22B2B] font-bold">:</span>
-                    <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
-                      <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                        {countdown.m}
-                      </b>
-                      <span className="text-[10px] text-[#6B4C4F]">মিনিট</span>
-                    </div>
-                    <span className="text-[#E22B2B] font-bold">:</span>
-                    <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
-                      <b className="text-base sm:text-lg text-[#E22B2B] block leading-none font-bold font-mono">
-                        {countdown.s}
-                      </b>
-                      <span className="text-[10px] text-[#6B4C4F]">সেকেন্ড</span>
+                    <div className="flex items-center gap-2">
+                      <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
+                        <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
+                          {countdown.d}
+                        </b>
+                        <span className="text-[10px] text-[#6B4C4F]">দিন</span>
+                      </div>
+                      <span className="text-[#E22B2B] font-bold">:</span>
+                      <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
+                        <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
+                          {countdown.h}
+                        </b>
+                        <span className="text-[10px] text-[#6B4C4F]">ঘণ্টা</span>
+                      </div>
+                      <span className="text-[#E22B2B] font-bold">:</span>
+                      <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
+                        <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
+                          {countdown.m}
+                        </b>
+                        <span className="text-[10px] text-[#6B4C4F]">মিনিট</span>
+                      </div>
+                      <span className="text-[#E22B2B] font-bold">:</span>
+                      <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
+                        <b className="text-base sm:text-lg text-[#E22B2B] block leading-none font-bold font-mono">
+                          {countdown.s}
+                        </b>
+                        <span className="text-[10px] text-[#6B4C4F]">সেকেন্ড</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </motion.div>
+                ))}
+            </div>
 
             {/* 3D CATEGORY & CLASS SELECTOR STRIP (GLASS-SHADE S-WAVE STRUCTURE) */}
             <ClassSelectorStrip onNavigate={navigate} />
           </section>
 
           {/* 3 MAIN PATHWAYS (Academic, Skills, Admission) */}
-          <motion.section
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.05 }}
-            transition={{ duration: 0.5 }}
-            className="py-10"
-            id="pathways"
-          >
+          <section className="py-10" id="pathways" aria-label="প্রধান লার্নিং পাথওয়ে">
+            <h2 className="sr-only">একাডেমিক, স্কিলস ও এডমিশন প্রোগ্রাম</h2>
             <div className="wrap">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Academic Pathway */}
@@ -832,9 +1154,7 @@ export default function App() {
                         একাডেমিক পূর্ণাঙ্গ প্রস্তুতি
                       </h3>
                     </div>
-                    <span className="material-symbols-outlined text-4xl text-white/85">
-                      library_books
-                    </span>
+                    <BookOpen className="w-9 h-9 text-white/85 shrink-0" aria-hidden="true" />
                   </div>
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>
@@ -866,9 +1186,7 @@ export default function App() {
                         দেশসেরা স্কিল প্ল্যাটফর্ম
                       </h3>
                     </div>
-                    <span className="material-symbols-outlined text-4xl text-white/85">
-                      terminal
-                    </span>
+                    <Terminal className="w-9 h-9 text-white/85 shrink-0" aria-hidden="true" />
                   </div>
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>
@@ -899,9 +1217,7 @@ export default function App() {
                         ভার্সিটি + গুচ্ছ এডমিশন
                       </h3>
                     </div>
-                    <span className="material-symbols-outlined text-4xl text-white/85">
-                      account_balance
-                    </span>
+                    <Landmark className="w-9 h-9 text-white/85 shrink-0" aria-hidden="true" />
                   </div>
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>
@@ -922,7 +1238,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-          </motion.section>
+          </section>
 
           {/* DYNAMIC COURSE SECTIONS & INTERACTIVE FILTER BAR */}
           <section className="py-8" id="courses">
@@ -941,9 +1257,7 @@ export default function App() {
                     টেন মিনিট স্কুলের শীর্ষ মেন্টরদের পরিচালিত কোর্সসমূহ এক নজরে দেখে সরাসরি ডিসকাউন্টেড মূল্যে নিশ্চিন্তে এনরোল করুন।
                   </p>
                 </div>
-                <span className="material-symbols-outlined text-5xl text-[#E22B2B] shrink-0">
-                  verified
-                </span>
+                <BadgeCheck className="w-12 h-12 text-[#E22B2B] shrink-0" aria-hidden="true" />
               </div>
 
               {/* Interactive Discovery & Filter Controls (Frosted Glass Strip) */}
@@ -1029,9 +1343,7 @@ export default function App() {
 
                   {filteredCourses.length === 0 ? (
                     <div className="glass-surface rounded-3xl p-12 text-center space-y-3">
-                      <span className="material-symbols-outlined text-4xl text-rose-400">
-                        search_off
-                      </span>
+                      <SearchX className="w-10 h-10 text-rose-400 mx-auto" aria-hidden="true" />
                       <div className="text-base font-bold text-[#2A0F12]">
                         আপনার অনুসন্ধানের সাথে মিলে এমন কোনো কোর্স পাওয়া যায়নি
                       </div>
@@ -1050,20 +1362,16 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
-                      {filteredCourses.map((course, idx) => (
-                        <motion.div
+                      {filteredCourses.map((course) => (
+                        <div
                           key={`filter-${course.id}-${course.slug}`}
-                          initial={{ opacity: 0, y: 18 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true, amount: 0.05 }}
-                          transition={{ duration: 0.35, delay: idx * 0.04 }}
                           className="h-full flex flex-col"
                         >
                           <CourseCard
                             course={course}
                             onEnrollClick={handleEnrollClick}
                           />
-                        </motion.div>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1077,13 +1385,9 @@ export default function App() {
                   const sectionId = `${cat.slug}-section`;
 
                   return (
-                    <motion.div
+                    <div
                       key={`category-sec-${cat.id}-${cat.slug}`}
-                      initial={{ opacity: 0, y: 28 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true, amount: 0.05 }}
-                      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                      className="glass-surface rounded-3xl p-5 sm:p-7 mb-10 relative"
+                      className="glass-surface rounded-3xl p-5 sm:p-7 mb-10 relative cv-auto"
                       id={sectionId}
                     >
                       {/* Section Header with Title & "View All" Button */}
@@ -1119,23 +1423,19 @@ export default function App() {
 
                       {/* Exactly 4 cards of identical size in an equal 4-column responsive grid */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
-                        {catCourses.slice(0, 4).map((course, idx) => (
-                          <motion.div
+                        {catCourses.slice(0, 4).map((course) => (
+                          <div
                             key={`cat-${cat.slug}-course-${course.id}-${course.slug}`}
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true, amount: 0.05 }}
-                            transition={{ duration: 0.4, delay: idx * 0.08 }}
                             className="h-full flex flex-col"
                           >
                             <CourseCard
                               course={course}
                               onEnrollClick={handleEnrollClick}
                             />
-                          </motion.div>
+                          </div>
                         ))}
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })
               )}
@@ -1143,14 +1443,7 @@ export default function App() {
           </section>
 
           {/* STUDENT REVIEWS & EXPERIENCE SECTION (GLASS-SHADE) */}
-          <motion.section
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.05 }}
-            transition={{ duration: 0.5 }}
-            className="py-10"
-            id="reviews"
-          >
+          <section className="py-10 cv-auto" id="reviews">
             <div className="wrap space-y-8">
               <div className="text-center max-w-2xl mx-auto space-y-2">
                 <span className="text-xs font-extrabold text-[#B91C1C]">
@@ -1188,12 +1481,8 @@ export default function App() {
                     course: 'ভার্সিটি A Unit + GST এডমিশন',
                   },
                 ].map((rev, idx) => (
-                  <motion.div
+                  <div
                     key={idx}
-                    initial={{ opacity: 0, y: 16 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, amount: 0.05 }}
-                    transition={{ duration: 0.4, delay: idx * 0.1 }}
                     className="glass-card rounded-2xl p-6 flex flex-col justify-between space-y-4"
                   >
                     <p className="text-xs sm:text-sm text-[#3E2225] leading-relaxed">
@@ -1206,27 +1495,19 @@ export default function App() {
                         কোর্স: {rev.course}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </div>
-          </motion.section>
+          </section>
 
           {/* DIRECT ADMISSION SUPPORT BAR */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.05 }}
-            transition={{ duration: 0.5 }}
-            className="py-6"
-          >
+          <section className="py-6 cv-auto">
             <div className="wrap">
               <div className="glass-surface p-5 sm:p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center font-bold shrink-0 shadow-md">
-                    <span className="material-symbols-outlined text-[28px]">
-                      support_agent
-                    </span>
+                    <Headphones className="w-6 h-6" aria-hidden="true" />
                   </div>
                   <div>
                     <div className="text-sm sm:text-base font-extrabold text-[#2A0F12]">
@@ -1243,12 +1524,12 @@ export default function App() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <span className="material-symbols-outlined text-[20px]">chat</span>
+                  <MessageCircle className="w-5 h-5" aria-hidden="true" />
                   <span>{whatsappNumber} (WhatsApp)</span>
                 </a>
               </div>
             </div>
-          </motion.section>
+          </section>
         </main>
 
       {/* Modern Organic Wave Footer with Payment Bar and Full Links */}

@@ -108,7 +108,7 @@ export const GlassAmbientBackdrop: React.FC = () => {
       {/* 5. Floating Glass Educational Elements, Arrows & Academic Motifs */}
       {/* Top-Left Hero Flank: Graduation Cap + Upward Arrow */}
       <div className="absolute top-[11%] left-[4%] sm:left-[7%] -rotate-12 flex items-center gap-2">
-        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/30 backdrop-blur-xs border border-white/55 shadow-[0_8px_24px_-10px_rgba(185,28,28,0.16)] flex items-center justify-center text-[#B91C1C]/30">
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/30 backdrop-blur-none border border-white/55 shadow-[0_8px_24px_-10px_rgba(185,28,28,0.16)] flex items-center justify-center text-[#B91C1C]/30">
           <GraduationCap className="w-7 h-7 sm:w-8 sm:h-8 stroke-[1.6]" />
         </div>
         <ArrowUpRight className="w-6 h-6 text-[#E22B2B]/25 -mt-6" />
@@ -117,14 +117,14 @@ export const GlassAmbientBackdrop: React.FC = () => {
       {/* Top-Right Hero Flank: Open Book + Growth Arrow */}
       <div className="absolute top-[13%] right-[4%] sm:right-[7%] rotate-12 flex items-center gap-2">
         <TrendingUp className="w-6 h-6 text-[#B91C1C]/22 -mb-6" />
-        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/30 backdrop-blur-xs border border-white/55 shadow-[0_8px_24px_-10px_rgba(185,28,28,0.16)] flex items-center justify-center text-[#B91C1C]/30">
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/30 backdrop-blur-none border border-white/55 shadow-[0_8px_24px_-10px_rgba(185,28,28,0.16)] flex items-center justify-center text-[#B91C1C]/30">
           <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 stroke-[1.6]" />
         </div>
       </div>
 
       {/* Upper-Mid Left: A+ Grade & PenTool */}
       <div className="hidden md:flex absolute top-[28%] left-[2.5%] -rotate-6 items-center gap-2">
-        <div className="px-3 py-1.5 rounded-xl bg-white/28 backdrop-blur-xs border border-white/50 text-[#B91C1C]/30 font-black text-base tracking-tight">
+        <div className="px-3 py-1.5 rounded-xl bg-white/28 backdrop-blur-none border border-white/50 text-[#B91C1C]/30 font-black text-base tracking-tight">
           A+
         </div>
         <PenTool className="w-5 h-5 text-[#E22B2B]/20 rotate-45" />
@@ -133,7 +133,7 @@ export const GlassAmbientBackdrop: React.FC = () => {
       {/* Upper-Mid Right: Lightbulb + Sparkles */}
       <div className="hidden md:flex absolute top-[29%] right-[3%] rotate-6 items-center gap-1.5">
         <Sparkles className="w-4 h-4 text-amber-600/25 -mt-4" />
-        <div className="w-11 h-11 rounded-2xl bg-white/28 backdrop-blur-xs border border-white/50 flex items-center justify-center text-[#B91C1C]/28">
+        <div className="w-11 h-11 rounded-2xl bg-white/28 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/28">
           <Lightbulb className="w-6 h-6 stroke-[1.6]" />
         </div>
       </div>
@@ -141,7 +141,7 @@ export const GlassAmbientBackdrop: React.FC = () => {
       {/* Center-Left: Science & Math (Atom, Flask, Pi formula) */}
       <div className="absolute top-[47%] left-[3%] sm:left-[5%] rotate-6 flex flex-col items-start gap-3">
         <div className="flex items-center gap-2">
-          <div className="w-11 h-11 rounded-2xl bg-white/25 backdrop-blur-xs border border-white/45 flex items-center justify-center text-[#B91C1C]/26">
+          <div className="w-11 h-11 rounded-2xl bg-white/25 backdrop-blur-none border border-white/45 flex items-center justify-center text-[#B91C1C]/26">
             <Atom className="w-6 h-6 stroke-[1.5]" />
           </div>
           <MoveUpRight className="w-5 h-5 text-[#E22B2B]/20" />
@@ -155,7 +155,7 @@ export const GlassAmbientBackdrop: React.FC = () => {
       <div className="absolute top-[50%] right-[3%] sm:right-[5%] -rotate-6 flex flex-col items-end gap-3">
         <div className="flex items-center gap-2">
           <CornerRightUp className="w-5 h-5 text-[#E22B2B]/22" />
-          <div className="w-11 h-11 rounded-2xl bg-white/25 backdrop-blur-xs border border-white/45 flex items-center justify-center text-[#B91C1C]/26">
+          <div className="w-11 h-11 rounded-2xl bg-white/25 backdrop-blur-none border border-white/45 flex items-center justify-center text-[#B91C1C]/26">
             <Code2 className="w-6 h-6 stroke-[1.5]" />
           </div>
         </div>
@@ -167,7 +167,7 @@ export const GlassAmbientBackdrop: React.FC = () => {
 
       {/* Lower-Mid Left: Geometry Compass & Chemistry Flask */}
       <div className="hidden sm:flex absolute top-[69%] left-[5%] -rotate-12 items-center gap-2.5">
-        <div className="w-11 h-11 rounded-2xl bg-white/26 backdrop-blur-xs border border-white/50 flex items-center justify-center text-[#B91C1C]/25">
+        <div className="w-11 h-11 rounded-2xl bg-white/26 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/25">
           <Compass className="w-6 h-6 stroke-[1.5]" />
         </div>
         <FlaskConical className="w-5 h-5 text-[#E22B2B]/20" />
@@ -176,14 +176,14 @@ export const GlassAmbientBackdrop: React.FC = () => {
       {/* Lower-Mid Right: Target Goal & Arrow */}
       <div className="hidden sm:flex absolute top-[71%] right-[5%] rotate-12 items-center gap-2">
         <ArrowUpRight className="w-5 h-5 text-[#E22B2B]/22" />
-        <div className="w-11 h-11 rounded-2xl bg-white/26 backdrop-blur-xs border border-white/50 flex items-center justify-center text-[#B91C1C]/25">
+        <div className="w-11 h-11 rounded-2xl bg-white/26 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/25">
           <Target className="w-6 h-6 stroke-[1.5]" />
         </div>
       </div>
 
       {/* Bottom Flanks: Trophy & Certificate Award */}
       <div className="absolute bottom-[10%] left-[4%] sm:left-[8%] rotate-12 flex items-center gap-2">
-        <div className="w-12 h-12 rounded-2xl bg-white/28 backdrop-blur-xs border border-white/50 flex items-center justify-center text-[#B91C1C]/26">
+        <div className="w-12 h-12 rounded-2xl bg-white/28 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/26">
           <Trophy className="w-6 h-6 stroke-[1.6]" />
         </div>
         <ArrowUpRight className="w-5 h-5 text-[#E22B2B]/22 -mt-5" />
@@ -193,7 +193,7 @@ export const GlassAmbientBackdrop: React.FC = () => {
         <span className="hidden md:inline-block text-[11px] font-black tracking-widest text-[#B91C1C]/20 bg-white/25 border border-white/40 px-2.5 py-0.5 rounded-full">
           {'</>'}
         </span>
-        <div className="w-12 h-12 rounded-2xl bg-white/28 backdrop-blur-xs border border-white/50 flex items-center justify-center text-[#B91C1C]/26">
+        <div className="w-12 h-12 rounded-2xl bg-white/28 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/26">
           <Award className="w-6 h-6 stroke-[1.6]" />
         </div>
       </div>

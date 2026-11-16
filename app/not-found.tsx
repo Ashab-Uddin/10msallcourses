@@ -1,11 +1,12 @@
 import Link from 'next/link';
+import { SearchX, MessageCircle } from 'lucide-react';
 
 export default function NotFound() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#fff6f6] via-[#ffe6e8] to-[#ffd8dc]">
       <div className="max-w-md w-full glass-strong rounded-3xl p-8 text-center space-y-6 shadow-2xl border border-white/80">
         <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-[#ff5252] to-[#b91c1c] text-white flex items-center justify-center shadow-lg shadow-red-500/25">
-          <span className="material-symbols-outlined text-4xl">search_off</span>
+          <SearchX className="w-10 h-10" />
         </div>
 
         <div className="space-y-2">
@@ -33,7 +34,7 @@ export default function NotFound() {
             rel="noreferrer"
             className="w-full sm:w-auto px-5 py-2.5 rounded-full glass-inset hover:bg-white text-[#2A0F12] text-xs font-bold transition text-center flex items-center justify-center gap-1.5"
           >
-            <span className="material-symbols-outlined text-sm text-emerald-600">chat</span>
+            <MessageCircle className="w-4 h-4 text-emerald-600" />
             <span>সাপোর্ট নিন</span>
           </a>
         </div>

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Course } from '../../types.ts';
 import { toBengaliNumber, parseFeatures } from '../../utils/format.ts';
+import { computeDiscountPercent } from '../../lib/courseValidation.ts';
 import { X, Check, Copy, Info, Star, Users, Zap, ExternalLink, ArrowRight } from 'lucide-react';
 
 export interface CourseCardProps {
@@ -11,29 +12,29 @@ export interface CourseCardProps {
   onSelectCourse?: (slug: string) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   onOpenQuickView?: (course: Course) => void;
+  headingLevel?: 'h3' | 'h4';
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({
   course,
   onEnrollClick,
   onOpenQuickView,
+  headingLevel = 'h4',
 }) => {
   const [copied, setCopied] = useState(false);
   const [showLocalModal, setShowLocalModal] = useState(false);
-  const [imageError, setImageError] = useState(false);
-
-  React.useEffect(() => {
-    setImageError(false);
-  }, [course.imageUrl]);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
 
   // Strip downscaling thumbnail query parameters from 10MS CDN to preserve full HD original quality
   const displayImageUrl = course.imageUrl
     ? course.imageUrl.replace(/\?(w=\d+.*)/i, '').trim()
     : null;
 
+  const imageError = Boolean(displayImageUrl && failedImageUrl === displayImageUrl);
   const hasValidImage = Boolean(displayImageUrl && !imageError && displayImageUrl.length > 0);
 
   const savingsAmount = Math.max(0, course.originalPrice - course.discountPrice);
+  const computedDiscountPercent = computeDiscountPercent(course.originalPrice, course.discountPrice);
   const isClosed = course.status === 'closed' || course.status === 'inactive' || course.slug.includes('beim');
 
   const getBannerStyle = () => {
@@ -158,8 +159,9 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     if (course.categorySlug === 'admission') {
       return 'বিশ্ববিদ্যালয় এডমিশন';
     }
-    return course.shortBadge || 'অনলাইন লাইভ কোর্স';
+    return liveBatchText || course.headerSubtitle || 'অনলাইন কোর্স';
   };
+  const liveBatchText = (course.shortBadge || '').trim();
   const middleBadge = getMiddleBadge();
 
   // 3. Subtitle under white pill (e.g. "BEI সাইকেল ১", "ফুল ইয়ার বিজ্ঞান", "SMP ক্র্যাশ কোর্স", "[মানবিক ও ব্যবসায় শিক্ষা]")
@@ -181,32 +183,21 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   };
   const subTitle = getSubTitle();
 
-  // 4. Bottom-left badge in banner: e.g. "⚡ নতুন সাইকেল", "⚡ স্পেশাল বান্ডেল", "⚡ শেষ মুহূর্তের প্রস্তুতি", "⚡ আর্টস ও কমার্স"
-  const getBottomLeftBadge = () => {
-    const t = course.title;
-    if (course.shortBadge && !course.shortBadge.includes('অনলাইন ব্যাচ') && !course.shortBadge.includes('লাইভ')) {
-      return course.shortBadge;
-    }
-    if (t.includes('BEI')) return 'নতুন সাইকেল';
-    if (t.includes('বান্ডেল')) return 'স্পেশাল বান্ডেল';
-    if (t.includes('SMP') || t.includes('শেষ মুহূর্ত')) return 'শেষ মুহূর্তের প্রস্তুতি';
-    if (t.includes('মানবিক') || t.includes('ব্যবসায়')) return 'আর্টস ও কমার্স';
-    return course.shortBadge || 'অফিশিয়াল ব্যাচ';
-  };
-  const bottomLeftBadge = getBottomLeftBadge();
+  // 4. Bottom-left dynamic Live Batch badge from DB (empty when unset)
+  const bottomLeftBadge = liveBatchText;
 
-  // 5. Bottom-right green discount badge in banner: e.g. "৩,০০০৳ ফ্ল্যাট ছাড়", "৯,০০০৳ ছাড়", "২,০৫০৳ ছাড়", "৫০% ছাড়"
+  // 5. Bottom-right green discount badge in banner (only shown when a valid discount exists)
   const getDiscountBadge = () => {
+    if (savingsAmount <= 0 && computedDiscountPercent <= 0) {
+      return '';
+    }
     if (course.discountBadgeText && course.discountBadgeText.trim()) {
       return course.discountBadgeText;
     }
     if (savingsAmount > 0) {
-      return `${toBengaliNumber(savingsAmount)}৳ ছাড়`;
+      return `৳${toBengaliNumber(savingsAmount)} ছাড়`;
     }
-    if (course.discountPercent > 0) {
-      return `${toBengaliNumber(course.discountPercent)}% ছাড়`;
-    }
-    return 'বিশেষ ছাড়';
+    return `${toBengaliNumber(computedDiscountPercent)}% ছাড়`;
   };
   const discountBadge = getDiscountBadge();
 
@@ -228,12 +219,24 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                   <div className="absolute inset-0 z-0 bg-white">
                     <img
                       src={displayImageUrl!}
-                      alt={course.title}
+                      alt={`${course.title} — ১০ মিনিট স্কুল কোর্স`}
+                      loading="lazy"
+                      decoding="async"
+                      width={520}
+                      height={293}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover object-center brightness-100 contrast-100"
                     />
                   </div>
                 )}
+                {computedDiscountPercent > 0 && (
+                  <div className="absolute top-3 left-3 z-30 pointer-events-none">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white text-xs font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums">
+                      {toBengaliNumber(computedDiscountPercent)}% ছাড়
+                    </span>
+                  </div>
+                )}
+
                 <div className="absolute top-3 right-3 z-30">
                   <button
                     type="button"
@@ -258,10 +261,18 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                   </div>
                 )}
 
-                <div className="flex items-center justify-between text-xs font-bold pt-2 border-t border-white/20">
-                  <span className="bg-black/60 px-2.5 py-1 rounded-full">⚡ {bottomLeftBadge}</span>
-                  <span className="bg-[#007a3d] px-3 py-1 rounded-full">{discountBadge}</span>
-                </div>
+                {(bottomLeftBadge || discountBadge) && (
+                  <div className="flex items-center justify-between text-xs font-bold pt-2 border-t border-white/20">
+                    {bottomLeftBadge ? (
+                      <span className="bg-black/60 px-2.5 py-1 rounded-full">⚡ {bottomLeftBadge}</span>
+                    ) : (
+                      <span />
+                    )}
+                    {discountBadge && (
+                      <span className="bg-[#007a3d] px-3 py-1 rounded-full">{discountBadge}</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Modal Content */}
@@ -383,9 +394,13 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             <div className="absolute inset-0 z-0 bg-white">
               <img
                 src={displayImageUrl!}
-                alt={course.title}
+                alt={`${course.title} — ১০ মিনিট স্কুল কোর্স`}
+                loading="lazy"
+                decoding="async"
+                width={400}
+                height={300}
                 referrerPolicy="no-referrer"
-                onError={() => setImageError(true)}
+                onError={() => setFailedImageUrl(displayImageUrl)}
                 className={`w-full h-full ${
                   course.imageFit === 'contain'
                     ? 'object-contain object-center'
@@ -425,6 +440,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             </>
           )}
 
+          {/* Top-Left Dynamic Discount Percentage Badge */}
+          {computedDiscountPercent > 0 && (
+            <div className="absolute top-2.5 left-2.5 z-20 pointer-events-none">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white text-[10px] sm:text-[11px] font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums">
+                {toBengaliNumber(computedDiscountPercent)}% ছাড়
+              </span>
+            </div>
+          )}
+
           {/* Top-Right Yellow Lightning Bolt ⚡ */}
           <div className="absolute top-2.5 right-2.5 z-20 pointer-events-none">
             <svg
@@ -435,32 +459,50 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             </svg>
           </div>
 
-          {/* Bottom Row Inside Banner - Pinned cleanly at bottom edge matching 2nd reference image */}
-          <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 right-2.5 sm:right-3 z-20 flex items-center justify-between gap-1.5 pointer-events-none">
-            {/* Left: Dark pill with ⚡ icon */}
-            <div className="inline-flex items-center gap-1 bg-black/85 backdrop-blur-md text-white text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-white/20 shadow-sm max-w-[60%] truncate">
-              <span className="text-amber-400 text-xs shrink-0">⚡</span>
-              <span className="truncate">{bottomLeftBadge}</span>
-            </div>
+          {/* Bottom Row Inside Banner - Dynamic Live Batch & Discount Badges */}
+          {(bottomLeftBadge || discountBadge) && (
+            <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 right-2.5 sm:right-3 z-20 flex items-center justify-between gap-1.5 pointer-events-none">
+              {/* Left: Dynamic Live Batch pill with ⚡ icon (hidden if empty) */}
+              {bottomLeftBadge ? (
+                <div className="inline-flex items-center gap-1 bg-black/85 backdrop-blur-md text-white text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-white/20 shadow-sm max-w-[60%] truncate">
+                  <span className="text-amber-400 text-xs shrink-0">⚡</span>
+                  <span className="truncate">{bottomLeftBadge}</span>
+                </div>
+              ) : (
+                <span />
+              )}
 
-            {/* Right: Solid Green Pill Badge with Discount */}
-            <div className="bg-[#008744] text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm tracking-tight shrink-0 border border-emerald-400/30">
-              {discountBadge}
+              {/* Right: Solid Green Pill Badge with Discount (hidden if no discount) */}
+              {discountBadge && (
+                <div className="bg-[#008744] text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm tracking-tight shrink-0 border border-emerald-400/30">
+                  {discountBadge}
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
 
         {/* CARD BODY CONTENT: STRICTLY MATCHING UPLOADED FORMAT WITH SITE CONSISTENCY */}
         <div className="p-4 flex-1 flex flex-col justify-between">
           <div>
             {/* Course Title (2-line clamped) */}
-            <h4
-              onClick={() => handleCardClick('card_title')}
-              className="font-bold text-[#2A0F12] text-sm sm:text-[15px] leading-snug line-clamp-2 h-[2.6rem] hover:text-[#E22B2B] transition-colors cursor-pointer"
-              title={course.title}
-            >
-              {course.title}
-            </h4>
+            {headingLevel === 'h3' ? (
+              <h3
+                onClick={() => handleCardClick('card_title')}
+                className="font-bold text-[#2A0F12] text-sm sm:text-[15px] leading-snug line-clamp-2 h-[2.6rem] hover:text-[#E22B2B] transition-colors cursor-pointer"
+                title={course.title}
+              >
+                {course.title}
+              </h3>
+            ) : (
+              <h4
+                onClick={() => handleCardClick('card_title')}
+                className="font-bold text-[#2A0F12] text-sm sm:text-[15px] leading-snug line-clamp-2 h-[2.6rem] hover:text-[#E22B2B] transition-colors cursor-pointer"
+                title={course.title}
+              >
+                {course.title}
+              </h4>
+            )}
 
             {/* Course Description (2-line clamped) */}
             <p className="text-xs text-[#6B4C4F] leading-relaxed line-clamp-2 h-[2.1rem] mt-1.5 mb-3">

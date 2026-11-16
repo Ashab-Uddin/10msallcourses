@@ -6,6 +6,7 @@ import {
   parseSafePrice,
 } from '@/src/db/repository';
 import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
+import { validateCoursePricing, validateSingleBatchKeyword } from '@/src/lib/courseValidation';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,10 +36,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const batchCheck = validateSingleBatchKeyword(body.targetStudents);
+    if (!batchCheck.valid) {
+      return NextResponse.json(
+        { error: batchCheck.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।' },
+        { status: 400 }
+      );
+    }
+
     const origCheck =
-      body.originalPrice !== undefined ? parseSafePrice(body.originalPrice) : { valid: true, value: 0 };
+      body.originalPrice !== undefined && body.originalPrice !== ''
+        ? parseSafePrice(body.originalPrice)
+        : { valid: true, value: 0 };
     const discCheck =
-      body.discountPrice !== undefined ? parseSafePrice(body.discountPrice) : { valid: true, value: 0 };
+      body.discountPrice !== undefined && body.discountPrice !== ''
+        ? parseSafePrice(body.discountPrice)
+        : { valid: false, value: 0 };
 
     if (!origCheck.valid || !discCheck.valid) {
       return NextResponse.json(
@@ -47,10 +60,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const pricingCheck = validateCoursePricing(origCheck.value, discCheck.value);
+    if (!pricingCheck.valid) {
+      return NextResponse.json(
+        { error: pricingCheck.error || 'অবৈধ মূল্য প্রদান করা হয়েছে।' },
+        { status: 400 }
+      );
+    }
+
     const data = await createNewCourse({
       ...body,
       originalPrice: origCheck.value,
       discountPrice: discCheck.value,
+      discountPercent: pricingCheck.discountPercent,
+      shortBadge: typeof body.shortBadge === 'string' ? body.shortBadge.trim() : '',
       status: normalizeCourseStatus(body.status, 'active'),
     });
     return NextResponse.json(data, { status: 201 });

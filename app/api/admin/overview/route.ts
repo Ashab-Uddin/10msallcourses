@@ -10,7 +10,11 @@ export async function GET(req: NextRequest) {
   }
   try {
     const data = await getAdminOverviewData();
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 'private, no-store',
+      },
+    });
   } catch (error) {
     console.error('Admin overview failed:', error);
     return NextResponse.json({ error: 'Failed to load admin overview' }, { status: 500 });

@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
         email: cleanEmail,
         name:
           cleanEmail === 'ashabuddin2274@gmail.com'
-            ? 'Ashab Uddin (Admin)'
+            ? 'Ashab Uddin'
             : 'Site Admin',
       });
     }

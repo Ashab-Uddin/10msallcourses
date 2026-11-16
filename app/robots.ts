@@ -1,6 +1,9 @@
 import { MetadataRoute } from 'next';
+import { getSiteBaseUrl } from '@/src/lib/seo';
 
 export default function robots(): MetadataRoute.Robots {
+  const baseUrl = getSiteBaseUrl();
+
   return {
     rules: [
       {
@@ -9,6 +12,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ['/admin/', '/api/', '/go/'],
       },
     ],
-    sitemap: 'https://10msallcourse.com/sitemap.xml',
+    sitemap: `${baseUrl}/sitemap.xml`,
   };
 }

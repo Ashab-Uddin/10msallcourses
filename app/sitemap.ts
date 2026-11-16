@@ -1,92 +1,62 @@
 import { MetadataRoute } from 'next';
 import { getPublicPortalData } from '@/src/db/repository';
+import { getSiteBaseUrl } from '@/src/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://10msallcourse.com';
+  const baseUrl = getSiteBaseUrl();
   const lastModified = new Date();
 
-  const staticRoutes: MetadataRoute.Sitemap = [
-    {
-      url: baseUrl,
-      lastModified,
-      changeFrequency: 'daily',
-      priority: 1.0,
-    },
-    {
-      url: `${baseUrl}/academic/hsc/hsc-28/`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/academic/hsc/hsc-27/`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/academic/hsc/hsc-26/`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/academic/ssc/ssc-27/`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/academic/ssc/ssc-28/`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/academic/class6/`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/academic/class7/`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/academic/class8/`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/academic/class9/`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/academic/class10/`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
+  const canonicalPaths: Array<{
+    path: string;
+    changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'];
+    priority: number;
+  }> = [
+    { path: '/', changeFrequency: 'daily', priority: 1.0 },
+    { path: '/hsc/hsc-28', changeFrequency: 'weekly', priority: 0.9 },
+    { path: '/hsc/hsc-27', changeFrequency: 'weekly', priority: 0.9 },
+    { path: '/hsc/hsc-26', changeFrequency: 'weekly', priority: 0.9 },
+    { path: '/ssc/ssc-27', changeFrequency: 'weekly', priority: 0.9 },
+    { path: '/ssc/ssc-28', changeFrequency: 'weekly', priority: 0.9 },
+    { path: '/class-6', changeFrequency: 'monthly', priority: 0.8 },
+    { path: '/class-7', changeFrequency: 'monthly', priority: 0.8 },
+    { path: '/class-8', changeFrequency: 'monthly', priority: 0.8 },
+    { path: '/skills', changeFrequency: 'weekly', priority: 0.85 },
+    { path: '/admission', changeFrequency: 'weekly', priority: 0.85 },
+    { path: '/books', changeFrequency: 'weekly', priority: 0.8 },
+    { path: '/categories/language-learning', changeFrequency: 'weekly', priority: 0.85 },
   ];
+
+  const seenUrls = new Set<string>();
+  const entries: MetadataRoute.Sitemap = canonicalPaths.map((item) => {
+    const url = item.path === '/' ? baseUrl : `${baseUrl}${item.path}`;
+    seenUrls.add(url);
+    return {
+      url,
+      lastModified,
+      changeFrequency: item.changeFrequency,
+      priority: item.priority,
+    };
+  });
 
   try {
     const data = await getPublicPortalData();
-    const categoryRoutes: MetadataRoute.Sitemap = (data.categories || []).map((cat) => ({
-      url: `${baseUrl}/category/${cat.slug}`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.85,
-    }));
-
-    return [...staticRoutes, ...categoryRoutes];
+    for (const cat of data.categories || []) {
+      const catUrl = `${baseUrl}/category/${cat.slug}`;
+      if (!seenUrls.has(catUrl)) {
+        seenUrls.add(catUrl);
+        entries.push({
+          url: catUrl,
+          lastModified,
+          changeFrequency: 'weekly',
+          priority: 0.85,
+        });
+      }
+    }
   } catch {
-    return staticRoutes;
+    // Return canonical entries if repository read fails
   }
+
+  return entries;
 }

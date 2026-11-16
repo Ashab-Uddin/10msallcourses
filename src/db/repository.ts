@@ -1,7 +1,17 @@
 import fs from 'fs';
 import path from 'path';
-import { Category, Course, ClickRecord, SiteSettings, CustomerInquiry } from '../types.ts';
+import {
+  Category,
+  Course,
+  ClickRecord,
+  SiteSettings,
+  CustomerInquiry,
+  OfferTimer,
+} from '../types.ts';
 import { INITIAL_CATEGORIES, INITIAL_COURSES, INITIAL_SETTINGS } from './seedData.ts';
+import { computeDiscountPercent } from '../lib/courseValidation.ts';
+import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
+import { toBengaliNumber } from '../utils/format.ts';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'database.json');
@@ -12,6 +22,7 @@ interface LocalStore {
   clicks: ClickRecord[];
   settings: SiteSettings;
   inquiries?: CustomerInquiry[];
+  offerTimers?: OfferTimer[];
 }
 
 let cachedStore: LocalStore | null = null;
@@ -73,6 +84,9 @@ function ensureLocalStore(): LocalStore {
     if (!parsed.clicks) {
       parsed.clicks = [];
     }
+    if (!Array.isArray(parsed.offerTimers)) {
+      parsed.offerTimers = [];
+    }
     cachedStore = parsed;
     return parsed;
   } catch {
@@ -132,14 +146,47 @@ export function normalizeCourseStatus(
   return fallback;
 }
 
+function hydrateOfferTimers(store: LocalStore): OfferTimer[] {
+  const rawTimers = Array.isArray(store.offerTimers) ? store.offerTimers : [];
+  const courseById = new Map<number, Course>();
+  for (const c of store.courses) {
+    courseById.set(c.id, c);
+  }
+
+  return rawTimers
+    .map((timer) => {
+      const course = courseById.get(Number(timer.courseId));
+      if (!course) return null;
+      return {
+        ...timer,
+        courseId: course.id,
+        courseSlug: course.slug,
+        courseTitle: course.title,
+        courseImageUrl: course.imageUrl || null,
+        affiliateUrl: course.affiliateUrl || `/go/${course.slug}`,
+      };
+    })
+    .filter((t): t is OfferTimer => Boolean(t));
+}
+
 export async function getPublicPortalData() {
   const store = ensureLocalStore();
   const activeCategories = store.categories.filter((c) => c.status === 'active');
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const allHydratedTimers = hydrateOfferTimers(store);
+  const offerTimers = allHydratedTimers.filter((t) => {
+    const status = computeOfferTimerStatus(t, nowMs);
+    return status === 'active' || status === 'scheduled';
+  });
 
   return {
     categories: activeCategories,
     courses: store.courses,
     settings: store.settings,
+    offerTimers,
+    hasOfferTimers: allHydratedTimers.length > 0,
+    serverNow: nowIso,
   };
 }
 
@@ -205,6 +252,8 @@ export async function getAdminOverviewData() {
     courses: allCourses,
     recentClicks,
     settings: currentSettings,
+    offerTimers: hydrateOfferTimers(store),
+    serverNow: new Date().toISOString(),
   };
 }
 
@@ -216,10 +265,17 @@ export async function createNewCourse(input: any) {
   const parsedDiscount = parseSafePrice(input.discountPrice ?? 0);
   const originalPrice = parsedOriginal.valid ? parsedOriginal.value : 0;
   const discountPrice = parsedDiscount.valid ? parsedDiscount.value : 0;
-  const discountPercent =
-    originalPrice > 0 && originalPrice > discountPrice
-      ? Math.round(((originalPrice - discountPrice) / originalPrice) * 100)
-      : 0;
+  const discountPercent = computeDiscountPercent(originalPrice, discountPrice);
+  const flatSavings = Math.max(0, originalPrice - discountPrice);
+
+  const computedBadgeText =
+    typeof input.discountBadgeText === 'string' && input.discountBadgeText.trim()
+      ? input.discountBadgeText.trim()
+      : flatSavings > 0
+      ? `৳${toBengaliNumber(flatSavings)} ছাড়`
+      : discountPercent > 0
+      ? `${toBengaliNumber(discountPercent)}% ছাড়`
+      : '';
 
   const newCourse: Course = {
     id: newId,
@@ -227,10 +283,10 @@ export async function createNewCourse(input: any) {
     slug: input.slug,
     categoryId: input.categoryId ?? null,
     categorySlug: input.categorySlug,
-    shortBadge: input.shortBadge || 'অফিশিয়াল ব্যাচ',
+    shortBadge: typeof input.shortBadge === 'string' ? input.shortBadge.trim() : '',
     headerTitle: input.headerTitle || '10MS',
     headerSubtitle: input.headerSubtitle || 'অনলাইন কোর্স',
-    discountBadgeText: input.discountBadgeText || 'স্পেশাল ছাড়',
+    discountBadgeText: computedBadgeText,
     gradientTheme: input.gradientTheme || 'red',
     description: input.description,
     fullDescription: input.fullDescription || null,
@@ -242,7 +298,7 @@ export async function createNewCourse(input: any) {
     rating: input.rating || '৪.৯',
     studentCount: input.studentCount || '১০k+ শিক্ষার্থী',
     duration: input.duration || '৬ মাস',
-    targetStudents: input.targetStudents || 'সকল শিক্ষার্থী',
+    targetStudents: typeof input.targetStudents === 'string' ? input.targetStudents.trim() : '',
     instructorInfo: input.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল',
     instructorIcon: input.instructorIcon || 'school',
     features: typeof input.features === 'string' ? input.features : JSON.stringify(input.features || []),
@@ -275,10 +331,19 @@ export async function updateExistingCourse(id: number, input: any) {
 
   const originalPrice = parsedOriginal.valid ? parsedOriginal.value : existing.originalPrice;
   const discountPrice = parsedDiscount.valid ? parsedDiscount.value : existing.discountPrice;
-  const discountPercent =
-    originalPrice > 0 && originalPrice > discountPrice
-      ? Math.round(((originalPrice - discountPrice) / originalPrice) * 100)
-      : 0;
+  const discountPercent = computeDiscountPercent(originalPrice, discountPrice);
+  const flatSavings = Math.max(0, originalPrice - discountPrice);
+
+  const nextDiscountBadgeText =
+    typeof input.discountBadgeText === 'string'
+      ? input.discountBadgeText.trim()
+      : input.originalPrice !== undefined || input.discountPrice !== undefined
+      ? flatSavings > 0
+        ? `৳${toBengaliNumber(flatSavings)} ছাড়`
+        : discountPercent > 0
+        ? `${toBengaliNumber(discountPercent)}% ছাড়`
+        : ''
+      : existing.discountBadgeText;
 
   const existingFallback = normalizeCourseStatus(existing.status, 'active');
 
@@ -286,9 +351,16 @@ export async function updateExistingCourse(id: number, input: any) {
     ...existing,
     ...input,
     id: existing.id,
+    shortBadge:
+      typeof input.shortBadge === 'string' ? input.shortBadge.trim() : existing.shortBadge,
+    targetStudents:
+      typeof input.targetStudents === 'string'
+        ? input.targetStudents.trim()
+        : existing.targetStudents,
     originalPrice,
     discountPrice,
     discountPercent,
+    discountBadgeText: nextDiscountBadgeText,
     status: input.status !== undefined ? normalizeCourseStatus(input.status, existingFallback) : existingFallback,
     features:
       typeof input.features === 'string'
@@ -309,6 +381,9 @@ export async function deleteCourseById(id: number) {
   const store = ensureLocalStore();
   store.courses = store.courses.filter((c) => c.id !== id);
   store.clicks = store.clicks.filter((c) => c.courseId !== id);
+  if (Array.isArray(store.offerTimers)) {
+    store.offerTimers = store.offerTimers.filter((t) => t.courseId !== id);
+  }
   saveLocalStore(store);
 
   return { deleted: true };
@@ -419,4 +494,278 @@ export async function deleteCustomerInquiry(id: number): Promise<{ deleted: bool
   }
   return { deleted: true };
 }
+
+export async function getOfferTimers(): Promise<{ timers: OfferTimer[]; serverNow: string }> {
+  const store = ensureLocalStore();
+  return {
+    timers: hydrateOfferTimers(store),
+    serverNow: new Date().toISOString(),
+  };
+}
+
+function validateOfferTimerPayload(
+  store: LocalStore,
+  input: {
+    courseId?: unknown;
+    startAt?: unknown;
+    endAt?: unknown;
+    offerLabel?: unknown;
+    isPaused?: unknown;
+  },
+  excludeTimerId?: number
+):
+  | {
+      valid: true;
+      course: Course;
+      startIso: string;
+      endIso: string;
+      offerLabel: string;
+      isPaused: boolean;
+    }
+  | { valid: false; error: string; status: number } {
+  const courseId = Number(input.courseId);
+  const course = store.courses.find((c) => c.id === courseId);
+  if (!course) {
+    return {
+      valid: false,
+      error: 'অনুগ্রহ করে একটি বৈধ কোর্স নির্বাচন করুন।',
+      status: 400,
+    };
+  }
+
+  const startMs = new Date(String(input.startAt || '')).getTime();
+  const endMs = new Date(String(input.endAt || '')).getTime();
+  const nowMs = Date.now();
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return {
+      valid: false,
+      error: 'অফার শুরু এবং শেষের সঠিক তারিখ ও সময় নির্বাচন করুন।',
+      status: 400,
+    };
+  }
+
+  if (endMs <= nowMs) {
+    return {
+      valid: false,
+      error: 'অফার শেষের সময় (End Date & Time) অবশ্যই বর্তমান সময়ের পরবর্তী হতে হবে।',
+      status: 400,
+    };
+  }
+
+  if (endMs <= startMs) {
+    return {
+      valid: false,
+      error: 'অফার শেষের সময় অবশ্যই শুরুর সময়ের চেয়ে বেশি হতে হবে।',
+      status: 400,
+    };
+  }
+
+  const isPaused = Boolean(input.isPaused);
+  if (!isPaused) {
+    const timers = Array.isArray(store.offerTimers) ? store.offerTimers : [];
+    const conflicting = timers.find((t) => {
+      if (excludeTimerId !== undefined && t.id === excludeTimerId) return false;
+      if (Number(t.courseId) !== course.id) return false;
+      const st = computeOfferTimerStatus(t, nowMs);
+      return st === 'active' || st === 'scheduled';
+    });
+
+    if (conflicting) {
+      return {
+        valid: false,
+        error: `"${course.title}" কোর্সের জন্য ইতিমধ্যে একটি সক্রিয় বা নির্ধারিত (Active/Scheduled) অফার টাইমার রয়েছে।`,
+        status: 409,
+      };
+    }
+  }
+
+  const offerLabel =
+    typeof input.offerLabel === 'string' && input.offerLabel.trim()
+      ? input.offerLabel.trim()
+      : 'সীমিত সময়ের স্পেশাল অফার!';
+
+  return {
+    valid: true,
+    course,
+    startIso: new Date(startMs).toISOString(),
+    endIso: new Date(endMs).toISOString(),
+    offerLabel,
+    isPaused,
+  };
+}
+
+export async function createOfferTimer(input: {
+  courseId?: unknown;
+  startAt?: unknown;
+  endAt?: unknown;
+  offerLabel?: unknown;
+  isPaused?: unknown;
+}): Promise<
+  | { ok: true; timer: OfferTimer; serverNow: string }
+  | { ok: false; error: string; status: number }
+> {
+  const store = ensureLocalStore();
+  if (!Array.isArray(store.offerTimers)) {
+    store.offerTimers = [];
+  }
+
+  const validation = validateOfferTimerPayload(store, input);
+  if (!validation.valid) {
+    return { ok: false, error: validation.error, status: validation.status };
+  }
+
+  const newId =
+    store.offerTimers.length > 0
+      ? Math.max(...store.offerTimers.map((t) => t.id)) + 1
+      : 1;
+  const nowIso = new Date().toISOString();
+
+  const newTimer: OfferTimer = {
+    id: newId,
+    courseId: validation.course.id,
+    courseSlug: validation.course.slug,
+    courseTitle: validation.course.title,
+    courseImageUrl: validation.course.imageUrl || null,
+    affiliateUrl: validation.course.affiliateUrl || `/go/${validation.course.slug}`,
+    offerLabel: validation.offerLabel,
+    startAt: validation.startIso,
+    endAt: validation.endIso,
+    isPaused: validation.isPaused,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  store.offerTimers.unshift(newTimer);
+  saveLocalStore(store);
+
+  return { ok: true, timer: newTimer, serverNow: nowIso };
+}
+
+export async function updateOfferTimer(
+  id: number,
+  input: {
+    courseId?: unknown;
+    startAt?: unknown;
+    endAt?: unknown;
+    offerLabel?: unknown;
+    isPaused?: unknown;
+  }
+): Promise<
+  | { ok: true; timer: OfferTimer; serverNow: string }
+  | { ok: false; error: string; status: number }
+> {
+  const store = ensureLocalStore();
+  if (!Array.isArray(store.offerTimers)) {
+    store.offerTimers = [];
+  }
+
+  const idx = store.offerTimers.findIndex((t) => t.id === id);
+  if (idx === -1) {
+    return { ok: false, error: 'অফার টাইমারটি পাওয়া যায়নি।', status: 404 };
+  }
+
+  const existing = store.offerTimers[idx];
+  const merged = {
+    courseId: input.courseId !== undefined ? input.courseId : existing.courseId,
+    startAt: input.startAt !== undefined ? input.startAt : existing.startAt,
+    endAt: input.endAt !== undefined ? input.endAt : existing.endAt,
+    offerLabel: input.offerLabel !== undefined ? input.offerLabel : existing.offerLabel,
+    isPaused: input.isPaused !== undefined ? input.isPaused : existing.isPaused,
+  };
+
+  const validation = validateOfferTimerPayload(store, merged, id);
+  if (!validation.valid) {
+    return { ok: false, error: validation.error, status: validation.status };
+  }
+
+  const nowIso = new Date().toISOString();
+  const updated: OfferTimer = {
+    ...existing,
+    courseId: validation.course.id,
+    courseSlug: validation.course.slug,
+    courseTitle: validation.course.title,
+    courseImageUrl: validation.course.imageUrl || null,
+    affiliateUrl: validation.course.affiliateUrl || `/go/${validation.course.slug}`,
+    offerLabel: validation.offerLabel,
+    startAt: validation.startIso,
+    endAt: validation.endIso,
+    isPaused: validation.isPaused,
+    updatedAt: nowIso,
+  };
+
+  store.offerTimers[idx] = updated;
+  saveLocalStore(store);
+
+  return { ok: true, timer: updated, serverNow: nowIso };
+}
+
+export async function setOfferTimerPaused(
+  id: number,
+  isPaused: boolean
+): Promise<
+  | { ok: true; timer: OfferTimer; serverNow: string }
+  | { ok: false; error: string; status: number }
+> {
+  const store = ensureLocalStore();
+  if (!Array.isArray(store.offerTimers)) {
+    store.offerTimers = [];
+  }
+
+  const idx = store.offerTimers.findIndex((t) => t.id === id);
+  if (idx === -1) {
+    return { ok: false, error: 'অফার টাইমারটি পাওয়া যায়নি।', status: 404 };
+  }
+
+  const existing = store.offerTimers[idx];
+  const nowMs = Date.now();
+  const endMs = new Date(existing.endAt).getTime();
+
+  if (!isPaused) {
+    if (!Number.isFinite(endMs) || endMs <= nowMs) {
+      return {
+        ok: false,
+        error: 'মেয়াদ উত্তীর্ণ (Expired) টাইমার পুনরায় চালু করা যাবে না। অনুগ্রহ করে এডিট করে নতুন শেষ সময় দিন।',
+        status: 400,
+      };
+    }
+
+    const conflicting = store.offerTimers.find((t) => {
+      if (t.id === id) return false;
+      if (Number(t.courseId) !== Number(existing.courseId)) return false;
+      const st = computeOfferTimerStatus(t, nowMs);
+      return st === 'active' || st === 'scheduled';
+    });
+
+    if (conflicting) {
+      return {
+        ok: false,
+        error: `"${existing.courseTitle}" কোর্সের জন্য ইতিমধ্যে আরেকটি সক্রিয়/নির্ধারিত টাইমার চালু আছে।`,
+        status: 409,
+      };
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const updated: OfferTimer = {
+    ...existing,
+    isPaused,
+    updatedAt: nowIso,
+  };
+  store.offerTimers[idx] = updated;
+  saveLocalStore(store);
+
+  const hydrated = hydrateOfferTimers(store).find((t) => t.id === id) || updated;
+  return { ok: true, timer: hydrated, serverNow: nowIso };
+}
+
+export async function deleteOfferTimer(id: number): Promise<{ deleted: boolean }> {
+  const store = ensureLocalStore();
+  if (Array.isArray(store.offerTimers)) {
+    store.offerTimers = store.offerTimers.filter((t) => t.id !== id);
+    saveLocalStore(store);
+  }
+  return { deleted: true };
+}
+
 

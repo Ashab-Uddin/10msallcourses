@@ -78,3 +78,21 @@ export interface CustomerInquiry {
   status: 'new' | 'resolved';
   createdAt: string;
 }
+
+export type OfferTimerComputedStatus = 'scheduled' | 'active' | 'expired' | 'paused';
+
+export interface OfferTimer {
+  id: number;
+  courseId: number;
+  courseSlug: string;
+  courseTitle: string;
+  courseImageUrl: string | null;
+  affiliateUrl: string;
+  offerLabel: string;
+  startAt: string;
+  endAt: string;
+  isPaused: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+

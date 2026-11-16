@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { AlertTriangle } from 'lucide-react';
 
 export default function GlobalError({
   error,
@@ -17,7 +18,7 @@ export default function GlobalError({
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#fff6f6] via-[#ffe6e8] to-[#ffd8dc]">
       <div className="max-w-md w-full glass-strong rounded-3xl p-8 text-center space-y-5 shadow-2xl border border-white/80">
         <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 border border-rose-300 text-rose-600 flex items-center justify-center">
-          <span className="material-symbols-outlined text-3xl">warning</span>
+          <AlertTriangle className="w-8 h-8" />
         </div>
         <div className="space-y-1">
           <h2 className="text-xl font-bold text-[#2A0F12]">

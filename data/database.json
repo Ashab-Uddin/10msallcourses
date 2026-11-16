@@ -232,7 +232,7 @@
       "status": "active",
       "clickCount": 433,
       "createdAt": "2026-01-15T10:00:00Z",
-      "updatedAt": "2026-11-15T11:00:17.782Z"
+      "updatedAt": "2026-11-16T17:50:08.069Z"
     },
     {
       "id": 2,
@@ -1181,5 +1181,6 @@
       "status": "new",
       "createdAt": "2026-11-03T21:38:34.058Z"
     }
-  ]
+  ],
+  "offerTimers": []
 }

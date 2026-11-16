@@ -3,6 +3,14 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Category, Course } from '../../types.ts';
 import { toBengaliNumber, parseFeatures } from '../../utils/format.ts';
+import {
+  BATCH_KEYWORD_OPTIONS,
+  DEPARTMENT_KEYWORD_OPTIONS,
+  BatchKeywordOption,
+  extractMatchedBatchKeywords,
+  validateSingleBatchKeyword,
+  validateCoursePricing,
+} from '../../lib/courseValidation.ts';
 import { CourseCard } from '../public/CourseCard.tsx';
 import {
   ArrowLeft,
@@ -18,6 +26,8 @@ import {
   BookOpen,
   Image as ImageIcon,
   Link as LinkIcon,
+  Zap,
+  GraduationCap,
 } from 'lucide-react';
 
 interface CourseEditorPageProps {
@@ -40,6 +50,47 @@ function normalizeInitialPrice(val: unknown, fallback: number): string {
   return String(Math.round(num));
 }
 
+function removeBatchKeywordsFromText(text: string): string {
+  const tokens = text
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  const remaining = tokens.filter((token) => extractMatchedBatchKeywords(token).length === 0);
+  if (remaining.length > 0 && remaining.length < tokens.length) {
+    return remaining.join(', ');
+  }
+
+  let cleaned = text;
+  for (const opt of BATCH_KEYWORD_OPTIONS) {
+    cleaned = cleaned.replace(new RegExp(opt.matcher.source, 'gi'), ' ');
+  }
+  return cleaned
+    .replace(/\s*,\s*,+/g, ',')
+    .replace(/^[\s,]+|[\s,]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function normalizeKeywordToken(token: string): string {
+  return token.normalize('NFC').trim().toLowerCase();
+}
+
+function dedupeCommaKeywords(text: string): string {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of text.split(',')) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const key = normalizeKeywordToken(trimmed);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(trimmed);
+    }
+  }
+  return result.join(', ');
+}
+
 export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   course,
   categories,
@@ -56,7 +107,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   );
   const headerTitle = course?.headerTitle || '10MS';
   const headerSubtitle = course?.headerSubtitle || 'অনলাইন কোর্স';
-  const shortBadge = course?.shortBadge || 'লাইভ ব্যাচ চলমান';
+  const [shortBadge, setShortBadge] = useState<string>(course?.shortBadge ?? '');
   const [imageUrl, setImageUrl] = useState(course?.imageUrl || '');
   const [imageFit, setImageFit] = useState<'contain' | 'square' | 'video'>(
     (course?.imageFit as any) || 'contain'
@@ -64,46 +115,152 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const gradientTheme = course?.gradientTheme || 'red';
   const fullDescription = course?.fullDescription || '';
   const [originalPriceInput, setOriginalPriceInput] = useState<string>(() =>
-    normalizeInitialPrice(course?.originalPrice, 4500)
+    course ? normalizeInitialPrice(course.originalPrice, 0) : ''
   );
   const [discountPriceInput, setDiscountPriceInput] = useState<string>(() =>
-    normalizeInitialPrice(course?.discountPrice, 3500)
+    course ? normalizeInitialPrice(course.discountPrice, 0) : ''
   );
   const [affiliateUrl, setAffiliateUrl] = useState(
     course?.affiliateUrl || 'https://10minuteschool.com'
   );
-  const [description, setDescription] = useState(
-    course?.description ||
-      'দেশসেরা অভিজ্ঞ শিক্ষকদের পরিচালিত লাইভ ক্লাস ও পূর্ণাঙ্গ পরীক্ষার প্রস্তুতি নিয়ে এগিয়ে থাকুন...'
-  );
+  const [description, setDescription] = useState(course?.description || '');
   const duration = course?.duration || '৬ মাস';
   const studentCount = course?.studentCount || '১২,৫০০+ শিক্ষার্থী';
   const rating = course?.rating || '৪.৯';
-  const [targetStudents, setTargetStudents] = useState(
-    course?.targetStudents || ''
-  );
+  const [targetStudents, setTargetStudents] = useState(course?.targetStudents || '');
+  const [batchError, setBatchError] = useState<string | null>(null);
   const [featuresList, setFeaturesList] = useState<string[]>(() =>
-    parseFeatures(course?.features || JSON.stringify(['লাইভ ক্লাস', 'লেকচার শিট', 'মডেল টেস্ট', 'ডেইলি সলভিং']))
+    parseFeatures(
+      course?.features ||
+        JSON.stringify(['লাইভ ক্লাস', 'লেকচার শিট', 'মডেল টেস্ট', 'ডেইলি সলভিং'])
+    )
   );
   const [newFeatureInput, setNewFeatureInput] = useState('');
   const [isPopular, setIsPopular] = useState<boolean>(course?.isPopular ?? true);
 
-  const originalPrice = originalPriceInput === '' ? 0 : Number(originalPriceInput);
-  const discountPrice = discountPriceInput === '' ? 0 : Number(discountPriceInput);
+  const hasOriginalPrice = originalPriceInput.trim() !== '';
+  const hasDiscountPrice = discountPriceInput.trim() !== '';
+  const originalPrice = hasOriginalPrice ? Number(originalPriceInput) : 0;
+  const discountPrice = hasDiscountPrice ? Number(discountPriceInput) : 0;
 
-  // Preview modal for mobile / quick test
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Auto-calculated discount & savings
-  const computedFlatSavings = Math.max(0, originalPrice - discountPrice);
-  const computedDiscountPercent =
+  // Batch validation & selection tracking
+  const matchedBatches = useMemo(
+    () => extractMatchedBatchKeywords(targetStudents),
+    [targetStudents]
+  );
+  const batchValidation = useMemo(
+    () => validateSingleBatchKeyword(targetStudents),
+    [targetStudents]
+  );
+
+  // Auto-calculated discount & validation
+  const pricingValidation = useMemo(
+    () => validateCoursePricing(originalPrice, discountPrice),
+    [originalPrice, discountPrice]
+  );
+  const isPriceInvalid = hasOriginalPrice && hasDiscountPrice && !pricingValidation.valid;
+  const computedFlatSavings =
     originalPrice > 0 && originalPrice > discountPrice
-      ? Math.round(((originalPrice - discountPrice) / originalPrice) * 100)
+      ? Math.max(0, originalPrice - discountPrice)
       : 0;
+  const computedDiscountPercent = pricingValidation.valid ? pricingValidation.discountPercent : 0;
+
+  // Target Students input & Batch Keyword Chip Handlers
+  const handleTargetStudentsChange = (val: string) => {
+    setTargetStudents(val);
+    const check = validateSingleBatchKeyword(val);
+    if (!check.valid) {
+      setBatchError(check.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড ব্যবহার করা যাবে।');
+    } else {
+      setBatchError(null);
+    }
+  };
+
+  const handleBatchChipClick = (option: BatchKeywordOption) => {
+    const currentBatches = extractMatchedBatchKeywords(targetStudents);
+    const isAlreadySelected =
+      currentBatches.length === 1 && currentBatches[0].id === option.id;
+
+    // Toggle off if already selected (easy removal, never duplicates)
+    if (isAlreadySelected) {
+      handleTargetStudentsChange(removeBatchKeywordsFromText(targetStudents));
+      return;
+    }
+
+    // Replace any existing batch keyword cleanly while keeping other keywords
+    const remainingText = removeBatchKeywordsFromText(targetStudents);
+    const remainingTokens = remainingText
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const nextValue = dedupeCommaKeywords([option.label, ...remainingTokens].join(', '));
+    handleTargetStudentsChange(nextValue);
+  };
+
+  const handleClearBatchKeyword = () => {
+    setTargetStudents('');
+    setBatchError(null);
+  };
+
+  const handleDepartmentChipClick = (deptLabel: string) => {
+    const tokens = targetStudents
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const normalizedDept = normalizeKeywordToken(deptLabel);
+    const exists = tokens.some((t) => normalizeKeywordToken(t) === normalizedDept);
+    if (exists) {
+      const next = tokens
+        .filter((t) => normalizeKeywordToken(t) !== normalizedDept)
+        .join(', ');
+      handleTargetStudentsChange(next);
+    } else {
+      const next = dedupeCommaKeywords([...tokens, deptLabel].join(', '));
+      handleTargetStudentsChange(next);
+    }
+  };
+
+  const handleRemoveCustomTargetToken = (tokenToRemove: string) => {
+    const targetKey = normalizeKeywordToken(tokenToRemove);
+    const next = targetStudents
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t && normalizeKeywordToken(t) !== targetKey)
+      .join(', ');
+    handleTargetStudentsChange(next);
+  };
+
+  const handleTargetInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const normalized = dedupeCommaKeywords(targetStudents);
+      handleTargetStudentsChange(normalized);
+    } else if (e.key === 'Escape') {
+      setBatchError(null);
+    }
+  };
+
+  const handleTargetChipGroupKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') {
+      return;
+    }
+    const buttons = Array.from(
+      e.currentTarget.querySelectorAll<HTMLButtonElement>('button[data-target-chip="true"]')
+    );
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (currentIndex === -1 || buttons.length === 0) return;
+
+    e.preventDefault();
+    const delta = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
+    const nextIndex = (currentIndex + delta + buttons.length) % buttons.length;
+    buttons[nextIndex]?.focus();
+  };
 
   // Title change with auto-slug generation for new courses
   const handleTitleChange = (val: string) => {
@@ -153,7 +310,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       slug: slug.trim() || 'preview-course',
       categoryId: matchedCategory ? matchedCategory.id : 1,
       categorySlug: categorySlug || 'hsc',
-      shortBadge: shortBadge.trim() || 'অনলাইন ব্যাচ',
+      shortBadge: shortBadge.trim(),
       headerTitle: headerTitle.trim() || '10MS',
       headerSubtitle: headerSubtitle.trim() || 'অনলাইন কোর্স',
       discountBadgeText:
@@ -175,7 +332,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       rating: rating.trim() || '৪.৯',
       studentCount: studentCount.trim() || '১২,৫০০+ শিক্ষার্থী',
       duration: duration.trim() || '৬ মাস',
-      targetStudents: targetStudents.trim() || 'সকল শিক্ষার্থী',
+      targetStudents: targetStudents.trim(),
       instructorInfo: course?.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল',
       instructorIcon: course?.instructorIcon || 'school',
       features: JSON.stringify(featuresList),
@@ -221,12 +378,23 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       setError('কোর্সের স্লাগ (Slug) পূরণ করা আবশ্যক।');
       return;
     }
+    if (!description.trim()) {
+      setError('কোর্সের সংক্ষিপ্ত বিবরণ (Short Description) পূরণ করা আবশ্যক।');
+      return;
+    }
+    if (!batchValidation.valid) {
+      const msg =
+        batchValidation.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।';
+      setBatchError(msg);
+      setError(msg);
+      return;
+    }
     if (discountPriceInput.trim() === '') {
       setError('ডিসকাউন্টেড অফার মূল্য (Discount Price) পূরণ করা আবশ্যক।');
       return;
     }
-    if (!Number.isFinite(originalPrice) || originalPrice < 0 || !Number.isFinite(discountPrice) || discountPrice < 0) {
-      setError('কোর্সের মূল্য অবশ্যই ০ বা তার বেশি বৈধ সংখ্যা হতে হবে।');
+    if (!pricingValidation.valid) {
+      setError(pricingValidation.error || 'অবৈধ মূল্য প্রদান করা হয়েছে।');
       return;
     }
 
@@ -241,7 +409,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       slug: slug.trim(),
       categoryId: matchedCat ? matchedCat.id : null,
       categorySlug,
-      shortBadge: shortBadge.trim() || 'অনলাইন ব্যাচ',
+      shortBadge: shortBadge.trim(),
       headerTitle: headerTitle.trim() || '10MS',
       headerSubtitle: headerSubtitle.trim() || 'অনলাইন কোর্স',
       discountBadgeText:
@@ -261,7 +429,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       rating: rating.trim() || '৪.৯',
       studentCount: studentCount.trim() || '১২,৫০০+ শিক্ষার্থী',
       duration: duration.trim() || '৬ মাস',
-      targetStudents: targetStudents.trim() || 'সকল শিক্ষার্থী',
+      targetStudents: dedupeCommaKeywords(targetStudents),
       features: featuresList,
       affiliateUrl: affiliateUrl.trim() || 'https://10minuteschool.com',
       isPopular,
@@ -277,9 +445,23 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     }
   };
 
+  const targetTokens = targetStudents
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const targetTokensLower = targetTokens.map((t) => normalizeKeywordToken(t));
+  const departmentKeys = new Set(
+    DEPARTMENT_KEYWORD_OPTIONS.map((d) => normalizeKeywordToken(d))
+  );
+  const customTargetTokens = targetTokens.filter(
+    (token) =>
+      !departmentKeys.has(normalizeKeywordToken(token)) &&
+      extractMatchedBatchKeywords(token).length === 0
+  );
+
   return (
     <div className="space-y-6">
-      {/* Top Breadcrumb & Action Toolbar */}
+      {/* Top Action Toolbar */}
       <div className="glass-strong rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -291,39 +473,21 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#6B4C4F]">
-              <span>Admin</span>
-              <span>/</span>
-              <span>Courses</span>
-              <span>/</span>
-              <span className="text-[#b91c1c] font-bold">
-                {isEditing ? 'Edit Course' : 'Add New Course'}
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight mt-0.5 truncate">
+            <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight truncate">
               {isEditing ? `কোর্স এডিট: ${course?.title}` : 'নতুন কোর্স তৈরি করুন'}
             </h1>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end shrink-0">
+        {/* Desktop Action Buttons (Kept unchanged on Desktop; shown below Preview Card on Mobile & Tablet) */}
+        <div className="hidden lg:flex items-center gap-2.5 justify-end shrink-0">
           <button
             type="button"
             onClick={onBackToList}
             disabled={saving}
-            className="px-4 py-2 rounded-xl border border-white/90 bg-white/80 hover:bg-white text-[#2A0F12] font-bold text-xs transition cursor-pointer shadow-2xs"
+            className="px-4 py-2 rounded-xl border border-slate-200 bg-white/90 hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 text-[#2A0F12] font-bold text-xs transition cursor-pointer shadow-2xs"
           >
-            বাতিল (Cancel)
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowPreviewModal(true)}
-            className="px-4 py-2 rounded-xl border border-rose-200/80 bg-rose-50/80 hover:bg-rose-100 text-[#b91c1c] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-          >
-            <Eye className="w-4 h-4" />
-            <span>প্রিভিউ কার্ড</span>
+            Cancel
           </button>
 
           <button
@@ -333,7 +497,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
             className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-1.5 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer disabled:opacity-60"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? 'সংরক্ষণ হচ্ছে...' : isEditing ? 'আপডেট করুন (Save)' : 'পাবলিশ করুন (Publish)'}</span>
+            <span>{saving ? 'Saving...' : isEditing ? 'Save' : 'Publish'}</span>
           </button>
         </div>
       </div>
@@ -349,7 +513,6 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT COLUMN: Course Form */}
         <div className="lg:col-span-7 space-y-6">
-          
           {/* Card 1: Primary Information */}
           <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
             <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
@@ -408,23 +571,212 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   </option>
                 ))}
               </select>
+              <p className="text-[11px] text-[#6B4C4F] mt-1">
+                নির্বাচিত ক্যাটাগরি অনুযায়ী কোর্সটি ওয়েবসাইটের সংশ্লিষ্ট সেকশন ও ক্যাটাগরি পেজে প্রদর্শিত হবে।
+              </p>
             </div>
 
-            {/* Target Students / Academic Class */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+            {/* Target Students / Batch (Matching Live Batch UI, Styling & Interaction) */}
+            <div className="space-y-2.5">
+              <label className="block text-xs font-bold text-slate-700">
                 লক্ষ্য শিক্ষার্থী ও শিক্ষাবর্ষ (Target Students / Batch)
               </label>
-              <input
-                type="text"
-                value={targetStudents}
-                onChange={(e) => setTargetStudents(e.target.value)}
-                placeholder="যেমন: HSC 28, HSC 27, SSC 2027, Class 8, বিজ্ঞান বিভাগ, মানবিক, ব্যবসায় শিক্ষা"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
-              />
-              <p className="text-[11px] text-[#6B4C4F] mt-1.5 leading-relaxed">
-                সমর্থিত ব্যাচ ও বিভাগ কীওয়ার্ড: <span className="font-semibold text-[#2A0F12]">HSC 26 / 27 / 28, SSC 2027 / 2028, Class 6–8 (৬ষ্ঠ–৮ম শ্রেণি), বিজ্ঞান (Science), ব্যবসায় শিক্ষা (Business / Commerce), মানবিক (Humanities / Arts), এডমিশন / ভার্সিটি / মেডিকেল / বুয়েট</span>। এই কীওয়ার্ড অনুযায়ী কোর্স স্বয়ংক্রিয়ভাবে সংশ্লিষ্ট ব্যাচ ও বিভাগ পেজে যুক্ত হয়।
-              </p>
+
+              <div className="flex items-center relative">
+                <span className="px-3 py-2.5 rounded-l-xl bg-rose-50 border border-r-0 border-slate-200 text-[#eb1c24]">
+                  <GraduationCap className="w-4 h-4" />
+                </span>
+                <input
+                  type="text"
+                  value={targetStudents}
+                  onChange={(e) => handleTargetStudentsChange(e.target.value)}
+                  onKeyDown={handleTargetInputKeyDown}
+                  onBlur={() => {
+                    const cleaned = dedupeCommaKeywords(targetStudents);
+                    if (cleaned !== targetStudents) {
+                      handleTargetStudentsChange(cleaned);
+                    }
+                  }}
+                  placeholder="যেমন: HSC 28, বিজ্ঞান বিভাগ (লিখে Enter দিন অথবা নিচে ক্লিক করুন)"
+                  className={`w-full px-3.5 py-2.5 pr-9 rounded-r-xl border text-xs sm:text-sm text-slate-800 bg-white outline-none shadow-2xs font-medium transition ${
+                    batchError || !batchValidation.valid
+                      ? 'border-rose-400 focus:border-rose-500 ring-2 ring-rose-100'
+                      : 'border-slate-200/90 focus:border-[#eb1c24]'
+                  }`}
+                />
+                {targetStudents.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearBatchKeyword}
+                    title="লক্ষ্য শিক্ষার্থী টেক্সট মুছুন"
+                    className="absolute right-2.5 p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Batch Validation Error Alert (when multiple batches are typed manually) */}
+              {(batchError || !batchValidation.valid) && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>{batchError || batchValidation.error}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleTargetStudentsChange(removeBatchKeywordsFromText(targetStudents))
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-white border border-rose-300 text-[#b91c1c] hover:bg-rose-100 text-[10.5px] font-bold cursor-pointer shrink-0"
+                  >
+                    বর্তমান ব্যাচ মুছুন
+                  </button>
+                </div>
+              )}
+
+              {/* Clickable Target Students & Batch Keyword Chips */}
+              <div
+                className="flex flex-wrap gap-1.5"
+                role="group"
+                aria-label="লক্ষ্য শিক্ষার্থী ও ব্যাচ কীওয়ার্ড"
+                onKeyDown={handleTargetChipGroupKeyDown}
+              >
+                {BATCH_KEYWORD_OPTIONS.map((opt) => {
+                  const isSelected = matchedBatches.some((b) => b.id === opt.id);
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      data-target-chip="true"
+                      onClick={() => handleBatchChipClick(opt)}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Backspace' || e.key === 'Delete') && isSelected) {
+                          e.preventDefault();
+                          handleBatchChipClick(opt);
+                        }
+                      }}
+                      aria-pressed={isSelected}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm'
+                          : 'bg-white text-[#2A0F12] border-rose-200/90 hover:border-[#eb1c24] hover:bg-rose-50/80 shadow-2xs'
+                      }`}
+                    >
+                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                      <span>{opt.label}</span>
+                      <span
+                        className={`text-[10px] font-medium ${
+                          isSelected ? 'text-rose-100' : 'text-[#6B4C4F]'
+                        }`}
+                      >
+                        ({opt.subLabel})
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {DEPARTMENT_KEYWORD_OPTIONS.map((dept) => {
+                  const isDeptActive = targetTokensLower.includes(normalizeKeywordToken(dept));
+                  return (
+                    <button
+                      key={dept}
+                      type="button"
+                      data-target-chip="true"
+                      onClick={() => handleDepartmentChipClick(dept)}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Backspace' || e.key === 'Delete') && isDeptActive) {
+                          e.preventDefault();
+                          handleDepartmentChipClick(dept);
+                        }
+                      }}
+                      aria-pressed={isDeptActive}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 ${
+                        isDeptActive
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm'
+                          : 'bg-white text-[#2A0F12] border-rose-200/90 hover:border-[#eb1c24] hover:bg-rose-50/80 shadow-2xs'
+                      }`}
+                    >
+                      {isDeptActive && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                      <span>{dept}</span>
+                    </button>
+                  );
+                })}
+
+                {customTargetTokens.map((customToken) => (
+                  <button
+                    key={customToken}
+                    type="button"
+                    data-target-chip="true"
+                    onClick={() => handleRemoveCustomTargetToken(customToken)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Backspace' || e.key === 'Delete') {
+                        e.preventDefault();
+                        handleRemoveCustomTargetToken(customToken);
+                      }
+                    }}
+                    aria-pressed={true}
+                    title="রিমুভ করতে ক্লিক করুন"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>{customToken}</span>
+                    <X className="w-3 h-3 shrink-0 opacity-90" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dynamic Live Batch Text Field */}
+            <div className="space-y-2.5">
+              <label className="block text-xs font-bold text-slate-700">
+                লাইভ ব্যাচ ব্যাজ টেক্সট (Live Batch)
+              </label>
+              <div className="flex items-center relative">
+                <span className="px-3 py-2.5 rounded-l-xl bg-amber-50 border border-r-0 border-slate-200 text-amber-600">
+                  <Zap className="w-4 h-4 fill-amber-400 text-amber-500" />
+                </span>
+                <input
+                  type="text"
+                  value={shortBadge}
+                  onChange={(e) => setShortBadge(e.target.value)}
+                  placeholder="যেমন: লাইভ ব্যাচ চলমান"
+                  className="w-full px-3.5 py-2.5 pr-9 rounded-r-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
+                />
+                {shortBadge.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShortBadge('')}
+                    title="লাইভ ব্যাচ টেক্সট মুছুন"
+                    className="absolute right-2.5 p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {(['Online Batch', 'Cycle-1', 'Cycle 1-4'] as const).map((keyword) => {
+                  const isSelected =
+                    shortBadge.trim().toLowerCase() === keyword.toLowerCase();
+                  return (
+                    <button
+                      key={keyword}
+                      type="button"
+                      onClick={() => setShortBadge(keyword)}
+                      aria-pressed={isSelected}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm'
+                          : 'bg-white text-[#2A0F12] border-rose-200/90 hover:border-[#eb1c24] hover:bg-rose-50/80 shadow-2xs'
+                      }`}
+                    >
+                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                      <span>{keyword}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -447,17 +799,19 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   value={originalPriceInput}
                   onChange={(e) => setOriginalPriceInput(sanitizePriceInput(e.target.value))}
                   onBlur={() => {
-                    if (originalPriceInput === '') setOriginalPriceInput('0');
-                    else setOriginalPriceInput(sanitizePriceInput(originalPriceInput));
+                    if (originalPriceInput !== '') {
+                      setOriginalPriceInput(sanitizePriceInput(originalPriceInput));
+                    }
                   }}
-                  placeholder="4500"
+                  placeholder="যেমন: 4500"
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono font-bold"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  ডিসকাউন্টেড অফার মূল্য (Discount Price - ৳) <span className="text-red-500">*</span>
+                  ডিসকাউন্টেড অফার মূল্য (Discount Price - ৳){' '}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -467,25 +821,63 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   value={discountPriceInput}
                   onChange={(e) => setDiscountPriceInput(sanitizePriceInput(e.target.value))}
                   onBlur={() => {
-                    if (discountPriceInput === '') setDiscountPriceInput('0');
-                    else setDiscountPriceInput(sanitizePriceInput(discountPriceInput));
+                    if (discountPriceInput !== '') {
+                      setDiscountPriceInput(sanitizePriceInput(discountPriceInput));
+                    }
                   }}
-                  placeholder="3500"
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono font-bold text-emerald-600"
+                  placeholder="যেমন: 2500"
+                  className={`w-full px-3.5 py-2 rounded-xl border text-xs sm:text-sm bg-white outline-none shadow-2xs font-mono font-bold ${
+                    isPriceInvalid
+                      ? 'border-rose-400 text-rose-700 focus:border-rose-500 ring-2 ring-rose-100'
+                      : 'border-slate-200/90 text-emerald-600 focus:border-[#eb1c24]'
+                  }`}
                 />
               </div>
             </div>
 
-            {/* Computed Savings summary pill */}
-            <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 flex items-center justify-between text-xs font-bold text-emerald-900">
-              <span>মোট ছাড়: ৳{toBengaliNumber(computedFlatSavings)} ({toBengaliNumber(computedDiscountPercent)}%)</span>
-              <span className="text-[11px] text-emerald-700 font-semibold">পাবলিক কার্ডে স্বয়ংক্রিয়ভাবে ডিসকাউন্ট ব্যাজ যুক্ত হবে</span>
-            </div>
+            {/* Inline Invalid Price Validation */}
+            {isPriceInvalid && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{pricingValidation.error}</span>
+              </div>
+            )}
+
+            {/* Computed Savings Summary Pill */}
+            {!isPriceInvalid && (
+              <div
+                className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs font-bold ${
+                  computedDiscountPercent > 0
+                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                    : 'bg-slate-50/90 border-slate-200 text-slate-700'
+                }`}
+              >
+                {computedDiscountPercent > 0 ? (
+                  <>
+                    <span>
+                      মোট ছাড়: ৳{toBengaliNumber(computedFlatSavings)} (
+                      {toBengaliNumber(computedDiscountPercent)}%)
+                    </span>
+                    <span className="text-[11px] text-emerald-700 font-semibold">
+                      কার্ডের উপরের বাম কোণে “{toBengaliNumber(computedDiscountPercent)}% ছাড়” ব্যাজ দেখাবে
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>কোনো ডিসকাউন্ট নির্ধারিত নেই (০%)</span>
+                    <span className="text-[11px] text-slate-500 font-semibold">
+                      ছাড় না থাকায় কার্ডে অপ্রয়োজনীয় ডিসকাউন্ট ব্যাজ দেখাবে না
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Affiliate / Enrollment URL */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                ভর্তি / এফিলিয়েট লিংক (Affiliate / Enrollment Target URL) <span className="text-red-500">*</span>
+                ভর্তি / এফিলিয়েট লিংক (Affiliate / Enrollment Target URL){' '}
+                <span className="text-red-500">*</span>
               </label>
               <div className="flex items-center">
                 <span className="px-3 py-2.5 rounded-l-xl bg-slate-100 border border-r-0 border-slate-200 text-slate-500">
@@ -506,7 +898,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
             </div>
           </div>
 
-          {/* Card 3: Media & Image Settings (Only Image URL and Computer Upload with Live Preview) */}
+          {/* Card 3: Media & Image Settings */}
           <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
             <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <ImageIcon className="w-4 h-4 text-indigo-600" />
@@ -648,7 +1040,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                 required
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="কোর্সের সংক্ষেপ বিবরণ..."
+                placeholder="দেশসেরা অভিজ্ঞ শিক্ষকদের পরিচালিত লাইভ ক্লাস ও পূর্ণাঙ্গ পরীক্ষার প্রস্তুতি নিয়ে এগিয়ে থাকুন..."
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
               />
             </div>
@@ -755,48 +1147,37 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Full Preview Modal */}
-      {showPreviewModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-md w-full p-6 space-y-4 border border-white/90 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
-              <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2">
-                <Eye className="w-4 h-4 text-[#eb1c24]" />
-                <span>ফুল সাইজ কোর্স কার্ড প্রিভিউ</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPreviewModal(false)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-rose-50 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+          {/* Mobile & Tablet Error Banner + Action Buttons Below Preview Card */}
+          {error && (
+            <div className="lg:hidden p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{error}</span>
             </div>
+          )}
 
-            <div className="flex justify-center py-2">
-              <div className="w-full max-w-[340px]">
-                <CourseCard
-                  course={previewCourse}
-                  onEnrollClick={() => window.open(affiliateUrl, '_blank')}
-                />
-              </div>
-            </div>
+          <div className="lg:hidden glass-strong rounded-3xl p-4 sm:p-5 flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={onBackToList}
+              disabled={saving}
+              className="flex-1 sm:flex-initial px-4 py-2 rounded-xl border border-slate-200 bg-white/90 hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 text-[#2A0F12] font-bold text-xs transition cursor-pointer shadow-2xs text-center"
+            >
+              Cancel
+            </button>
 
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowPreviewModal(false)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
-              >
-                বন্ধ করুন
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => handleSubmit()}
+              disabled={saving}
+              className="flex-1 sm:flex-initial px-5 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer disabled:opacity-60"
+            >
+              <Save className="w-4 h-4" />
+              <span>{saving ? 'Saving...' : isEditing ? 'Save' : 'Publish'}</span>
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import Image from 'next/image';
 import { Course } from '../../types.ts';
 import {
   Home,
@@ -199,9 +200,12 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           className="flex items-center cursor-pointer group shrink-0 select-none py-0.5 transition-transform hover:scale-105 active:scale-95"
           title="১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস"
         >
-          <img
+          <Image
             src="/images/logo-transparent.png"
-            alt="10 Minute School - 10msallcourses"
+            alt="১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস লোগো"
+            width={150}
+            height={38}
+            priority
             className="h-8 sm:h-9.5 w-auto object-contain block drop-shadow-xs"
           />
         </button>

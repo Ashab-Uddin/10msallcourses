@@ -3,7 +3,6 @@ import { Category, Course } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { Search, Sparkles } from 'lucide-react';
-import { motion } from 'motion/react';
 
 interface CategoryPageProps {
   categorySlug: string;
@@ -87,6 +86,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
 
   const categoryCourses = courses.filter((c) => {
     if (isLanguageLearning) {
+      if (c.categorySlug === 'language-learning') return true;
       const text = `${c.title} ${c.slug} ${c.description}`.toLowerCase();
       return (
         text.includes('english') ||
@@ -97,6 +97,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
       );
     }
     if (isBooks) {
+      if (c.categorySlug === 'books') return true;
       const text = `${c.title} ${c.slug} ${c.description}`.toLowerCase();
       return text.includes('বুক') || text.includes('বই') || text.includes('নোট');
     }
@@ -125,7 +126,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   return (
     <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Clean Breadcrumb Navigation */}
-      <div className="flex items-center gap-2 text-xs text-[#6B4C4F] font-medium mb-5">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[#6B4C4F] font-medium mb-5">
         <button
           type="button"
           onClick={onBack}
@@ -133,11 +134,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
         >
           হোম
         </button>
-        <span className="text-rose-300">/</span>
+        <span className="text-rose-300" aria-hidden="true">/</span>
         <span>কোর্স ক্যাটালগ</span>
-        <span className="text-rose-300">/</span>
+        <span className="text-rose-300" aria-hidden="true">/</span>
         <span className="text-[#B91C1C] font-bold">{currentCategory.name}</span>
-      </div>
+      </nav>
 
       {/* Warm Frosted Category Header Card */}
       <div className="glass-surface rounded-3xl p-6 sm:p-8 mb-8 relative overflow-hidden">
@@ -180,38 +181,38 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
       </div>
 
       {/* Courses Grid */}
-      {filteredCourses.length === 0 ? (
-        <div className="glass-surface rounded-3xl p-12 text-center space-y-3">
-          <h3 className="text-base font-bold text-[#2A0F12]">কোনো কোর্স পাওয়া যায়নি</h3>
-          <p className="text-xs text-[#6B4C4F]">
-            আপনার ফিল্টার বা সার্চ টার্ম পরিবর্তন করে পুনরায় চেষ্টা করুন।
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setPriceFilter('all');
-            }}
-            className="mt-2 px-5 py-2 rounded-full bg-[#E22B2B] text-white text-xs font-bold hover:bg-[#B91C1C] transition cursor-pointer"
-          >
-            ফিল্টার রিসেট করুন
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          {filteredCourses.map((course, idx) => (
-            <motion.div
-              key={`category-course-${course.id}-${course.slug}`}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: idx * 0.04 }}
-              className="h-full flex flex-col"
+      <section aria-label={currentCategory.name}>
+        <h2 className="sr-only">{currentCategory.name} — কোর্স তালিকা</h2>
+        {filteredCourses.length === 0 ? (
+          <div className="glass-surface rounded-3xl p-12 text-center space-y-3">
+            <h3 className="text-base font-bold text-[#2A0F12]">কোনো কোর্স পাওয়া যায়নি</h3>
+            <p className="text-xs text-[#6B4C4F]">
+              আপনার ফিল্টার বা সার্চ টার্ম পরিবর্তন করে পুনরায় চেষ্টা করুন।
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setPriceFilter('all');
+              }}
+              className="mt-2 px-5 py-2 rounded-full bg-[#E22B2B] text-white text-xs font-bold hover:bg-[#B91C1C] transition cursor-pointer"
             >
-              <CourseCard course={course} onEnrollClick={onEnrollClick} />
-            </motion.div>
-          ))}
-        </div>
-      )}
+              ফিল্টার রিসেট করুন
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            {filteredCourses.map((course) => (
+              <div
+                key={`category-course-${course.id}-${course.slug}`}
+                className="h-full flex flex-col"
+              >
+                <CourseCard course={course} onEnrollClick={onEnrollClick} headingLevel="h3" />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 };
