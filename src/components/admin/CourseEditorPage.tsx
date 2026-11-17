@@ -30,7 +30,10 @@ import {
   GraduationCap,
 } from 'lucide-react';
 
+import { validateExternalHttpUrl } from '../../lib/affiliateUrl.ts';
+
 interface CourseEditorPageProps {
+  authToken?: string;
   course: Course | null; // null means creating a new course
   categories: Category[];
   onBackToList: () => void;
@@ -92,6 +95,7 @@ function dedupeCommaKeywords(text: string): string {
 }
 
 export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
+  authToken = '',
   course,
   categories,
   onBackToList,
@@ -275,30 +279,105 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     }
   };
 
-  // Image Upload handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Optimize large images client-side (preserving original aspect ratio, max 1200px wide) before upload
+  const optimizeImageForUpload = async (file: File): Promise<File> => {
+    if (file.size <= 350 * 1024 && (file.type === 'image/webp' || file.type === 'image/jpeg')) {
+      return file;
+    }
+
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new window.Image();
+      img.onload = () => {
+        try {
+          const maxDim = 1200;
+          let targetW = img.naturalWidth || maxDim;
+          let targetH = img.naturalHeight || Math.round((maxDim * 9) / 16);
+          if (targetW > maxDim || targetH > maxDim) {
+            const scale = Math.min(maxDim / targetW, maxDim / targetH);
+            targetW = Math.max(1, Math.round(targetW * scale));
+            targetH = Math.max(1, Math.round(targetH * scale));
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(objectUrl);
+            resolve(file);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          canvas.toBlob(
+            (blob) => {
+              URL.revokeObjectURL(objectUrl);
+              if (blob && blob.size > 0 && blob.size < file.size) {
+                const baseName = file.name.replace(/\.[^.]+$/, '') || 'course-thumb';
+                resolve(new File([blob], `${baseName}.webp`, { type: 'image/webp' }));
+              } else {
+                resolve(file);
+              }
+            },
+            'image/webp',
+            0.84
+          );
+        } catch {
+          URL.revokeObjectURL(objectUrl);
+          resolve(file);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+      img.src = objectUrl;
+    });
+  };
+
+  // Production Image Upload handler (validates type/size, optimizes, uploads via /api/admin/upload)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
-    if (file.size > 8 * 1024 * 1024) {
-      setError('ছবির আকার সর্বোচ্চ ৮ মেগাবাইট হতে পারবে।');
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+    if (!allowedTypes.has(file.type)) {
+      setError('শুধুমাত্র JPG, PNG, WebP অথবা AVIF ফরম্যাটের ছবি আপলোড করা যাবে।');
+      return;
+    }
+
+    if (file.size > 4 * 1024 * 1024) {
+      setError('ছবির আকার সর্বোচ্চ ৪ মেগাবাইট হতে পারবে।');
       return;
     }
 
     setUploadingImage(true);
     setError(null);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setImageUrl(result);
+    try {
+      const preparedFile = await optimizeImageForUpload(file);
+      const formData = new FormData();
+      formData.append('file', preparedFile);
+
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        credentials: 'include',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'ছবি আপলোড করতে সমস্যা হয়েছে।');
+      }
+
+      setImageUrl(data.url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'ছবি আপলোড করতে সমস্যা হয়েছে।');
+    } finally {
       setUploadingImage(false);
-    };
-    reader.onerror = () => {
-      setError('ছবি লোড করতে সমস্যা হয়েছে।');
-      setUploadingImage(false);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   // Live Constructed Course object for real-time CourseCard preview
@@ -397,8 +476,12 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       setError(pricingValidation.error || 'অবৈধ মূল্য প্রদান করা হয়েছে।');
       return;
     }
-    if (!affiliateUrl.trim()) {
-      setError('ভর্তি / এফিলিয়েট লিংক (Affiliate / Enrollment Target URL) পূরণ করা আবশ্যক।');
+    const urlCheck = validateExternalHttpUrl(affiliateUrl);
+    if (!urlCheck.valid) {
+      setError(
+        urlCheck.error ||
+          'বৈধ ভর্তি / এফিলিয়েট লিংক (https://...) পূরণ করা আবশ্যক।'
+      );
       return;
     }
 
@@ -954,6 +1037,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
               {imageUrl ? (
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={imageUrl}
                       alt="Thumbnail Preview"
@@ -968,7 +1052,9 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                         <span>লাইভ ইমেজ সংযুক্ত হয়েছে</span>
                       </div>
                       <div className="text-[11px] text-slate-500 font-mono truncate max-w-xs sm:max-w-md">
-                        {imageUrl.startsWith('data:') ? 'লোকাল ফাইল (Base64)' : imageUrl}
+                        {imageUrl.startsWith('data:')
+                          ? 'অপ্টিমাইজড ইমেজ সংযুক্ত'
+                          : imageUrl}
                       </div>
                     </div>
                   </div>

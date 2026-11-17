@@ -35,6 +35,9 @@ interface OfferTimerManagerProps {
   courses: Course[];
   timers: OfferTimer[];
   serverNow?: string;
+  showCountdownTimer?: boolean;
+  onEnableCountdownTimer?: () => Promise<void> | void;
+  onUnauthorized?: () => void;
   onTimersUpdated: (timers: OfferTimer[], serverNow?: string) => void;
   onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
@@ -66,6 +69,9 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
   courses,
   timers,
   serverNow,
+  showCountdownTimer = true,
+  onEnableCountdownTimer,
+  onUnauthorized,
   onTimersUpdated,
   onShowToast,
 }) => {
@@ -226,8 +232,14 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
     setRefreshing(true);
     try {
       const res = await fetch('/api/admin/timers', {
-        headers: { Authorization: `Bearer ${authToken}` },
+        credentials: 'include',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
+      if (res.status === 401) {
+        onShowToast('সেশনের মেয়াদ শেষ হয়েছে, অনুগ্রহ করে পুনরায় লগইন করুন।', 'error');
+        onUnauthorized?.();
+        return;
+      }
       if (!res.ok) throw new Error('টাইমার তালিকা রিফ্রেশ করা যায়নি।');
       const data = await res.json();
       onTimersUpdated(data.timers || [], data.serverNow);
@@ -305,12 +317,19 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
 
       const res = await fetch(url, {
         method,
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(payload),
       });
+
+      if (res.status === 401) {
+        onShowToast('সেশনের মেয়াদ শেষ হয়েছে, অনুগ্রহ করে পুনরায় লগইন করুন।', 'error');
+        onUnauthorized?.();
+        return;
+      }
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -352,12 +371,19 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
     try {
       const res = await fetch(`/api/admin/timers/${timer.id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ isPaused: nextPaused }),
       });
+
+      if (res.status === 401) {
+        onShowToast('সেশনের মেয়াদ শেষ হয়েছে, অনুগ্রহ করে পুনরায় লগইন করুন।', 'error');
+        onUnauthorized?.();
+        return;
+      }
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -387,8 +413,14 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
     try {
       const res = await fetch(`/api/admin/timers/${target.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${authToken}` },
+        credentials: 'include',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
+      if (res.status === 401) {
+        onShowToast('সেশনের মেয়াদ শেষ হয়েছে, অনুগ্রহ করে পুনরায় লগইন করুন।', 'error');
+        onUnauthorized?.();
+        return;
+      }
       if (!res.ok) {
         throw new Error('টাইমারটি মুছে ফেলা সম্ভব হয়নি।');
       }
@@ -448,6 +480,28 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Homepage Countdown Disabled Warning Banner */}
+      {showCountdownTimer === false && timers.length > 0 && (
+        <div className="glass-surface rounded-2xl border border-amber-300/80 bg-amber-50/85 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 text-xs font-bold text-amber-900">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <span>
+              পোর্টাল সেটিংসে হোমপেজ অফার কাউন্টডাউন ব্যানার বর্তমানে বন্ধ (OFF) রয়েছে। নিচের সক্রিয় টাইমারগুলো হোমপেজে দেখাতে এখনই চালু করুন।
+            </span>
+          </div>
+          {onEnableCountdownTimer && (
+            <button
+              type="button"
+              onClick={() => void onEnableCountdownTimer()}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
+            >
+              <PlayCircle className="w-3.5 h-3.5" />
+              <span>হোমপেজ টাইমার চালু করুন</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Create / Edit Timer Form + Live Course Preview */}
       <div

@@ -1,6 +1,17 @@
+'use client';
+
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { ShieldCheck, ArrowLeft, LogIn, Zap, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  ShieldCheck,
+  ArrowLeft,
+  LogIn,
+  AlertCircle,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Lock,
+} from 'lucide-react';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 
 interface AdminLoginProps {
@@ -12,24 +23,39 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
   onLoginSuccess,
   onBackToSite,
 }) => {
-  const [email, setEmail] = useState('ashabuddin2274@gmail.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanEmail = email.trim();
+    const cleanPassword = password;
+
+    if (!cleanEmail || !cleanPassword) {
+      setError('অনুগ্রহ করে অ্যাডমিন ইমেইল এবং পাসওয়ার্ড দিন।');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
       });
 
       const contentType = res.headers.get('content-type') || '';
-      let data: any = {};
+      let data: {
+        error?: string;
+        token?: string;
+        email?: string;
+        name?: string;
+      } = {};
       if (contentType.includes('application/json')) {
         data = await res.json().catch(() => ({}));
       } else {
@@ -37,52 +63,32 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
         try {
           data = text ? JSON.parse(text) : {};
         } catch {
-          data = { error: text || 'সার্ভার থেকে অপ্রত্যাশিত রেসপন্স এসেছে।' };
+          data = { error: 'সার্ভার থেকে অপ্রত্যাশিত রেসপন্স এসেছে।' };
         }
       }
 
-      if (!res.ok) {
+      if (!res.ok || !data.token) {
         throw new Error(data?.error || `লগইন ব্যর্থ হয়েছে (${res.status})।`);
       }
 
-      const token = data.token || 'DEMO_ADMIN_TOKEN';
-      const userEmail = data.email || email.trim();
-      const userName = data.name || 'Admin User';
+      const token = data.token;
+      const userEmail = data.email || cleanEmail;
+      const userName = data.name || 'Site Admin';
 
       try {
         sessionStorage.setItem('10ms_auth_token', token);
         sessionStorage.setItem('10ms_admin_email', userEmail);
         sessionStorage.setItem('10ms_admin_name', userName);
       } catch {}
+
       onLoginSuccess(token, userEmail, userName);
-    } catch (err: any) {
-      console.error('Login error:', err);
-      // Resilient fallback for preset administrator
-      if (
-        (email.trim().toLowerCase() === 'ashabuddin2274@gmail.com' && password.trim() === 'admin123') ||
-        (email.trim().toLowerCase() === 'admin@10ms.com' && password.trim() === 'admin123')
-      ) {
-        try {
-          sessionStorage.setItem('10ms_auth_token', 'DEMO_ADMIN_TOKEN');
-          sessionStorage.setItem('10ms_admin_email', email.trim());
-          sessionStorage.setItem('10ms_admin_name', 'Ashab Uddin');
-        } catch {}
-        onLoginSuccess('DEMO_ADMIN_TOKEN', email.trim(), 'Ashab Uddin');
-        return;
-      }
-      setError(err.message || 'সার্ভারে লগইন সমস্যা হয়েছে।');
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'সার্ভারে লগইন করতে সমস্যা হয়েছে।';
+      setError(msg);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickAdminAccess = () => {
-    try {
-      sessionStorage.setItem('10ms_auth_token', 'DEMO_ADMIN_TOKEN');
-      sessionStorage.setItem('10ms_admin_email', 'ashabuddin2274@gmail.com');
-      sessionStorage.setItem('10ms_admin_name', 'Ashab Uddin');
-    } catch {}
-    onLoginSuccess('DEMO_ADMIN_TOKEN', 'ashabuddin2274@gmail.com', 'Ashab Uddin');
   };
 
   return (
@@ -117,45 +123,72 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
               অ্যাডমিনিস্ট্রেটর লগইন
             </h1>
             <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-              কোর্স ম্যানেজমেন্ট, মূল্য ও ডিসকাউন্ট এবং ওয়েবসাইট কনফিগারেশনে প্রবেশ করতে সাইন ইন করুন।
+              কোর্স ম্যানেজমেন্ট, মূল্য ও ডিসকাউন্ট, অফার টাইমার এবং ওয়েবসাইট কনফিগারেশনে প্রবেশ করতে সাইন ইন করুন।
             </p>
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <div
+              role="alert"
+              className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800 flex items-start gap-2"
+            >
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Credentials Form */}
-          <form onSubmit={handleCredentialsLogin} className="space-y-3.5">
+          <form onSubmit={handleCredentialsLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label
+                htmlFor="admin-email-input"
+                className="block text-xs font-bold text-slate-700 mb-1"
+              >
                 অ্যাডমিন ইমেইল
               </label>
               <input
+                id="admin-email-input"
                 type="email"
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#eb1c24] transition shadow-2xs font-medium"
-                placeholder="admin@10ms.com"
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#eb1c24] transition shadow-2xs font-medium"
+                placeholder="admin@yourdomain.com"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label
+                htmlFor="admin-password-input"
+                className="block text-xs font-bold text-slate-700 mb-1"
+              >
                 পাসওয়ার্ড
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#eb1c24] transition shadow-2xs font-mono font-bold"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  id="admin-password-input"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3.5 pr-10 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#eb1c24] transition shadow-2xs font-mono font-bold"
+                  placeholder="••••••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <button
@@ -164,32 +197,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
               className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60 shadow-md shadow-red-500/20"
             >
               <LogIn className="w-4 h-4" />
-              <span>{loading ? 'লগইন হচ্ছে...' : 'লগইন করুন'}</span>
+              <span>{loading ? 'যাচাই করা হচ্ছে...' : 'সিকিউর লগইন করুন'}</span>
             </button>
           </form>
 
-          <div className="relative flex py-1 items-center">
-            <div className="grow border-t border-slate-200"></div>
-            <span className="shrink mx-3 text-[11px] font-bold text-slate-400">ইনস্ট্যান্ট অ্যাক্সেস</span>
-            <div className="grow border-t border-slate-200"></div>
-          </div>
-
-          <div>
-            <button
-              type="button"
-              onClick={handleQuickAdminAccess}
-              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-md shadow-emerald-600/20"
-            >
-              <Zap className="w-4 h-4 fill-white" />
-              <span>১-ক্লিকে সরাসরি ড্যাশবোর্ডে প্রবেশ করুন</span>
-            </button>
-          </div>
-
-          <div className="pt-3 border-t border-rose-200/50 text-[11px] text-[#6B4C4F] flex items-center justify-between">
-            <span>Server Authentication v2.5</span>
+          <div className="pt-3 border-t border-rose-200/50 text-[11px] text-[#6B4C4F] flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1 font-medium">
+              <Lock className="w-3.5 h-3.5 text-rose-500" />
+              <span>Signed Session Auth</span>
+            </span>
             <span className="text-emerald-700 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              ডাটাবেস কানেক্টেড
+              সুরক্ষিত সংযোগ
             </span>
           </div>
         </div>

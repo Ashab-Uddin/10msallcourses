@@ -6,6 +6,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Category, Course, OfferTimer, SiteSettings } from './types.ts';
 import { computeOfferTimerStatus, getCountdownParts } from './lib/offerTimerUtils.ts';
+import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
 import { MobileBottomNav, MobileTab } from './components/public/MobileBottomNav.tsx';
 import { HeaderNav } from './components/public/HeaderNav.tsx';
@@ -16,17 +17,20 @@ import { FloatingContactWidget } from './components/public/FloatingContactWidget
 import { SiteFooter } from './components/public/SiteFooter.tsx';
 import { toBengaliNumber } from './utils/format.ts';
 import {
+  AlertCircle,
   ChevronRight,
   AlarmClock,
   BookOpen,
   Terminal,
   Landmark,
   BadgeCheck,
+  RefreshCw,
   SearchX,
   Headphones,
   Phone,
   ArrowRight,
   Sparkles,
+  X,
 } from 'lucide-react';
 
 const CategoryPage = dynamic(
@@ -263,6 +267,72 @@ export default function App({
     () => ''
   );
 
+  const [verifiedAdminToken, setVerifiedAdminToken] = useState<string | null>(null);
+  const [adminSessionChecked, setAdminSessionChecked] = useState<boolean>(false);
+  const [appToast, setAppToast] = useState<{ message: string; type: 'error' | 'info' } | null>(null);
+
+  const showAppToast = useCallback((message: string, type: 'error' | 'info' = 'info') => {
+    setAppToast({ message, type });
+    setTimeout(() => {
+      setAppToast((prev) => (prev?.message === message ? null : prev));
+    }, 4000);
+  }, []);
+
+  // Verify admin session against /api/admin/session (HttpOnly cookie or signed Bearer token)
+  useEffect(() => {
+    if (route.view !== 'admin_dashboard') return;
+    if (authToken && verifiedAdminToken === authToken) return;
+
+    let cancelled = false;
+    const verifySession = async () => {
+      try {
+        const res = await fetch('/api/admin/session', {
+          credentials: 'include',
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+          cache: 'no-store',
+        });
+        if (cancelled) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.authenticated && data?.token) {
+            try {
+              sessionStorage.setItem('10ms_auth_token', data.token);
+              sessionStorage.setItem('10ms_admin_email', data.email || '');
+              sessionStorage.setItem('10ms_admin_name', data.name || '');
+              window.dispatchEvent(new Event('10ms-auth-change'));
+            } catch {}
+            setVerifiedAdminToken(data.token);
+            setAdminSessionChecked(true);
+            return;
+          }
+        }
+
+        // Invalid or expired session: purge any stale/forged local token
+        try {
+          sessionStorage.removeItem('10ms_auth_token');
+          sessionStorage.removeItem('10ms_admin_email');
+          sessionStorage.removeItem('10ms_admin_name');
+          window.dispatchEvent(new Event('10ms-auth-change'));
+        } catch {}
+        setVerifiedAdminToken(null);
+      } catch {
+        if (!cancelled) {
+          setVerifiedAdminToken(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setAdminSessionChecked(true);
+        }
+      }
+    };
+
+    void verifySession();
+    return () => {
+      cancelled = true;
+    };
+  }, [route.view, authToken, verifiedAdminToken]);
+
   const handleAdminLogin = (token: string, email: string, name: string) => {
     try {
       sessionStorage.setItem('10ms_auth_token', token);
@@ -270,16 +340,25 @@ export default function App({
       sessionStorage.setItem('10ms_admin_name', name);
       window.dispatchEvent(new Event('10ms-auth-change'));
     } catch {}
+    setVerifiedAdminToken(token);
+    setAdminSessionChecked(true);
     navigate('/admin/dashboard');
   };
 
   const handleAdminLogout = () => {
+    fetch('/api/admin/logout', {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {});
+
     try {
       sessionStorage.removeItem('10ms_auth_token');
       sessionStorage.removeItem('10ms_admin_email');
       sessionStorage.removeItem('10ms_admin_name');
       window.dispatchEvent(new Event('10ms-auth-change'));
     } catch {}
+    setVerifiedAdminToken(null);
+    setAdminSessionChecked(true);
     navigate('/');
   };
 
@@ -302,6 +381,7 @@ export default function App({
   const [loading, setLoading] = useState<boolean>(
     initialCourses.length === 0 && !currentPathname.startsWith('/admin')
   );
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Search & Discovery Filter States
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -311,21 +391,28 @@ export default function App({
   const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
 
   const handleDownloadZip = async () => {
+    if (isDownloadingZip) return;
     setIsDownloadingZip(true);
     try {
-      const res = await fetch('/api/download-project-zip');
-      if (!res.ok) throw new Error('ZIP ফাইল তৈরি ব্যর্থ হয়েছে');
+      const res = await fetch('/api/download-project-zip', {
+        credentials: 'include',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'ZIP ফাইল তৈরি ব্যর্থ হয়েছে');
+      }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = '10ms-affiliate-portal-full.zip';
+      link.download = '10ms-affiliate-portal-backup.zip';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       setTimeout(() => window.URL.revokeObjectURL(url), 10000);
     } catch (err: any) {
-      alert('ডাউনলোড সমস্যা: ' + err.message);
+      showAppToast('ডাউনলোড সমস্যা: ' + (err?.message || 'ব্যর্থ হয়েছে'), 'error');
     } finally {
       setIsDownloadingZip(false);
     }
@@ -461,44 +548,47 @@ export default function App({
   }, [settings?.countdownTargetDate]);
 
   const fetchPublicData = useCallback(async () => {
+    setFetchError(null);
     try {
       const res = await fetch('/api/public/data', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.categories && data.categories.length > 0) {
-          setCategories(data.categories);
+      if (!res.ok) {
+        throw new Error('সার্ভার থেকে কোর্স ডেটা লোড করা সম্ভব হয়নি।');
+      }
+      const data = await res.json();
+      if (data.categories && data.categories.length > 0) {
+        setCategories(data.categories);
+      }
+      if (data.courses && data.courses.length > 0) {
+        setCourses(data.courses);
+      }
+      if (Array.isArray(data.offerTimers)) {
+        setOfferTimers(data.offerTimers);
+        setHasOfferTimers(
+          typeof data.hasOfferTimers === 'boolean'
+            ? data.hasOfferTimers
+            : data.offerTimers.length > 0
+        );
+      }
+      if (data.serverNow) {
+        const parsed = new Date(data.serverNow).getTime();
+        if (Number.isFinite(parsed)) {
+          serverOffsetRef.current = parsed - Date.now();
+          setNowMs(Date.now() + serverOffsetRef.current);
         }
-        if (data.courses && data.courses.length > 0) {
-          setCourses(data.courses);
-        }
-        if (Array.isArray(data.offerTimers)) {
-          setOfferTimers(data.offerTimers);
-          setHasOfferTimers(
-            typeof data.hasOfferTimers === 'boolean'
-              ? data.hasOfferTimers
-              : data.offerTimers.length > 0
-          );
-        }
-        if (data.serverNow) {
-          const parsed = new Date(data.serverNow).getTime();
-          if (Number.isFinite(parsed)) {
-            serverOffsetRef.current = parsed - Date.now();
-            setNowMs(Date.now() + serverOffsetRef.current);
-          }
-        }
-        if (data.settings) {
-          setSettings(data.settings);
-          if (data.settings.siteTitle && typeof document !== 'undefined') {
-            document.title = data.settings.siteTitle;
-          }
+      }
+      if (data.settings) {
+        setSettings(data.settings);
+        if (data.settings.siteTitle && typeof document !== 'undefined') {
+          document.title = data.settings.siteTitle;
         }
       }
     } catch (err) {
       console.warn('Backend data fetch fallback:', err);
+      setFetchError('কোর্সের তথ্য লোড করতে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।');
     } finally {
       setLoading(false);
     }
-  }, [setCategories, setCourses, setOfferTimers, setHasOfferTimers, setNowMs, setSettings]);
+  }, [setFetchError, setCategories, setCourses, setOfferTimers, setHasOfferTimers, setNowMs, setSettings]);
 
   useEffect(() => {
     // Skip redundant client API fetch if SSR already provided public data or on admin routes
@@ -566,7 +656,13 @@ export default function App({
 
   // Handle Instant Direct Affiliate Link & Outbound Tracking (No Details Page, No Confirmation Modal)
   const handleEnrollClick = (course: Course, referrer = 'course_card') => {
-    const targetUrl = course.affiliateUrl || `/go/${course.slug}`;
+    if (course.status !== 'active') {
+      showAppToast('এই কোর্সে ভর্তি বর্তমানে বন্ধ রয়েছে।', 'info');
+      return;
+    }
+    const targetUrl = course.affiliateUrl
+      ? buildAffiliateRedirectUrl(course.affiliateUrl, settings?.defaultAffiliateRef)
+      : `/go/${course.slug}`;
     window.open(targetUrl, '_blank', 'noopener,noreferrer');
     recordCourseOutboundClick(course, referrer);
   };
@@ -695,7 +791,19 @@ export default function App({
   }
 
   if (route.view === 'admin_dashboard') {
-    if (!authToken) {
+    const isVerified = Boolean(authToken && verifiedAdminToken === authToken);
+    if (!adminSessionChecked && !isVerified) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 text-center">
+          <div className="glass-strong rounded-3xl px-8 py-6 flex flex-col items-center gap-3">
+            <RefreshCw className="w-6 h-6 text-[#eb1c24] animate-spin" />
+            <p className="text-sm font-bold text-[#2A0F12]">অ্যাডমিন সেশন যাচাই করা হচ্ছে...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!isVerified) {
       return (
         <AdminLogin
           onLoginSuccess={handleAdminLogin}
@@ -705,16 +813,35 @@ export default function App({
     }
 
     return (
-      <AdminDashboard
-        authToken={authToken}
-        adminEmail={adminEmail}
-        adminName={adminName}
-        currentPath={currentPath}
-        onNavigate={navigate}
-        onLogout={handleAdminLogout}
-        onDataMutated={fetchPublicData}
-        onDownloadZip={handleDownloadZip}
-      />
+      <>
+        {appToast && (
+          <div
+            role="alert"
+            className="fixed top-20 right-4 sm:right-6 z-[70] max-w-md px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-xl text-xs sm:text-sm font-bold flex items-center gap-2.5 bg-rose-50/95 text-rose-900 border-rose-300"
+          >
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{appToast.message}</span>
+            <button
+              type="button"
+              onClick={() => setAppToast(null)}
+              className="ml-auto text-slate-400 hover:text-slate-700 cursor-pointer"
+              aria-label="Close notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <AdminDashboard
+          authToken={authToken!}
+          adminEmail={adminEmail}
+          adminName={adminName}
+          currentPath={currentPath}
+          onNavigate={navigate}
+          onLogout={handleAdminLogout}
+          onDataMutated={fetchPublicData}
+          onDownloadZip={handleDownloadZip}
+        />
+      </>
     );
   }
 
@@ -759,8 +886,6 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
-          onDownloadZip={handleDownloadZip}
-          isDownloadingZip={isDownloadingZip}
           authToken={authToken}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
@@ -818,8 +943,6 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
-          onDownloadZip={handleDownloadZip}
-          isDownloadingZip={isDownloadingZip}
           authToken={authToken}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
@@ -933,10 +1056,14 @@ export default function App({
                     >
                       {activeOfferTimers.map((timer) => {
                         const linkedCourse = coursesById.get(timer.courseId);
-                        const targetAffiliateUrl =
-                          linkedCourse?.affiliateUrl ||
-                          timer.affiliateUrl ||
-                          `/go/${timer.courseSlug}`;
+                        const rawAffiliate =
+                          linkedCourse?.affiliateUrl || timer.affiliateUrl;
+                        const targetAffiliateUrl = rawAffiliate
+                          ? buildAffiliateRedirectUrl(
+                              rawAffiliate,
+                              settings?.defaultAffiliateRef
+                            )
+                          : `/go/${timer.courseSlug}`;
                         const parts = getCountdownParts(timer.endAt, nowMs);
                         const courseTitle =
                           linkedCourse?.title || timer.courseTitle;
@@ -1386,7 +1513,7 @@ export default function App({
                 </div>
               </div>
 
-              {/* Loading Skeleton */}
+              {/* Loading Skeleton / Error State */}
               {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[1, 2, 3, 4].map((i) => (
@@ -1395,6 +1522,22 @@ export default function App({
                       className="h-96 rounded-2xl glass-surface animate-pulse"
                     />
                   ))}
+                </div>
+              ) : fetchError && courses.length === 0 ? (
+                <div className="glass-surface rounded-3xl p-10 text-center space-y-3 mb-12">
+                  <AlertCircle className="w-10 h-10 text-[#E22B2B] mx-auto" aria-hidden="true" />
+                  <div className="text-base font-bold text-[#2A0F12]">{fetchError}</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoading(true);
+                      void fetchPublicData();
+                    }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>পুনরায় চেষ্টা করুন</span>
+                  </button>
                 </div>
               ) : isFilteringActive ? (
                 /* FILTERED / SEARCH RESULTS VIEW */
@@ -1629,13 +1772,29 @@ export default function App({
           </section>
         </main>
 
+      {appToast && (
+        <div
+          role="alert"
+          className="fixed top-20 right-4 sm:right-6 z-[70] max-w-md px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-xl text-xs sm:text-sm font-bold flex items-center gap-2.5 bg-[#2A0F12]/95 text-white border-rose-900"
+        >
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{appToast.message}</span>
+          <button
+            type="button"
+            onClick={() => setAppToast(null)}
+            className="ml-auto text-rose-200 hover:text-white cursor-pointer"
+            aria-label="Close notification"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Modern Organic Wave Footer with Payment Bar and Full Links */}
       <SiteFooter
         onNavigate={navigate}
         onQuickFilter={handleQuickFilterSelect}
         onDirectCourseLink={handleDirectCourseLink}
-        onDownloadZip={handleDownloadZip}
-        isDownloadingZip={isDownloadingZip}
         authToken={authToken}
         whatsappNumber={whatsappNumber}
         whatsappLink={whatsappLink}

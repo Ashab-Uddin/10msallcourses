@@ -55,12 +55,15 @@ import {
   AlertCircle,
   ArrowRight,
   RefreshCw,
+  ChevronLeft,
   ChevronRight,
   ShieldCheck,
   ExternalLink,
   SlidersHorizontal,
   AlarmClock,
 } from 'lucide-react';
+
+const COURSES_PER_PAGE = 12;
 
 interface AdminDashboardProps {
   authToken: string;
@@ -126,6 +129,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [recentClicks, setRecentClicks] = useState<ClickRecord[]>([]);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [offerTimers, setOfferTimers] = useState<OfferTimer[]>([]);
+  const [storageInfo, setStorageInfo] = useState<{
+    backend: string;
+    persistentOnVercel: boolean;
+    warning?: string;
+  } | null>(null);
   const [serverNow, setServerNow] = useState<string>('');
   const [overviewNowMs, setOverviewNowMs] = useState<number>(() => Date.now());
 
@@ -149,6 +157,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCat, setFilterCat] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [statusTogglingId, setStatusTogglingId] = useState<number | null>(null);
 
   // Modals & Editor State
@@ -168,12 +177,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [savingCat, setSavingCat] = useState(false);
   const [deleteModalCat, setDeleteModalCat] = useState<Category | null>(null);
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => {
-      setToast((prev) => (prev?.message === message ? null : prev));
-    }, 3500);
-  };
+  const showToast = useCallback(
+    (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+      setToast({ message, type });
+      setTimeout(() => {
+        setToast((prev) => (prev?.message === message ? null : prev));
+      }, 3500);
+    },
+    []
+  );
+
+  const handleUnauthorizedResponse = useCallback(
+    (res: Response): boolean => {
+      if (res.status === 401) {
+        showToast('সেশনের মেয়াদ শেষ হয়েছে, অনুগ্রহ করে পুনরায় লগইন করুন।', 'error');
+        onLogout();
+        return true;
+      }
+      return false;
+    },
+    [onLogout, showToast]
+  );
 
   // Sync tab with external route change without calling setState synchronously inside useEffect
   const [prevPath, setPrevPath] = useState(currentPath);
@@ -182,6 +206,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (currentPath) {
       const nextTab = getTabFromPath(currentPath);
       setActiveTab(nextTab);
+      setCurrentPage(1);
       if (nextTab === 'add_course') {
         setEditingCourse(null);
       }
@@ -191,6 +216,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Tab switcher with URL pushState
   const handleTabSwitch = (tab: AdminPageTab) => {
     setActiveTab(tab);
+    setCurrentPage(1);
     setMobileSidebarOpen(false);
     if (tab === 'add_course') setEditingCourse(null);
 
@@ -219,8 +245,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setError(null);
     try {
       const res = await fetch('/api/admin/overview', {
-        headers: { Authorization: `Bearer ${authToken}` },
+        credentials: 'include',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
+      if (handleUnauthorizedResponse(res)) return;
       if (!res.ok) throw new Error('এডমিন ডেটা লোড করতে ব্যর্থ হয়েছে।');
 
       const data = await res.json();
@@ -229,6 +257,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCategories(data.categories || []);
       setRecentClicks(data.recentClicks || []);
       setOfferTimers(data.offerTimers || []);
+      setStorageInfo(data.storageInfo || null);
       if (data.serverNow) {
         setServerNow(data.serverNow);
         const parsedNow = new Date(data.serverNow).getTime();
@@ -261,7 +290,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [authToken]);
+  }, [authToken, handleUnauthorizedResponse]);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,9 +330,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (activeTab === 'active_courses') {
         if (course.status !== 'active') return false;
       } else if (activeTab === 'inactive_courses') {
-        if (course.status !== 'inactive') return false;
+        if (course.status === 'active') return false;
       } else if (filterStatus !== 'all') {
-        if (course.status !== filterStatus) return false;
+        if (filterStatus === 'inactive') {
+          if (course.status === 'active') return false;
+        } else if (course.status !== filterStatus) {
+          return false;
+        }
       }
 
       // 2. Category Filter
@@ -327,6 +360,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   }, [courses, activeTab, filterStatus, filterCat, searchQuery]);
 
+  const totalPages = Math.max(1, Math.ceil(displayedCourses.length / COURSES_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedCourses = useMemo(() => {
+    const start = (safeCurrentPage - 1) * COURSES_PER_PAGE;
+    return displayedCourses.slice(start, start + COURSES_PER_PAGE);
+  }, [displayedCourses, safeCurrentPage]);
+
   // Handle Course Active/Inactive Quick Toggle
   const handleToggleStatus = async (course: Course) => {
     const newStatus = course.status === 'active' ? 'inactive' : 'active';
@@ -335,13 +375,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const res = await fetch(`/api/admin/courses/${course.id}/status`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ status: newStatus }),
       });
 
+      if (handleUnauthorizedResponse(res)) return;
       if (!res.ok) throw new Error('কোর্সের স্ট্যাটাস পরিবর্তন করা সম্ভব হয়নি।');
 
       setCourses((prev) =>
@@ -350,8 +392,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       setStats((prev) => ({
         ...prev,
-        activeCourses: newStatus === 'active' ? prev.activeCourses + 1 : prev.activeCourses - 1,
-        inactiveCourses: newStatus === 'inactive' ? prev.inactiveCourses + 1 : prev.inactiveCourses - 1,
+        activeCourses: newStatus === 'active' ? prev.activeCourses + 1 : Math.max(0, prev.activeCourses - 1),
+        inactiveCourses: newStatus === 'inactive' ? prev.inactiveCourses + 1 : Math.max(0, prev.inactiveCourses - 1),
       }));
 
       onDataMutated();
@@ -376,13 +418,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const res = await fetch(url, {
         method,
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(courseData),
       });
 
+      if (handleUnauthorizedResponse(res)) return;
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || 'কোর্সটি সংরক্ষণ করা সম্ভব হয়নি।');
@@ -405,19 +449,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const res = await fetch(`/api/admin/courses/${deleteModalCourse.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${authToken}` },
+        credentials: 'include',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
 
+      if (handleUnauthorizedResponse(res)) return;
       if (!res.ok) throw new Error('কোর্সটি মুছে ফেলা সম্ভব হয়নি।');
 
       setCourses((prev) => prev.filter((c) => c.id !== deleteModalCourse.id));
       setStats((prev) => ({
         ...prev,
-        totalCourses: prev.totalCourses - 1,
+        totalCourses: Math.max(0, prev.totalCourses - 1),
         activeCourses:
-          deleteModalCourse.status === 'active' ? prev.activeCourses - 1 : prev.activeCourses,
+          deleteModalCourse.status === 'active'
+            ? Math.max(0, prev.activeCourses - 1)
+            : prev.activeCourses,
         inactiveCourses:
-          deleteModalCourse.status === 'inactive' ? prev.inactiveCourses - 1 : prev.inactiveCourses,
+          deleteModalCourse.status !== 'active'
+            ? Math.max(0, prev.inactiveCourses - 1)
+            : prev.inactiveCourses,
       }));
 
       onDataMutated();
@@ -452,14 +502,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const res = await fetch(url, {
         method,
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error('ক্যাটাগরি সংরক্ষণ করা সম্ভব হয়নি।');
+      if (handleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'ক্যাটাগরি সংরক্ষণ করা সম্ভব হয়নি।');
+      }
 
       await fetchDashboardData();
       onDataMutated();
@@ -483,9 +538,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const res = await fetch(`/api/admin/categories/${deleteModalCat.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${authToken}` },
+        credentials: 'include',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
 
+      if (handleUnauthorizedResponse(res)) return;
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || 'ক্যাটাগরিটি মুছে ফেলা সম্ভব হয়নি।');
@@ -524,14 +581,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error('সেটিংস সংরক্ষণ ব্যর্থ হয়েছে।');
+      if (handleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'সেটিংস সংরক্ষণ ব্যর্থ হয়েছে।');
+      }
 
       const updated = await res.json();
       setSettings(updated);
@@ -544,28 +606,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  // Quick Countdown Toggle from Overview
-  const handleQuickCountdownToggle = async () => {
-    const updatedVal = !showCountdownTimer;
+  // Quick Countdown Toggle / Explicit Setter
+  const setCountdownVisibility = async (updatedVal: boolean) => {
+    const prevVal = showCountdownTimer;
     setShowCountdownTimer(updatedVal);
 
     try {
-      await fetch('/api/admin/settings', {
+      const res = await fetch('/api/admin/settings', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ showCountdownTimer: updatedVal }),
       });
+      if (handleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        setShowCountdownTimer(prevVal);
+        showToast('টাইমার সেটিং আপডেট করা যায়নি।', 'error');
+        return;
+      }
       onDataMutated();
       showToast(
         updatedVal ? 'হোমপেজ কাউন্টডাউন টাইমার সক্রিয় করা হয়েছে।' : 'হোমপেজ কাউন্টডাউন টাইমার বন্ধ করা হয়েছে।',
         'info'
       );
     } catch {
-      setShowCountdownTimer(!updatedVal);
+      setShowCountdownTimer(prevVal);
     }
+  };
+
+  const handleQuickCountdownToggle = async () => {
+    await setCountdownVisibility(!showCountdownTimer);
   };
 
   const handleNavigateHome = () => {
@@ -841,6 +914,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 1: DEDICATED ADD / EDIT COURSE PAGE              */
             /* ===================================================== */
             <CourseEditorPage
+              authToken={authToken}
               course={editingCourse}
               categories={categories}
               onBackToList={() => handleTabSwitch('all_courses')}
@@ -851,6 +925,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 2: EXECUTIVE OVERVIEW DASHBOARD                  */
             /* ===================================================== */
             <div className="space-y-6">
+              {storageInfo?.warning && (
+                <div className="glass-surface rounded-2xl border border-amber-300/80 bg-amber-50/85 px-4 py-3 text-xs font-bold text-amber-900 flex items-start gap-2.5 leading-relaxed">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>{storageInfo.warning}</span>
+                </div>
+              )}
+
               {/* Offer Countdown Banner Quick Controller */}
               <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5">
@@ -1083,6 +1164,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-3">
                               {course.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={course.imageUrl}
                                   alt={course.title}
@@ -1215,14 +1297,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <input
                     type="text"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
                     placeholder="কোর্সের নাম, ব্যাচ বা ট্যাগ দিয়ে খুঁজুন..."
                     className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-white/90 text-xs text-[#2A0F12] bg-white/85 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                   />
                   {searchQuery && (
                     <button
                       type="button"
-                      onClick={() => setSearchQuery('')}
+                      onClick={() => {
+                        setSearchQuery('');
+                        setCurrentPage(1);
+                      }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B4C4F] hover:text-[#2A0F12] font-bold cursor-pointer"
                       aria-label="Clear search"
                     >
@@ -1235,7 +1323,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:flex-wrap">
                   <select
                     value={filterCat}
-                    onChange={(e) => setFilterCat(e.target.value)}
+                    onChange={(e) => {
+                      setFilterCat(e.target.value);
+                      setCurrentPage(1);
+                    }}
                     className="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="all">সব ক্যাটাগরি ({toBengaliNumber(courses.length)})</option>
@@ -1249,7 +1340,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {activeTab === 'all_courses' && (
                     <select
                       value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
+                      onChange={(e) => {
+                        setFilterStatus(e.target.value);
+                        setCurrentPage(1);
+                      }}
                       className="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
                     >
                       <option value="all">সব স্ট্যাটাস</option>
@@ -1267,6 +1361,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         setSearchQuery('');
                         setFilterCat('all');
                         setFilterStatus('all');
+                        setCurrentPage(1);
                       }}
                       className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] text-xs font-bold transition cursor-pointer text-center"
                     >
@@ -1310,7 +1405,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {displayedCourses.map((course) => {
+                      {paginatedCourses.map((course) => {
                         const isToggling = statusTogglingId === course.id;
                         const categoryLabel =
                           categoryNameBySlug.get(course.categorySlug) || course.categorySlug;
@@ -1502,7 +1597,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </td>
                         </tr>
                       ) : (
-                        displayedCourses.map((course) => {
+                        paginatedCourses.map((course) => {
                           const isToggling = statusTogglingId === course.id;
                           return (
                             <tr key={course.id} className="hover:bg-rose-50/45 transition">
@@ -1510,6 +1605,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <td className="py-3.5 px-4">
                                 <div className="flex items-center gap-3">
                                   {course.imageUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                       src={course.imageUrl}
                                       alt={course.title}
@@ -1635,10 +1731,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </table>
                 </div>
 
-                {/* Table Footer Count */}
-                <div className="bg-white/50 border-t border-rose-200/50 px-4 py-3 text-xs text-[#6B4C4F] font-semibold flex flex-wrap items-center justify-between gap-2 tabular-nums">
-                  <span>মোট প্রদর্শিত: {toBengaliNumber(displayedCourses.length)}টি কোর্স</span>
-                  <span>মোট ডাটাবেস কোর্স: {toBengaliNumber(courses.length)}টি</span>
+                {/* Table Footer Count & Pagination */}
+                <div className="bg-white/50 border-t border-rose-200/50 px-4 py-3 text-xs text-[#6B4C4F] font-semibold flex flex-wrap items-center justify-between gap-3 tabular-nums">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span>মোট প্রদর্শিত: {toBengaliNumber(displayedCourses.length)}টি কোর্স</span>
+                    <span>মোট ডাটাবেস কোর্স: {toBengaliNumber(courses.length)}টি</span>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={safeCurrentPage <= 1}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-[#2A0F12] font-bold transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                        aria-label="পূর্ববর্তী পৃষ্ঠা"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">পূর্ববর্তী</span>
+                      </button>
+
+                      {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNum) => (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`min-w-[30px] h-8 px-2 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+                            pageNum === safeCurrentPage
+                              ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-sm'
+                              : 'border border-rose-200/80 bg-white/90 text-[#2A0F12] hover:bg-rose-50'
+                          }`}
+                        >
+                          {toBengaliNumber(pageNum)}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={safeCurrentPage >= totalPages}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-[#2A0F12] font-bold transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                        aria-label="পরবর্তী পৃষ্ঠা"
+                      >
+                        <span className="hidden sm:inline">পরবর্তী</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1925,6 +2064,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               courses={courses}
               timers={offerTimers}
               serverNow={serverNow}
+              showCountdownTimer={showCountdownTimer}
+              onEnableCountdownTimer={() => setCountdownVisibility(true)}
+              onUnauthorized={onLogout}
               onTimersUpdated={(nextTimers, nextServerNow) => {
                 setOfferTimers(nextTimers);
                 if (nextServerNow) {
@@ -1935,6 +2077,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   }
                 } else {
                   setOverviewNowMs(Date.now());
+                }
+                if (nextTimers.some((t) => !t.isPaused)) {
+                  setShowCountdownTimer(true);
                 }
                 onDataMutated();
               }}
@@ -1983,7 +2128,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="w-full max-w-[340px]">
                 <CourseCard
                   course={previewingCourse}
-                  onEnrollClick={() => window.open(previewingCourse.affiliateUrl, '_blank')}
+                  onEnrollClick={() =>
+                    window.open(previewingCourse.affiliateUrl, '_blank', 'noopener,noreferrer')
+                  }
                 />
               </div>
             </div>

@@ -3,7 +3,16 @@ import { Category, Course, SiteSettings } from '@/src/types';
 import { toBengaliNumber } from '@/src/utils/format';
 
 export function getSiteBaseUrl(): string {
-  return (process.env.APP_URL || 'https://10msallcourse.com').replace(/\/+$/, '');
+  const explicit = process.env.APP_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  if (explicit && explicit.trim()) {
+    return explicit.trim().replace(/\/+$/, '');
+  }
+  const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelProd) {
+    const prefixed = vercelProd.startsWith('http') ? vercelProd : `https://${vercelProd}`;
+    return prefixed.replace(/\/+$/, '');
+  }
+  return 'https://10msallcourse.com';
 }
 
 interface ResolvedRouteSeo {
@@ -332,6 +341,27 @@ export function buildStructuredData(
         isPartOf: { '@id': `${baseUrl}/#website` },
         inLanguage: 'bn-BD',
       },
+      ...(resolved.canonicalPath !== '/'
+        ? [
+            {
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                {
+                  '@type': 'ListItem',
+                  position: 1,
+                  name: 'হোম',
+                  item: baseUrl,
+                },
+                {
+                  '@type': 'ListItem',
+                  position: 2,
+                  name: resolved.title,
+                  item: pageUrl,
+                },
+              ],
+            },
+          ]
+        : []),
       ...(matched.length > 0
         ? [
             {

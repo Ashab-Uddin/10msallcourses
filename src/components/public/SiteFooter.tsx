@@ -7,7 +7,6 @@ import {
   Mail,
   MapPin,
   ShieldCheck,
-  Download,
   ChevronRight,
   GraduationCap,
   Smartphone,
@@ -22,8 +21,6 @@ export interface SiteFooterProps {
   onNavigate: (path: string) => void;
   onQuickFilter?: (catSlug: string, queryText?: string) => void;
   onDirectCourseLink?: (slug: string) => void;
-  onDownloadZip?: () => void;
-  isDownloadingZip?: boolean;
   authToken?: string | null;
   whatsappNumber?: string;
   whatsappLink?: string;
@@ -32,9 +29,6 @@ export interface SiteFooterProps {
 export const SiteFooter: React.FC<SiteFooterProps> = ({
   onNavigate,
   onQuickFilter,
-  onDirectCourseLink,
-  onDownloadZip,
-  isDownloadingZip = false,
   authToken,
   whatsappNumber = '+880 1625171822',
   whatsappLink = 'https://wa.me/8801625171822',
@@ -275,7 +269,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   <a
                     href="https://www.facebook.com/10ms.official"
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="w-9 h-9 rounded-full bg-[#1877F2] hover:bg-[#166fe5] flex items-center justify-center text-white shadow-md shadow-blue-900/40 transition-all hover:scale-110 active:scale-95"
                     title="Facebook"
                   >
@@ -288,7 +282,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   <a
                     href="https://www.youtube.com/@10MinuteSchool"
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="w-9 h-9 rounded-full bg-[#FF0000] hover:bg-[#e60000] flex items-center justify-center text-white shadow-md shadow-red-900/40 transition-all hover:scale-110 active:scale-95"
                     title="YouTube"
                   >
@@ -301,7 +295,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   <a
                     href="https://www.instagram.com/10ms_official"
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="w-9 h-9 rounded-full flex items-center justify-center text-white shadow-md shadow-pink-900/40 transition-all hover:scale-110 active:scale-95"
                     style={{
                       background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%)',
@@ -317,7 +311,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   <a
                     href={whatsappLink}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="w-9 h-9 rounded-full bg-[#25D366] hover:bg-[#20ba59] flex items-center justify-center text-white shadow-md shadow-emerald-900/40 transition-all hover:scale-110 active:scale-95"
                     title="WhatsApp"
                   >
@@ -501,7 +495,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                     <a
                       href={whatsappLink}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer text-emerald-300 font-semibold"
                     >
                       <ChevronRight className="w-3.5 h-3.5 text-emerald-300" />
@@ -582,21 +576,8 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                 © ২০২৬ | <strong className="text-white">10msallcourse.com</strong> (১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস)। সর্বস্বত্ব সংরক্ষিত।
               </div>
 
-              {/* Action Buttons: ZIP Download & Admin */}
+              {/* Admin Access Link */}
               <div className="flex items-center gap-3">
-                {onDownloadZip && (
-                  <button
-                    type="button"
-                    onClick={onDownloadZip}
-                    disabled={isDownloadingZip}
-                    className="inline-flex items-center gap-1.5 bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb2026] hover:to-[#991b1b] text-white font-bold px-3 py-1.5 rounded-full shadow-sm hover:shadow-md transition cursor-pointer text-xs disabled:opacity-60"
-                    title="প্রজেক্ট সম্পূর্ণ ব্যাকআপ ZIP ডাউনলোড করুন"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{isDownloadingZip ? 'ডাউনলোড হচ্ছে...' : 'ডাউনলোড ZIP'}</span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   onClick={() => onNavigate(authToken ? '/admin/dashboard' : '/admin/login')}

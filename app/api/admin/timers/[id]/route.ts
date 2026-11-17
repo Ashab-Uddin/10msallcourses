@@ -103,6 +103,9 @@ export async function DELETE(
     }
 
     const res = await deleteOfferTimer(numericId);
+    if (!res.found) {
+      return NextResponse.json({ error: 'অফার টাইমারটি পাওয়া যায়নি।' }, { status: 404 });
+    }
     return NextResponse.json(res, {
       headers: { 'Cache-Control': 'private, no-store' },
     });

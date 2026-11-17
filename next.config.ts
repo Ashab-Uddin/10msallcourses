@@ -2,10 +2,28 @@ import type { NextConfig } from 'next';
 
 const isDevCommand =
   process.argv.includes('dev') || process.env.npm_lifecycle_event === 'dev';
+const isVercel = process.env.VERCEL === '1';
+
+const securityHeaders = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'X-DNS-Prefetch-Control', value: 'on' },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  },
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=31536000; includeSubDomains',
+  },
+  ...(isVercel
+    ? [{ key: 'X-Frame-Options', value: 'SAMEORIGIN' }]
+    : []),
+];
 
 const nextConfig: NextConfig = {
   ...(isDevCommand ? { distDir: '.next-dev' } : {}),
-  output: 'standalone',
+  ...(isVercel ? {} : { output: 'standalone' as const }),
   reactStrictMode: true,
   compress: true,
   poweredByHeader: false,
@@ -16,6 +34,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   images: {
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -39,18 +58,54 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: '10mscourses.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.10mscourses.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.public.blob.vercel-storage.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: 'images.unsplash.com',
         pathname: '/**',
       },
     ],
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: securityHeaders,
+      },
+      {
+        source: '/images/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
   },
   transpilePackages: ['motion'],
   experimental: {
     optimizePackageImports: ['lucide-react', 'motion'],
   },
   webpack: (config, { dev }) => {
-    // HMR is disabled in AI Studio via DISABLE_HMR env var.
-    // Do not modify—file watching is disabled to prevent flickering during agent edits.
+    // Preserve DISABLE_HMR file watcher guard when explicitly enabled in preview environments.
     if (dev && process.env.DISABLE_HMR === 'true') {
       config.watchOptions = {
         ignored: /.*/,

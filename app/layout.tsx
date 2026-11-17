@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { getSiteBaseUrl } from '@/src/lib/seo';
 
-const siteUrl = (process.env.APP_URL || 'https://10msallcourse.com').replace(/\/+$/, '');
+const siteUrl = getSiteBaseUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
