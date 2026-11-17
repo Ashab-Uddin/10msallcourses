@@ -1,6 +1,10 @@
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
+
+const isDevCommand =
+  process.argv.includes('dev') || process.env.npm_lifecycle_event === 'dev';
 
 const nextConfig: NextConfig = {
+  ...(isDevCommand ? { distDir: '.next-dev' } : {}),
   output: 'standalone',
   reactStrictMode: true,
   compress: true,
@@ -44,7 +48,7 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'motion'],
   },
-  webpack: (config, {dev}) => {
+  webpack: (config, { dev }) => {
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
     // Do not modify—file watching is disabled to prevent flickering during agent edits.
     if (dev && process.env.DISABLE_HMR === 'true') {

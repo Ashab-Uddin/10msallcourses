@@ -1,0 +1,42 @@
+{
+  "src/App.tsx -> ./components/admin/AdminDashboard.tsx": {
+    "id": "src/App.tsx -> ./components/admin/AdminDashboard.tsx",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_admin_AdminDashboard_tsx.js"
+    ]
+  },
+  "src/App.tsx -> ./components/admin/AdminLogin.tsx": {
+    "id": "src/App.tsx -> ./components/admin/AdminLogin.tsx",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_admin_AdminLogin_tsx.js"
+    ]
+  },
+  "src/App.tsx -> ./components/public/AcademicPage.tsx": {
+    "id": "src/App.tsx -> ./components/public/AcademicPage.tsx",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_public_AcademicPage_tsx.js"
+    ]
+  },
+  "src/App.tsx -> ./components/public/CategoryPage.tsx": {
+    "id": "src/App.tsx -> ./components/public/CategoryPage.tsx",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_public_CategoryPage_tsx.js"
+    ]
+  },
+  "src/components/admin/AdminDashboard.tsx -> ../public/CourseCard.tsx": {
+    "id": "src/components/admin/AdminDashboard.tsx -> ../public/CourseCard.tsx",
+    "files": []
+  },
+  "src/components/admin/AdminDashboard.tsx -> ./CourseEditorPage.tsx": {
+    "id": "src/components/admin/AdminDashboard.tsx -> ./CourseEditorPage.tsx",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_admin_CourseEditorPage_tsx.js"
+    ]
+  },
+  "src/components/admin/AdminDashboard.tsx -> ./OfferTimerManager.tsx": {
+    "id": "src/components/admin/AdminDashboard.tsx -> ./OfferTimerManager.tsx",
+    "files": [
+      "static/chunks/_app-pages-browser_src_components_admin_OfferTimerManager_tsx.js"
+    ]
+  }
+}

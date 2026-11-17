@@ -957,7 +957,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                     <img
                       src={imageUrl}
                       alt="Thumbnail Preview"
-                      className="w-20 h-14 object-cover rounded-lg border border-slate-300 shadow-2xs bg-white"
+                      className="w-24 aspect-video object-contain rounded-lg border border-slate-300 shadow-2xs bg-white shrink-0"
                       onError={(e) => {
                         (e.target as HTMLElement).style.display = 'none';
                       }}

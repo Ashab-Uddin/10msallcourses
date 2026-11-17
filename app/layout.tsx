@@ -1,20 +1,5 @@
 import type { Metadata } from 'next';
-import { Hind_Siliguri, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
-
-const hindSiliguri = Hind_Siliguri({
-  subsets: ['bengali', 'latin'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-hind-siliguri',
-});
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['500', '600', '700', '800'],
-  display: 'swap',
-  variable: '--font-jakarta',
-});
 
 const siteUrl = (process.env.APP_URL || 'https://10msallcourse.com').replace(/\/+$/, '');
 
@@ -57,12 +42,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="bn"
-      suppressHydrationWarning
-      className={`${hindSiliguri.variable} ${plusJakartaSans.variable}`}
-    >
+    <html lang="bn" suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+        />
         <link rel="preconnect" href="https://cdn.10minuteschool.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://cdn.10minuteschool.com" />
       </head>

@@ -24,6 +24,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   const [copied, setCopied] = useState(false);
   const [showLocalModal, setShowLocalModal] = useState(false);
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const [imageRatioMap, setImageRatioMap] = useState<Record<string, number>>({});
 
   // Strip downscaling thumbnail query parameters from 10MS CDN to preserve full HD original quality
   const displayImageUrl = course.imageUrl
@@ -32,6 +33,24 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
   const imageError = Boolean(displayImageUrl && failedImageUrl === displayImageUrl);
   const hasValidImage = Boolean(displayImageUrl && !imageError && displayImageUrl.length > 0);
+
+  const loadedRatio = displayImageUrl ? imageRatioMap[displayImageUrl] : undefined;
+  const isSquareHint =
+    course.imageFit === 'square' ||
+    Boolean(displayImageUrl && /[-_]sqr(?:[-_.?]|$)/i.test(displayImageUrl));
+  const isNonWidescreenImage =
+    loadedRatio !== undefined ? Math.abs(loadedRatio - 16 / 9) > 0.14 : isSquareHint;
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (!displayImageUrl) return;
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    if (naturalWidth > 0 && naturalHeight > 0) {
+      const ratio = naturalWidth / naturalHeight;
+      setImageRatioMap((prev) =>
+        prev[displayImageUrl] === ratio ? prev : { ...prev, [displayImageUrl]: ratio }
+      );
+    }
+  };
 
   const savingsAmount = Math.max(0, course.originalPrice - course.discountPrice);
   const computedDiscountPercent = computeDiscountPercent(course.originalPrice, course.discountPrice);
@@ -214,18 +233,30 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Banner Header */}
-              <div className={`relative aspect-[16/9] w-full ${hasValidImage ? 'bg-white' : banner.bg} overflow-hidden flex flex-col justify-between p-5 text-white text-center`}>
+              <div className={`relative aspect-video w-full ${hasValidImage ? 'bg-white' : banner.bg} overflow-hidden flex flex-col justify-between p-5 text-white text-center`}>
                 {hasValidImage && (
-                  <div className="absolute inset-0 z-0 bg-white">
+                  <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-white">
+                    {isNonWidescreenImage && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={displayImageUrl!}
+                        alt=""
+                        aria-hidden="true"
+                        referrerPolicy="no-referrer"
+                        className="absolute inset-0 w-full h-full object-fill blur-2xl scale-105 pointer-events-none select-none"
+                      />
+                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={displayImageUrl!}
                       alt={`${course.title} — ১০ মিনিট স্কুল কোর্স`}
                       loading="lazy"
                       decoding="async"
-                      width={520}
-                      height={293}
+                      width={1200}
+                      height={675}
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover object-center brightness-100 contrast-100"
+                      onLoad={handleImageLoad}
+                      className="relative z-10 w-full h-full object-contain object-center block"
                     />
                   </div>
                 )}
@@ -383,29 +414,35 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         {/* TOP BANNER AREA (MATCHING UPLOADED STRUCTURE EXACTLY) */}
         <div
           onClick={() => handleCardClick('card_banner')}
-          className={`relative w-full aspect-[4/3] overflow-hidden ${
-            hasValidImage ? 'bg-white' : banner.bg
-          } select-none cursor-pointer flex-shrink-0 flex flex-col justify-between ${
-            hasValidImage ? 'p-2 sm:p-2.5' : 'p-3.5'
-          }`}
+          className={`relative w-full aspect-video overflow-hidden ${
+            hasValidImage ? 'bg-white' : `${banner.bg} p-3.5`
+          } select-none cursor-pointer flex-shrink-0 flex flex-col justify-between`}
           title="১০ মিনিট স্কুলে সরাসরি ভর্তি হতে ক্লিক করুন"
         >
           {hasValidImage ? (
-            <div className="absolute inset-0 z-0 bg-white">
+            <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-white">
+              {isNonWidescreenImage && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={displayImageUrl!}
+                  alt=""
+                  aria-hidden="true"
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 w-full h-full object-fill blur-2xl scale-105 pointer-events-none select-none"
+                />
+              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={displayImageUrl!}
                 alt={`${course.title} — ১০ মিনিট স্কুল কোর্স`}
                 loading="lazy"
                 decoding="async"
-                width={400}
-                height={300}
+                width={1200}
+                height={675}
                 referrerPolicy="no-referrer"
+                onLoad={handleImageLoad}
                 onError={() => setFailedImageUrl(displayImageUrl)}
-                className={`w-full h-full ${
-                  course.imageFit === 'contain'
-                    ? 'object-contain object-center'
-                    : 'object-cover object-center'
-                } block brightness-100 contrast-100 transition-transform duration-500 group-hover:scale-[1.03]`}
+                className="relative z-10 w-full h-full object-contain object-center block"
               />
             </div>
           ) : (

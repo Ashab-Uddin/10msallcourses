@@ -49,6 +49,9 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
         initialCategories={data.categories}
         initialCourses={data.courses}
         initialSettings={data.settings}
+        initialOfferTimers={data.offerTimers}
+        initialHasOfferTimers={data.hasOfferTimers}
+        initialServerNow={data.serverNow}
       />
     </>
   );

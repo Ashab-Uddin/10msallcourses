@@ -136,6 +136,7 @@ function createZipBuffer(files: { path: string; data: Buffer; mtime?: Date }[]):
 const IGNORED_DIRS = new Set([
   'node_modules',
   '.next',
+  '.next-dev',
   '.git',
   '.turbo',
   'dist',
