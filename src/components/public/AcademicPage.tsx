@@ -10,12 +10,8 @@ import {
   Search,
   Sparkles,
   BookOpen,
-  GraduationCap,
-  ChevronRight,
   Atom,
   Briefcase,
-  Layers,
-  CheckCircle2,
 } from 'lucide-react';
 
 export type AcademicLevel = 'ssc' | 'hsc' | 'class';
@@ -82,7 +78,6 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   } | null>(null);
 
   const selectedDept = deptOverride?.key === propKey ? deptOverride.dept : defaultDept;
-  const activeHash = deptOverride?.key === propKey ? deptOverride.hash : defaultHash;
 
   const setSelectedDept = (dept: DepartmentType) => {
     const hash =
@@ -97,7 +92,6 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   };
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [priceFilter, setPriceFilter] = useState('all');
 
   // Define toggle buttons per academic level
   const toggleOptions: ToggleOption[] = useMemo(() => {

@@ -1830,7 +1830,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   )}
                 </div>
 
-                {/* Desktop & Tablet Table (Unchanged) */}
+                {/* Desktop & Tablet Table */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
@@ -1838,6 +1838,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <th className="py-3.5 px-4">কোর্স তথ্য</th>
                         <th className="py-3.5 px-4">ক্যাটাগরি</th>
                         <th className="py-3.5 px-4">মূল্য ও ছাড়</th>
+                        <th className="py-3.5 px-4 text-center">ক্লিক</th>
                         <th className="py-3.5 px-4 text-center">স্ট্যাটাস</th>
                         <th className="py-3.5 px-4 text-right">অ্যাকশন</th>
                       </tr>
@@ -1845,7 +1846,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <tbody className="divide-y divide-rose-100/70">
                       {displayedCourses.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-12 text-center text-[#6B4C4F] font-bold">
+                          <td colSpan={6} className="py-12 text-center text-[#6B4C4F] font-bold">
                             কোনো কোর্স পাওয়া যায়নি। অনুসন্ধান শব্দ পরিবর্তন করুন।
                           </td>
                         </tr>
@@ -1910,6 +1911,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     {toBengaliNumber(course.discountPercent)}% ছাড়)
                                   </div>
                                 )}
+                              </td>
+
+                              {/* Click Count */}
+                              <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                <span className="font-mono font-bold text-[#b91c1c] tabular-nums">
+                                  {toBengaliNumber(course.clickCount || 0)} ক্লিক
+                                </span>
                               </td>
 
                               {/* 3-State Status Selector */}

@@ -11,9 +11,6 @@ import {
   Search,
   Menu,
   X,
-  Atom,
-  Briefcase,
-  BookOpen,
 } from 'lucide-react';
 
 interface HeaderNavProps {
@@ -50,7 +47,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   onNavigateHome,
   onNavigate,
   currentPath = '/',
-  currentHash = '',
 }) => {
   const [activeMenu, setActiveMenu] = useState<NavKey | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

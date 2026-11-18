@@ -1,28 +1,23 @@
 'use client';
 
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Course } from '../../types.ts';
-import { toBengaliNumber, parseFeatures } from '../../utils/format.ts';
+import { toBengaliNumber } from '../../utils/format.ts';
 import { computeDiscountPercent } from '../../lib/courseValidation.ts';
-import { X, Check, Copy, Info, Star, Users, Zap, ExternalLink, ArrowRight } from 'lucide-react';
+import { X, ArrowRight } from 'lucide-react';
 
 export interface CourseCardProps {
   course: Course;
   onSelectCourse?: (slug: string) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
-  onOpenQuickView?: (course: Course) => void;
   headingLevel?: 'h3' | 'h4';
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({
   course,
   onEnrollClick,
-  onOpenQuickView,
   headingLevel = 'h4',
 }) => {
-  const [copied, setCopied] = useState(false);
-  const [showLocalModal, setShowLocalModal] = useState(false);
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [imageRatioMap, setImageRatioMap] = useState<Record<string, number>>({});
 
@@ -109,41 +104,11 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     onEnrollClick(course, referrer);
   };
 
-  const handleCopyLink = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const link =
-      course.affiliateUrl ||
-      (typeof window !== 'undefined'
-        ? `${window.location.origin}/go/${course.slug}`
-        : `/go/${course.slug}`);
-
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard
-        .writeText(link)
-        .then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2200);
-        })
-        .catch(() => {});
-    }
-  };
-
-  const handleOpenInfo = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onOpenQuickView) {
-      onOpenQuickView(course);
-    } else {
-      setShowLocalModal(true);
-    }
-  };
-
   const displayDescription =
     course.description ||
     (course.categorySlug === 'school'
       ? '২০২৭ সালে SSC 2027 বোর্ড পরীক্ষায় সেরা রেজাল্ট করার জন্য সঠিক গাইডলাইন ও ফুল রিভিশন প্রোগ্রাম...'
       : 'প্রথম থেকেই বিষয়ভিত্তিক পূর্ণাঙ্গ A+ প্রস্তুতির গোছানো একাডেমিক প্রোগ্রাম এবং লাইভ গাইডলাইন...');
-
-  const parsedFeats = parseFeatures(course.features || '');
 
   // 1. Top small black badge (e.g. HSC 28, HSC 27, SSC 27, 10MS)
   const topBadge =
@@ -233,204 +198,8 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   };
   const discountBadge = getDiscountBadge();
 
-  // Full Details Quick-View Modal
-  const modalNode =
-    showLocalModal && typeof document !== 'undefined'
-      ? createPortal(
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rose-950/35 backdrop-blur-md animate-in fade-in duration-200"
-            onClick={() => setShowLocalModal(false)}
-          >
-            <div
-              className="glass-strong rounded-3xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Modal Banner Header */}
-              <div className={`relative aspect-video w-full ${hasValidImage ? 'bg-white' : banner.bg} overflow-hidden flex flex-col justify-between p-5 text-white text-center`}>
-                {hasValidImage && (
-                  <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-white">
-                    {isNonWidescreenImage && (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={displayImageUrl!}
-                        alt=""
-                        aria-hidden="true"
-                        referrerPolicy="no-referrer"
-                        className="absolute inset-0 w-full h-full object-fill blur-2xl scale-105 pointer-events-none select-none"
-                      />
-                    )}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={displayImageUrl!}
-                      alt={`${course.title} — ১০ মিনিট স্কুল কোর্স`}
-                      loading="lazy"
-                      decoding="async"
-                      width={1200}
-                      height={675}
-                      referrerPolicy="no-referrer"
-                      onLoad={handleImageLoad}
-                      className="relative z-10 w-full h-full object-contain object-center block"
-                    />
-                  </div>
-                )}
-                {(computedDiscountPercent > 0 || isClosed) && (
-                  <div className="absolute top-3 left-3 z-30 pointer-events-none flex items-center gap-1.5">
-                    {computedDiscountPercent > 0 && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white text-xs font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums">
-                        {toBengaliNumber(computedDiscountPercent)}% ছাড়
-                      </span>
-                    )}
-                    {isClosed && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-600/95 text-white text-xs font-black tracking-tight shadow-md border border-amber-300/60">
-                        ভর্তি বন্ধ
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <div className="absolute top-3 right-3 z-30">
-                  <button
-                    type="button"
-                    onClick={() => setShowLocalModal(false)}
-                    className="p-2 rounded-full bg-black/60 hover:bg-black text-white transition cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {!hasValidImage && (
-                  <div className="my-auto">
-                    <span className="inline-block bg-black/90 text-white text-xs font-black px-3 py-0.5 rounded-full uppercase tracking-wider mb-2">
-                      {topBadge}
-                    </span>
-                    <div className={`bg-white ${banner.textColor} font-black text-base px-4 py-1 rounded-md shadow-sm max-w-[280px] mx-auto`}>
-                      {middleBadge}
-                    </div>
-                    <div className="text-white font-bold text-sm mt-1.5 opacity-95">
-                      {subTitle}
-                    </div>
-                  </div>
-                )}
-
-                {(bottomLeftBadge || discountBadge) && (
-                  <div className="flex items-center justify-between text-xs font-bold pt-2 border-t border-white/20">
-                    {bottomLeftBadge ? (
-                      <span className="bg-black/60 px-2.5 py-1 rounded-full">⚡ {bottomLeftBadge}</span>
-                    ) : (
-                      <span />
-                    )}
-                    {discountBadge && (
-                      <span className="bg-[#007a3d] px-3 py-1 rounded-full">{discountBadge}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Content */}
-              <div className="p-5 sm:p-6 max-h-[60vh] overflow-y-auto space-y-4">
-                <div>
-                  <h3 className="text-lg sm:text-xl font-bold text-[#2A0F12]">
-                    {course.title}
-                  </h3>
-                  <p className="text-xs text-[#6B4C4F] mt-1.5 leading-relaxed">
-                    {course.fullDescription || course.description || displayDescription}
-                  </p>
-                </div>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-3 gap-2 py-3 px-3 glass-inset rounded-2xl text-center text-xs">
-                  <div>
-                    <span className="text-[#6B4C4F] block text-[11px]">রেটিং</span>
-                    <span className="font-bold text-[#2A0F12] flex items-center justify-center gap-1 mt-0.5">
-                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      {course.rating || '৪.৯'}
-                    </span>
-                  </div>
-                  <div className="border-x border-rose-200/60">
-                    <span className="text-[#6B4C4F] block text-[11px]">শিক্ষার্থী</span>
-                    <span className="font-bold text-[#2A0F12] mt-0.5 block">
-                      {course.studentCount || '১২,৫০০+'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#6B4C4F] block text-[11px]">মেয়াদ / সময়</span>
-                    <span className="font-bold text-[#2A0F12] mt-0.5 block">
-                      {course.duration || 'পূর্ণাঙ্গ সেশন'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Course Features */}
-                {parsedFeats.length > 0 && (
-                  <div>
-                    <h5 className="text-xs font-bold text-[#2A0F12] uppercase tracking-wider mb-2">
-                      কোর্সে যা যা থাকছে
-                    </h5>
-                    <div className="space-y-2">
-                      {parsedFeats.map((feat, idx) => (
-                        <div key={idx} className="flex items-start gap-2 text-xs text-slate-700">
-                          <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                          <span>{feat}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 sm:p-5 border-t border-white/75 bg-white/55 backdrop-blur-md flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs text-[#6B4C4F] block">কোর্স ফি</span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black text-[#007a3d]">
-                      {course.discountPrice === 0 ? 'ফ্রি' : `৳${toBengaliNumber(course.discountPrice)}`}
-                    </span>
-                    {course.originalPrice > course.discountPrice && (
-                      <span className="text-xs text-[#6B4C4F] line-through">
-                        ৳{toBengaliNumber(course.originalPrice)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="px-3 py-2.5 rounded-xl glass-inset hover:bg-white text-[#2A0F12] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition"
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                    <span>{copied ? 'কপি হয়েছে' : 'লিংক কপি'}</span>
-                  </button>
-                  {!isClosed && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowLocalModal(false);
-                        handleCardClick('modal_enroll');
-                      }}
-                      className="bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb2026] hover:to-[#991b1b] text-white font-bold text-sm py-2.5 px-5 rounded-xl flex items-center gap-2 shadow-lg shadow-red-600/25 cursor-pointer transition"
-                    >
-                      <span>এখনই ভর্তি হোন</span>
-                      <ExternalLink className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )
-      : null;
-
   return (
-    <>
-      <div className="glass-card rounded-[22px] flex flex-col h-full group overflow-hidden">
+    <div className="glass-card rounded-[22px] flex flex-col h-full group overflow-hidden">
         {/* TOP BANNER AREA (MATCHING UPLOADED STRUCTURE EXACTLY) */}
         <div
           onClick={() => handleCardClick('card_banner')}
@@ -624,8 +393,5 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           </div>
         </div>
       </div>
-
-      {modalNode}
-    </>
   );
 };

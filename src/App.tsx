@@ -329,15 +329,47 @@ export default function App({
     };
   }, [route.view, adminSession]);
 
-  const handleAdminLogin = (email: string, name: string) => {
-    setAdminSession({ email, name });
-    setAdminSessionChecked(true);
-    if (!currentPath.startsWith('/admin/') || currentPath === '/admin/login') {
-      navigate('/admin/dashboard');
-    }
-  };
+  const navigate = useCallback((fullUrl: string, options?: { noScroll?: boolean }) => {
+    const [pathPart, hashPart] = fullUrl.split('#');
+    const targetPath = pathPart || (typeof window !== 'undefined' ? window.location.pathname : '');
+    const targetHash = hashPart ? `#${hashPart}` : '';
 
-  const handleAdminLogout = () => {
+    const isSamePath = typeof window !== 'undefined' && (
+      window.location.pathname.replace(/\/$/, '') === targetPath.replace(/\/$/, '')
+    );
+
+    if (typeof window !== 'undefined') {
+      if (options?.noScroll || isSamePath) {
+        window.history.replaceState({}, '', fullUrl);
+      } else {
+        window.history.pushState({}, '', fullUrl);
+      }
+    }
+    setNavOverride({
+      basePathname: currentPathname,
+      path: targetPath,
+      hash: targetHash,
+    });
+
+    if (options?.noScroll || isSamePath) {
+      return;
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPathname]);
+
+  const handleAdminLogin = useCallback(
+    (email: string, name: string) => {
+      setAdminSession({ email, name });
+      setAdminSessionChecked(true);
+      if (!currentPath.startsWith('/admin/') || currentPath === '/admin/login') {
+        navigate('/admin/dashboard');
+      }
+    },
+    [currentPath, navigate]
+  );
+
+  const handleAdminLogout = useCallback(() => {
     fetch('/api/admin/logout', {
       method: 'POST',
       credentials: 'include',
@@ -346,7 +378,7 @@ export default function App({
     setAdminSession(null);
     setAdminSessionChecked(true);
     navigate('/');
-  };
+  }, [navigate]);
 
   // Public portal data initialized from Server Component props (zero initial client waterfall)
   const [categories, setCategories] = useState<Category[]>(initialCategories);
@@ -380,11 +412,11 @@ export default function App({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [priceFilter, setPriceFilter] = useState<string>('all');
   const [onlyPopular, setOnlyPopular] = useState<boolean>(false);
-  const [isDownloadingZip, setIsDownloadingZip] = useState<boolean>(false);
+  const isDownloadingZipRef = useRef<boolean>(false);
 
-  const handleDownloadZip = async () => {
-    if (isDownloadingZip) return;
-    setIsDownloadingZip(true);
+  const handleDownloadZip = useCallback(async () => {
+    if (isDownloadingZipRef.current) return;
+    isDownloadingZipRef.current = true;
     try {
       const res = await fetch('/api/download-project-zip', {
         credentials: 'include',
@@ -405,44 +437,15 @@ export default function App({
     } catch (err: any) {
       showAppToast('ডাউনলোড সমস্যা: ' + (err?.message || 'ব্যর্থ হয়েছে'), 'error');
     } finally {
-      setIsDownloadingZip(false);
+      isDownloadingZipRef.current = false;
     }
-  };
+  }, [showAppToast]);
 
   // Live Countdown State
   const [countdown, setCountdown] = useState({ d: '02', h: '08', m: '26', s: '55' });
 
   // Mobile Bottom Navigation State
   const [, setMobileTab] = useState<MobileTab>('home');
-
-  const navigate = useCallback((fullUrl: string, options?: { noScroll?: boolean }) => {
-    const [pathPart, hashPart] = fullUrl.split('#');
-    const targetPath = pathPart || (typeof window !== 'undefined' ? window.location.pathname : '');
-    const targetHash = hashPart ? `#${hashPart}` : '';
-
-    const isSamePath = typeof window !== 'undefined' && (
-      window.location.pathname.replace(/\/$/, '') === targetPath.replace(/\/$/, '')
-    );
-
-    if (typeof window !== 'undefined') {
-      if (options?.noScroll || isSamePath) {
-        window.history.replaceState({}, '', fullUrl);
-      } else {
-        window.history.pushState({}, '', fullUrl);
-      }
-    }
-    setNavOverride({
-      basePathname: currentPathname,
-      path: targetPath,
-      hash: targetHash,
-    });
-
-    if (options?.noScroll || isSamePath) {
-      return;
-    }
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentPathname]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -479,8 +482,11 @@ export default function App({
     }
   }, []);
 
-  // Synchronized live clock for real-time course offer countdown timers
+  // Synchronized live clock for real-time course offer countdown timers (public routes only)
   useEffect(() => {
+    if (route.view === 'admin_dashboard' || route.view === 'admin_login') {
+      return;
+    }
     if (initialServerNow) {
       const parsed = new Date(initialServerNow).getTime();
       if (Number.isFinite(parsed)) {
@@ -496,10 +502,13 @@ export default function App({
       clearTimeout(initTimer);
       clearInterval(interval);
     };
-  }, [initialServerNow]);
+  }, [initialServerNow, route.view]);
 
-  // Countdown timer effect matching user's original script or admin configured target date (legacy fallback)
+  // Countdown timer effect matching user's original script or admin configured target date (public routes only)
   useEffect(() => {
+    if (route.view === 'admin_dashboard' || route.view === 'admin_login') {
+      return;
+    }
     let targetTime: number;
 
     if (settings?.countdownTargetDate) {
@@ -536,7 +545,7 @@ export default function App({
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [settings?.countdownTargetDate]);
+  }, [settings?.countdownTargetDate, route.view]);
 
   const fetchPublicData = useCallback(async () => {
     setFetchError(null);
