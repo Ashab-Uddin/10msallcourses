@@ -103,8 +103,9 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
                   <Image
                     src="/logo.png"
                     alt="10 Minute School"
-                    width={110}
-                    height={28}
+                    width={638}
+                    height={296}
+                    style={{ width: 'auto' }}
                     className="h-7 w-auto object-contain block"
                   />
                 </div>

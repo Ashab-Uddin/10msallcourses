@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const rate = checkRateLimit(req, 'public_message', 8, 10 * 60 * 1000);
+    const rate = await checkRateLimit(req, 'public_message', 8, 10 * 60 * 1000);
     if (!rate.allowed) {
       return NextResponse.json(
         {

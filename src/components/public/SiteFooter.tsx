@@ -217,8 +217,9 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                     <Image
                       src="/logo.png"
                       alt="১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস লোগো"
-                      width={136}
-                      height={36}
+                      width={638}
+                      height={296}
+                      style={{ width: 'auto' }}
                       className="h-8 sm:h-9 w-auto object-contain block"
                     />
                   </div>

@@ -8,6 +8,50 @@ export interface PendingCookie {
   options?: CookieOptions;
 }
 
+function resolveSupabaseCookieSecurity(req?: NextRequest): {
+  httpOnly: true;
+  sameSite: 'lax' | 'none';
+  secure: boolean;
+  partitioned?: boolean;
+  path: '/';
+} {
+  if (process.env.VERCEL === '1') {
+    return {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      path: '/',
+    };
+  }
+
+  const forwardedProto = req?.headers
+    .get('x-forwarded-proto')
+    ?.split(',')[0]
+    ?.trim()
+    .toLowerCase();
+  const isHttpsPreview =
+    forwardedProto === 'https' ||
+    req?.nextUrl?.protocol === 'https:' ||
+    Boolean(process.env.APP_URL?.trim().toLowerCase().startsWith('https://'));
+
+  if (isHttpsPreview) {
+    return {
+      httpOnly: true,
+      sameSite: 'none',
+      secure: true,
+      partitioned: true,
+      path: '/',
+    };
+  }
+
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+  };
+}
+
 /**
  * Creates a request-scoped Supabase SSR client for Next.js Route Handlers.
  * Cookies mutated by Supabase Auth (login, token refresh, logout) are collected
@@ -44,9 +88,10 @@ export function createSupabaseRouteClient(req: NextRequest) {
 
 export function applyPendingSupabaseCookies(
   res: NextResponse,
-  pendingCookies: PendingCookie[]
+  pendingCookies: PendingCookie[],
+  req?: NextRequest
 ): void {
-  const isProd = process.env.NODE_ENV === 'production';
+  const securityAttrs = resolveSupabaseCookieSecurity(req);
 
   for (const { name, value, options } of pendingCookies) {
     res.cookies.set({
@@ -54,9 +99,10 @@ export function applyPendingSupabaseCookies(
       name,
       value,
       httpOnly: true,
-      sameSite: (options?.sameSite as 'lax' | 'strict' | 'none' | undefined) ?? 'lax',
-      secure: isProd ? true : Boolean(options?.secure),
-      path: options?.path ?? '/',
+      sameSite: securityAttrs.sameSite,
+      secure: securityAttrs.secure,
+      ...(securityAttrs.partitioned ? { partitioned: true } : {}),
+      path: options?.path ?? securityAttrs.path,
     });
   }
 }

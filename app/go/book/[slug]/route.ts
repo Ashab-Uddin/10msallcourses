@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const rate = checkRateLimit(req, 'public_go_book_redirect', 60, 60 * 1000);
+    const rate = await checkRateLimit(req, 'public_go_book_redirect', 60, 60 * 1000);
     if (!rate.allowed) {
       return NextResponse.json(
         { error: 'অতিরিক্ত অনুরোধ করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।' },

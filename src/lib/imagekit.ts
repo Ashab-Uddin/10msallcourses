@@ -16,6 +16,19 @@ export interface ImageKitUploadResult {
   size?: number;
 }
 
+function isPlaceholderImageKitValue(val: string): boolean {
+  const lower = val.trim().toLowerCase();
+  if (!lower) return true;
+  return (
+    lower.includes('your-') ||
+    lower.includes('your_') ||
+    lower.includes('placeholder') ||
+    lower.includes('example.com') ||
+    lower.startsWith('<') ||
+    lower === 'changeme'
+  );
+}
+
 export function getImageKitConfig(): ImageKitConfig | null {
   if (typeof window !== 'undefined') {
     throw new Error('ImageKit server credentials must never be accessed in browser code.');
@@ -27,7 +40,11 @@ export function getImageKitConfig(): ImageKitConfig | null {
   const rawFolder = (process.env.IMAGEKIT_UPLOAD_FOLDER || '/10ms-courses').trim();
   const uploadFolder = rawFolder.startsWith('/') ? rawFolder.replace(/\/+$/, '') || '/10ms-courses' : `/${rawFolder.replace(/\/+$/, '')}`;
 
-  if (!publicKey || !privateKey || !urlEndpoint) {
+  if (
+    isPlaceholderImageKitValue(publicKey) ||
+    isPlaceholderImageKitValue(privateKey) ||
+    isPlaceholderImageKitValue(urlEndpoint)
+  ) {
     return null;
   }
 

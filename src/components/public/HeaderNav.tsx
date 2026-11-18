@@ -224,9 +224,10 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           <Image
             src="/images/logo-transparent.png"
             alt="১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস লোগো"
-            width={150}
-            height={38}
+            width={638}
+            height={296}
             priority
+            style={{ width: 'auto' }}
             className="h-8 sm:h-9.5 w-auto object-contain block drop-shadow-xs"
           />
         </button>

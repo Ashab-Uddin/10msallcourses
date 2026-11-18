@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import type { NextRequest, NextResponse } from 'next/server';
+import { isSameOriginMutation } from './csrf.ts';
 import { isSupabaseAuthReady } from './supabase/config.ts';
 import { getSupabaseAdminClient } from './supabase/admin.ts';
 import {
@@ -8,8 +9,13 @@ import {
   type PendingCookie,
 } from './supabase/server.ts';
 
+export { isSameOriginMutation };
 export const ADMIN_SESSION_COOKIE = '10ms_admin_session';
 const SESSION_TTL_SECONDS = 12 * 60 * 60; // 12 hours
+
+export function isProductionAuthStrict(): boolean {
+  return process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+}
 
 export interface AdminSessionPayload {
   userId?: string;
@@ -34,14 +40,18 @@ export type AdminLoginResult =
     };
 
 function getEnvSessionSecret(): string | null {
+  if (isProductionAuthStrict()) {
+    return null;
+  }
+
   const configured = process.env.ADMIN_SESSION_SECRET?.trim();
   if (configured && configured.length >= 16) {
     return configured;
   }
 
-  // Only allow derived secret in non-Vercel local dev when env admin credentials are explicitly set
+  // Only allow derived secret in non-production local dev when env admin credentials are explicitly set
   const passSeed = process.env.ADMIN_PASSWORD?.trim() || process.env.ADMIN_PASSWORD_HASH?.trim() || '';
-  if (process.env.VERCEL !== '1' && passSeed) {
+  if (passSeed) {
     return crypto
       .createHash('sha256')
       .update(`${passSeed}:${process.cwd()}:${process.env.ADMIN_EMAIL || ''}`)
@@ -152,43 +162,7 @@ function verifyEnvSessionToken(token: string): AdminSessionPayload | null {
   }
 }
 
-export function isSameOriginMutation(req: NextRequest): boolean {
-  const method = req.method.toUpperCase();
-  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
-    return true;
-  }
-
-  const origin = req.headers.get('origin');
-  if (!origin) {
-    return true;
-  }
-
-  try {
-    const originHost = new URL(origin).host.toLowerCase();
-    const allowedHosts = new Set<string>();
-
-    const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim().toLowerCase();
-    if (forwardedHost) allowedHosts.add(forwardedHost);
-
-    const directHost = req.headers.get('host')?.split(',')[0]?.trim().toLowerCase();
-    if (directHost) allowedHosts.add(directHost);
-
-    for (const candidateUrl of [process.env.APP_URL, process.env.NEXT_PUBLIC_SITE_URL]) {
-      if (candidateUrl) {
-        try {
-          allowedHosts.add(new URL(candidateUrl).host.toLowerCase());
-        } catch {
-          // ignore malformed env URL
-        }
-      }
-    }
-
-    if (allowedHosts.size === 0) return true;
-    return allowedHosts.has(originHost);
-  } catch {
-    return false;
-  }
-}
+// Same-origin CSRF validation is imported & re-exported from ./csrf.ts (Edge & Node compatible).
 
 function resolveAdminCookieOptions(req?: NextRequest): {
   httpOnly: true;
@@ -276,11 +250,15 @@ async function lookupActiveAdminAllowlist(userId: string): Promise<{
     return null;
   }
 
+  if (data.role !== 'admin' && data.role !== 'super_admin') {
+    return null;
+  }
+
   return {
     userId: String(data.user_id),
     email: String(data.email),
     displayName: String(data.display_name || 'Site Admin'),
-    role: data.role === 'super_admin' ? 'super_admin' : 'admin',
+    role: data.role,
   };
 }
 
@@ -297,6 +275,14 @@ export async function authenticateAdminLogin(
   emailInput: string,
   passwordInput: string
 ): Promise<AdminLoginResult> {
+  if (!isSameOriginMutation(req)) {
+    return {
+      ok: false,
+      error: 'Cross-site login request blocked by CSRF protection.',
+      status: 403,
+    };
+  }
+
   const cleanEmail = emailInput.trim().toLowerCase();
   const cleanPass = passwordInput;
 
@@ -351,13 +337,27 @@ export async function authenticateAdminLogin(
       ok: true,
       admin: adminPayload,
       applySessionCookies: (res: NextResponse) => {
-        clearAdminSessionCookie(res, req);
-        applyPendingSupabaseCookies(res, pendingCookies);
+        if (req.cookies.has(ADMIN_SESSION_COOKIE)) {
+          clearAdminSessionCookie(res, req);
+        }
+        applyPendingSupabaseCookies(res, pendingCookies, req);
       },
     };
   }
 
-  // 2. Non-Supabase Env Credentials Mode (ONLY when explicitly configured via environment variables)
+  // 2. Non-Supabase Env Credentials Mode (strictly forbidden in Production/Vercel)
+  if (isProductionAuthStrict()) {
+    console.error(
+      '[adminAuth] Production runtime requires Supabase Auth (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`). Legacy env login is disabled.'
+    );
+    return {
+      ok: false,
+      error:
+        'Production পরিবেশে Supabase Auth এবং `public.admin_users` বাধ্যতামূলক। এনভায়রনমেন্ট ভ্যারিয়েবল যাচাই করুন।',
+      status: 503,
+    };
+  }
+
   const envEmailRaw = process.env.ADMIN_EMAIL?.trim() || '';
   const envPassword = process.env.ADMIN_PASSWORD?.trim() || '';
   const envPasswordHash = process.env.ADMIN_PASSWORD_HASH?.trim() || '';
@@ -458,7 +458,11 @@ export async function getAuthenticatedAdminWithCookies(req: NextRequest): Promis
     }
   }
 
-  // 2. Env-signed HttpOnly cookie session verification (local non-Supabase fallback)
+  // 2. Env-signed HttpOnly cookie session verification (non-production local dev fallback ONLY)
+  if (isProductionAuthStrict()) {
+    return { admin: null, pendingCookies: [] };
+  }
+
   const cookieToken = req.cookies.get(ADMIN_SESSION_COOKIE)?.value?.trim();
   if (!cookieToken) {
     return { admin: null, pendingCookies: [] };
@@ -489,7 +493,7 @@ export async function signOutAdminSession(
     try {
       const { supabase, pendingCookies } = createSupabaseRouteClient(req);
       await supabase.auth.signOut();
-      applyPendingSupabaseCookies(res, pendingCookies);
+      applyPendingSupabaseCookies(res, pendingCookies, req);
     } catch (err) {
       console.warn('[adminAuth] Supabase signOut warning:', err);
     }

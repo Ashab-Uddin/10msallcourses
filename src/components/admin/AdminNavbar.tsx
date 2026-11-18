@@ -206,9 +206,10 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
             <Image
               src="/images/logo-transparent.png"
               alt="10 Minute School"
-              width={142}
-              height={36}
+              width={638}
+              height={296}
               priority
+              style={{ width: 'auto' }}
               className="h-8 sm:h-9 w-auto object-contain block drop-shadow-xs"
             />
           </Link>

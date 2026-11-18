@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const rate = checkRateLimit(req, 'admin_upload', 30, 10 * 60 * 1000);
+  const rate = await checkRateLimit(req, 'admin_upload', 30, 10 * 60 * 1000);
   if (!rate.allowed) {
     return NextResponse.json(
       { error: 'অতিরিক্ত আপলোড অনুরোধ করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।' },

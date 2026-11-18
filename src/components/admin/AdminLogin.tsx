@@ -110,9 +110,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             <Image
               src="/images/logo-transparent.png"
               alt="10 Minute School"
-              width={158}
-              height={40}
+              width={638}
+              height={296}
               priority
+              style={{ width: 'auto' }}
               className="h-10 w-auto object-contain mx-auto block drop-shadow-xs mb-2"
             />
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-[#b91c1c] text-xs font-bold">

@@ -8,7 +8,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const rate = checkRateLimit(req, 'public_book_click', 60, 60 * 1000);
+  const rate = await checkRateLimit(req, 'public_book_click', 60, 60 * 1000);
   if (!rate.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded' },

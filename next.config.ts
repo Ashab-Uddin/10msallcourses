@@ -4,14 +4,23 @@ const isDevCommand =
   process.argv.includes('dev') || process.env.npm_lifecycle_event === 'dev';
 const isVercel = process.env.VERCEL === '1';
 
-const securityHeaders = [
+const cspReportOnlyDirectives = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDevCommand ? " 'unsafe-eval'" : ''}`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "img-src 'self' data: blob: https://ik.imagekit.io https://cdn.10minuteschool.com https://10minuteschool.com https://*.10minuteschool.com https://10mscourses.com https://*.10mscourses.com https://*.public.blob.vercel-storage.com https://res.cloudinary.com https://images.unsplash.com https://picsum.photos https://*.supabase.co",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://upload.imagekit.io https://ik.imagekit.io",
+  "media-src 'self' https://ik.imagekit.io https://cdn.10minuteschool.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  ...(isVercel ? ["frame-ancestors 'self'", 'upgrade-insecure-requests'] : []),
+].join('; ');
+
+const coreSecurityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'X-DNS-Prefetch-Control', value: 'on' },
-  {
-    key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
-  },
   {
     key: 'Strict-Transport-Security',
     value: 'max-age=31536000; includeSubDomains',
@@ -21,6 +30,18 @@ const securityHeaders = [
     : []),
 ];
 
+const documentSecurityHeaders = [
+  { key: 'X-DNS-Prefetch-Control', value: 'on' },
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  },
+  {
+    key: 'Content-Security-Policy-Report-Only',
+    value: cspReportOnlyDirectives,
+  },
+];
+
 const nextConfig: NextConfig = {
   ...(isDevCommand ? { distDir: '.next-dev' } : {}),
   ...(isVercel ? {} : { output: 'standalone' as const }),
@@ -28,7 +49,7 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
     ignoreBuildErrors: false,
@@ -92,7 +113,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/(.*)',
-        headers: securityHeaders,
+        headers: coreSecurityHeaders,
+      },
+      {
+        source: '/((?!api/).*)',
+        headers: documentSecurityHeaders,
       },
       {
         source: '/images/:path*',

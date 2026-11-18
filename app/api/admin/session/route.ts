@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
         headers: { 'Cache-Control': 'private, no-store' },
       }
     );
-    applyPendingSupabaseCookies(res, pendingCookies);
+    applyPendingSupabaseCookies(res, pendingCookies, req);
     return res;
   }
 
@@ -31,6 +31,6 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': 'private, no-store' },
     }
   );
-  applyPendingSupabaseCookies(res, pendingCookies);
+  applyPendingSupabaseCookies(res, pendingCookies, req);
   return res;
 }

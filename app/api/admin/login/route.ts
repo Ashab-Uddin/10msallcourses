@@ -1,21 +1,32 @@
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateAdminLogin } from '@/src/lib/adminAuth';
+import { authenticateAdminLogin, isSameOriginMutation } from '@/src/lib/adminAuth';
 import { checkRateLimit } from '@/src/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  if (!isSameOriginMutation(req)) {
+    return NextResponse.json(
+      { error: 'Cross-site request blocked by CSRF protection.' },
+      {
+        status: 403,
+        headers: { 'Cache-Control': 'private, no-store' },
+      }
+    );
+  }
+
   try {
-    const rate = checkRateLimit(req, 'admin_login', 10, 15 * 60 * 1000);
-    if (!rate.allowed) {
+    const ipRate = await checkRateLimit(req, 'admin_login', 10, 15 * 60 * 1000);
+    if (!ipRate.allowed) {
       return NextResponse.json(
         {
-          error: `অতিরিক্ত লগইন প্রচেষ্টা করা হয়েছে। অনুগ্রহ করে ${rate.retryAfterSeconds} সেকেন্ড পর আবার চেষ্টা করুন।`,
+          error: `অতিরিক্ত লগইন প্রচেষ্টা করা হয়েছে। অনুগ্রহ করে ${ipRate.retryAfterSeconds} সেকেন্ড পর আবার চেষ্টা করুন।`,
         },
         {
           status: 429,
           headers: {
-            'Retry-After': String(rate.retryAfterSeconds),
+            'Retry-After': String(ipRate.retryAfterSeconds),
             'Cache-Control': 'private, no-store',
           },
         }
@@ -25,6 +36,36 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const email = String(body?.email || '');
     const password = String(body?.password || '');
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail) {
+      const emailDigest = crypto
+        .createHash('sha256')
+        .update(cleanEmail)
+        .digest('hex')
+        .slice(0, 24);
+      const emailRate = await checkRateLimit(
+        req,
+        'admin_login_email',
+        10,
+        15 * 60 * 1000,
+        emailDigest
+      );
+      if (!emailRate.allowed) {
+        return NextResponse.json(
+          {
+            error: `অতিরিক্ত লগইন প্রচেষ্টা করা হয়েছে। অনুগ্রহ করে ${emailRate.retryAfterSeconds} সেকেন্ড পর আবার চেষ্টা করুন।`,
+          },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(emailRate.retryAfterSeconds),
+              'Cache-Control': 'private, no-store',
+            },
+          }
+        );
+      }
+    }
 
     const result = await authenticateAdminLogin(req, email, password);
     if (!result.ok) {
