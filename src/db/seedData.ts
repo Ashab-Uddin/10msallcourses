@@ -13,7 +13,7 @@ export const INITIAL_CATEGORIES: Category[] = [
   },
   {
     id: 2,
-    name: '৬ - ১০ শ্রেণি',
+    name: 'SSC-নবম-দশম শ্রেণি',
     slug: 'school',
     subtitle: 'SSC ২০২৭ প্রস্তুতি ও বোর্ড পরীক্ষার ১০০% রিভিশন প্রোগ্রাম',
     badgeColor: 'amber',

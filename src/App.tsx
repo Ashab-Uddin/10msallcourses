@@ -192,6 +192,16 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
   return { view: 'home' };
 }
 
+if (typeof document !== 'undefined') {
+  try {
+    document
+      .querySelectorAll('[fdprocessedid]')
+      .forEach((el) => el.removeAttribute('fdprocessedid'));
+  } catch {
+    // Ignore DOM cleanup errors
+  }
+}
+
 export default function App({
   initialCategories = [],
   initialCourses = [],
@@ -202,6 +212,11 @@ export default function App({
   initialBookCategories = [],
   initialBooks = [],
 }: AppProps) {
+  useEffect(() => {
+    const win = window as Window & { __stopFdAttrGuard?: () => void };
+    win.__stopFdAttrGuard?.();
+  }, []);
+
   const currentPathname = usePathname() || '/';
   const [navOverride, setNavOverride] = useState<{
     basePathname: string;

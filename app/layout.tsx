@@ -56,6 +56,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="dns-prefetch" href="https://ik.imagekit.io" />
         <link rel="preconnect" href="https://cdn.10minuteschool.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://cdn.10minuteschool.com" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var c=function(r){if(!r||!r.querySelectorAll)return;var e=r.querySelectorAll('[fdprocessedid]');for(var i=0;i<e.length;i++)e[i].removeAttribute('fdprocessedid');};c(document);var o=new MutationObserver(function(m){for(var i=0;i<m.length;i++){var t=m[i].target;if(t&&t.removeAttribute&&t.hasAttribute&&t.hasAttribute('fdprocessedid'))t.removeAttribute('fdprocessedid');}});o.observe(document.documentElement,{attributes:true,attributeFilter:['fdprocessedid'],subtree:true});var s=function(){try{o.disconnect()}catch(e){}};window.__stopFdAttrGuard=s;setTimeout(s,5000);}catch(e){}})();`,
+          }}
+        />
       </head>
       <body
         suppressHydrationWarning
