@@ -5,12 +5,15 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
-import { computeOfferTimerStatus, getCountdownParts } from './lib/offerTimerUtils.ts';
 import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
+import { HeroOfferCountdown } from './components/public/HeroOfferCountdown.tsx';
 import { MobileBottomNav, MobileTab } from './components/public/MobileBottomNav.tsx';
 import { HeaderNav } from './components/public/HeaderNav.tsx';
-import type { AcademicLevel } from './components/public/AcademicPage.tsx';
+import { AcademicPage, type AcademicLevel } from './components/public/AcademicPage.tsx';
+import { CategoryPage } from './components/public/CategoryPage.tsx';
+import { BookStorePage } from './components/public/BookStorePage.tsx';
+import { AdminLogin } from './components/admin/AdminLogin.tsx';
 import { ClassSelectorStrip } from './components/public/ClassSelectorStrip.tsx';
 import { GlassAmbientBackdrop } from './components/public/GlassAmbientBackdrop.tsx';
 import { FloatingContactWidget } from './components/public/FloatingContactWidget.tsx';
@@ -23,7 +26,6 @@ import {
 import {
   AlertCircle,
   ChevronRight,
-  AlarmClock,
   BookOpen,
   Terminal,
   Landmark,
@@ -32,55 +34,8 @@ import {
   SearchX,
   Headphones,
   Phone,
-  ArrowRight,
-  Sparkles,
   X,
 } from 'lucide-react';
-
-const CategoryPage = dynamic(
-  () => import('./components/public/CategoryPage.tsx').then((m) => m.CategoryPage),
-  {
-    loading: () => (
-      <div className="max-w-[1240px] mx-auto px-4 py-16 text-center text-sm font-bold text-[#6B4C4F]">
-        ক্যাটাগরি পেজ লোড হচ্ছে...
-      </div>
-    ),
-  }
-);
-
-const AcademicPage = dynamic(
-  () => import('./components/public/AcademicPage.tsx').then((m) => m.AcademicPage),
-  {
-    loading: () => (
-      <div className="max-w-[1240px] mx-auto px-4 py-16 text-center text-sm font-bold text-[#6B4C4F]">
-        ব্যাচ পেজ লোড হচ্ছে...
-      </div>
-    ),
-  }
-);
-
-const BookStorePage = dynamic(
-  () => import('./components/public/BookStorePage.tsx').then((m) => m.BookStorePage),
-  {
-    loading: () => (
-      <div className="max-w-[1240px] mx-auto px-4 py-16 text-center text-sm font-bold text-[#6B4C4F]">
-        বুক স্টোর লোড হচ্ছে...
-      </div>
-    ),
-  }
-);
-
-const AdminLogin = dynamic(
-  () => import('./components/admin/AdminLogin.tsx').then((m) => m.AdminLogin),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-screen flex items-center justify-center text-sm font-bold text-[#6B4C4F]">
-        অ্যাডমিন লগইন লোড হচ্ছে...
-      </div>
-    ),
-  }
-);
 
 const AdminDashboard = dynamic(
   () => import('./components/admin/AdminDashboard.tsx').then((m) => m.AdminDashboard),
@@ -390,20 +345,21 @@ export default function App({
   const [hasOfferTimers, setHasOfferTimers] = useState<boolean>(
     initialHasOfferTimers || initialOfferTimers.length > 0
   );
-  const [nowMs, setNowMs] = useState<number>(() => {
-    if (initialServerNow) {
-      const parsed = new Date(initialServerNow).getTime();
-      if (Number.isFinite(parsed)) return parsed;
-    }
-    return 0;
-  });
-  const serverOffsetRef = useRef<number>(0);
+  const [serverNow, setServerNow] = useState<string | undefined>(initialServerNow);
+
+  const hasServerPortalProps =
+    typeof initialServerNow === 'string' && initialServerNow.length > 0;
   const hasInitialPortalData =
-    initialCategories.length > 0 || initialSettings !== null;
+    hasServerPortalProps || initialCategories.length > 0 || initialSettings !== null;
   const hasInitialBookData =
-    initialBookCategories.length > 0 || initialBooks.length > 0;
+    hasServerPortalProps || initialBookCategories.length > 0 || initialBooks.length > 0;
+  const portalDataLoadedRef = useRef<boolean>(hasInitialPortalData);
+  const bookDataLoadedRef = useRef<boolean>(hasInitialBookData);
+  const isPublicRoute =
+    route.view !== 'admin_login' && route.view !== 'admin_dashboard';
+
   const [loading, setLoading] = useState<boolean>(
-    !hasInitialPortalData && !currentPathname.startsWith('/admin')
+    () => !hasInitialPortalData && !currentPathname.startsWith('/admin')
   );
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -440,9 +396,6 @@ export default function App({
       isDownloadingZipRef.current = false;
     }
   }, [showAppToast]);
-
-  // Live Countdown State
-  const [countdown, setCountdown] = useState({ d: '02', h: '08', m: '26', s: '55' });
 
   // Mobile Bottom Navigation State
   const [, setMobileTab] = useState<MobileTab>('home');
@@ -482,71 +435,6 @@ export default function App({
     }
   }, []);
 
-  // Synchronized live clock for real-time course offer countdown timers (public routes only)
-  useEffect(() => {
-    if (route.view === 'admin_dashboard' || route.view === 'admin_login') {
-      return;
-    }
-    if (initialServerNow) {
-      const parsed = new Date(initialServerNow).getTime();
-      if (Number.isFinite(parsed)) {
-        serverOffsetRef.current = parsed - Date.now();
-      }
-    }
-    const tick = () => {
-      setNowMs(Date.now() + serverOffsetRef.current);
-    };
-    const initTimer = setTimeout(tick, 0);
-    const interval = setInterval(tick, 1000);
-    return () => {
-      clearTimeout(initTimer);
-      clearInterval(interval);
-    };
-  }, [initialServerNow, route.view]);
-
-  // Countdown timer effect matching user's original script or admin configured target date (public routes only)
-  useEffect(() => {
-    if (route.view === 'admin_dashboard' || route.view === 'admin_login') {
-      return;
-    }
-    let targetTime: number;
-
-    if (settings?.countdownTargetDate) {
-      const parsed = new Date(settings.countdownTargetDate).getTime();
-      if (!isNaN(parsed) && parsed > Date.now()) {
-        targetTime = parsed;
-      } else {
-        const target = new Date();
-        target.setHours(target.getHours() + 56, target.getMinutes() + 42, target.getSeconds() + 15, 0);
-        targetTime = target.getTime();
-      }
-    } else {
-      const target = new Date();
-      target.setHours(target.getHours() + 56, target.getMinutes() + 42, target.getSeconds() + 15, 0);
-      targetTime = target.getTime();
-    }
-
-    const tick = () => {
-      const now = Date.now();
-      const diff = Math.max(0, targetTime - now);
-      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const s = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setCountdown({
-        d: String(d).padStart(2, '0'),
-        h: String(h).padStart(2, '0'),
-        m: String(m).padStart(2, '0'),
-        s: String(s).padStart(2, '0'),
-      });
-    };
-
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [settings?.countdownTargetDate, route.view]);
-
   const fetchPublicData = useCallback(async () => {
     setFetchError(null);
     try {
@@ -569,12 +457,8 @@ export default function App({
             : data.offerTimers.length > 0
         );
       }
-      if (data.serverNow) {
-        const parsed = new Date(data.serverNow).getTime();
-        if (Number.isFinite(parsed)) {
-          serverOffsetRef.current = parsed - Date.now();
-          setNowMs(Date.now() + serverOffsetRef.current);
-        }
+      if (typeof data.serverNow === 'string' && data.serverNow) {
+        setServerNow(data.serverNow);
       }
       if (data.settings) {
         setSettings(data.settings);
@@ -582,13 +466,14 @@ export default function App({
           document.title = data.settings.siteTitle;
         }
       }
+      portalDataLoadedRef.current = true;
     } catch (err) {
       console.warn('Backend data fetch fallback:', err);
       setFetchError('কোর্সের তথ্য লোড করতে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।');
     } finally {
       setLoading(false);
     }
-  }, [setFetchError, setCategories, setCourses, setOfferTimers, setHasOfferTimers, setNowMs, setSettings]);
+  }, []);
 
   const fetchPublicBooks = useCallback(async () => {
     try {
@@ -601,10 +486,11 @@ export default function App({
       if (Array.isArray(data.books)) {
         setBooks(data.books);
       }
+      bookDataLoadedRef.current = true;
     } catch (err) {
       console.warn('Book store data fetch fallback:', err);
     }
-  }, [setBookCategories, setBooks]);
+  }, []);
 
   const handleAdminDataMutated = useCallback(() => {
     void fetchPublicData();
@@ -613,25 +499,27 @@ export default function App({
 
   useEffect(() => {
     // Skip redundant client API fetch if SSR already provided public data or on admin routes
-    if (hasInitialPortalData || currentPathname.startsWith('/admin')) {
+    if (!isPublicRoute || portalDataLoadedRef.current) {
       return;
     }
+    portalDataLoadedRef.current = true;
     let active = true;
     const run = async () => {
       if (active) {
         await fetchPublicData();
       }
     };
-    run();
+    void run();
     return () => {
       active = false;
     };
-  }, [fetchPublicData, hasInitialPortalData, currentPathname]);
+  }, [fetchPublicData, isPublicRoute]);
 
   useEffect(() => {
-    if (hasInitialBookData || currentPathname.startsWith('/admin')) {
+    if (!isPublicRoute || bookDataLoadedRef.current) {
       return;
     }
+    bookDataLoadedRef.current = true;
     let active = true;
     const run = async () => {
       await Promise.resolve();
@@ -643,7 +531,7 @@ export default function App({
     return () => {
       active = false;
     };
-  }, [fetchPublicBooks, hasInitialBookData, currentPathname]);
+  }, [fetchPublicBooks, isPublicRoute]);
 
   // Sync browser document.title for all dynamic academic routes and catalog views
   useEffect(() => {
@@ -806,12 +694,6 @@ export default function App({
     }
   };
 
-  const activeOfferTimers = useMemo(() => {
-    if (!nowMs || offerTimers.length === 0) return [];
-    return offerTimers.filter(
-      (timer) => computeOfferTimerStatus(timer, nowMs) === 'active'
-    );
-  }, [offerTimers, nowMs]);
 
   const coursesById = useMemo(() => {
     const map = new Map<number, Course>();
@@ -1154,229 +1036,16 @@ export default function App({
               </p>
 
               {/* Urgent Course Offer Countdown Timers (Frosted Glass Strip / Grid) */}
-              {settings?.showCountdownTimer !== false &&
-                (hasOfferTimers || offerTimers.length > 0 ? (
-                  activeOfferTimers.length > 0 ? (
-                    <div
-                      className={`mb-4 sm:mb-6 mx-auto ${
-                        activeOfferTimers.length === 1
-                          ? 'max-w-4xl'
-                          : 'grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-6xl'
-                      }`}
-                    >
-                      {activeOfferTimers.map((timer) => {
-                        const linkedCourse = coursesById.get(timer.courseId);
-                        const rawAffiliate =
-                          linkedCourse?.affiliateUrl || timer.affiliateUrl;
-                        const targetAffiliateUrl = rawAffiliate
-                          ? buildAffiliateRedirectUrl(
-                              rawAffiliate,
-                              settings?.defaultAffiliateRef
-                            )
-                          : `/go/${timer.courseSlug}`;
-                        const parts = getCountdownParts(timer.endAt, nowMs);
-                        const courseTitle =
-                          linkedCourse?.title || timer.courseTitle;
-                        const courseImage =
-                          linkedCourse?.imageUrl || timer.courseImageUrl;
-                        const discountBadge = linkedCourse?.discountBadgeText;
-                        const discountPrice = linkedCourse?.discountPrice;
-
-                        const defaultAutoLabel = `${courseTitle} — স্পেশাল অফার`;
-                        const displayOfferLabel =
-                          timer.offerLabel &&
-                          timer.offerLabel.trim() !== defaultAutoLabel
-                            ? timer.offerLabel.trim()
-                            : 'সীমিত সময়ের স্পেশাল অফার!';
-
-                        return (
-                          <a
-                            key={timer.id}
-                            href={targetAffiliateUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={() =>
-                              recordCourseOutboundClick(
-                                {
-                                  id: timer.courseId,
-                                  slug: linkedCourse?.slug || timer.courseSlug,
-                                },
-                                'offer_countdown_timer'
-                              )
-                            }
-                            aria-label={`${courseTitle} অফারে ভর্তি হতে ক্লিক করুন`}
-                            className="group glass-surface hover:bg-white/85 border border-rose-200/80 hover:border-[#eb1c24]/60 rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 w-full max-w-full overflow-hidden flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5 sm:gap-4 text-left shadow-[0_12px_32px_-10px_rgba(226,43,43,0.18)] hover:shadow-[0_18px_40px_-10px_rgba(226,43,43,0.3)] transition-all duration-200 cursor-pointer tabular-nums"
-                          >
-                            {/* Left: Course Image + Course Name & Offer Info */}
-                            <div className="flex items-start sm:items-center gap-3 sm:gap-3.5 min-w-0 w-full flex-1">
-                              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-[#ff5252] to-[#991b1b] shrink-0 overflow-hidden border border-white/90 shadow-md flex items-center justify-center">
-                                {courseImage ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={courseImage}
-                                    alt={courseTitle}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                  />
-                                ) : (
-                                  <AlarmClock className="w-7 h-7 text-white animate-pulse" />
-                                )}
-                              </div>
-
-                              <div className="min-w-0 flex-1 space-y-1">
-                                <div className="flex items-start gap-1.5 w-full min-w-0 text-[11px] font-extrabold text-[#B91C1C]">
-                                  <AlarmClock
-                                    className="w-3.5 h-3.5 text-[#E22B2B] animate-pulse shrink-0 mt-0.5"
-                                    aria-hidden="true"
-                                  />
-                                  <span className="min-w-0 flex-1 break-words line-clamp-2 leading-snug">
-                                    {displayOfferLabel}
-                                  </span>
-                                </div>
-
-                                <div className="text-sm sm:text-base font-black text-[#2A0F12] group-hover:text-[#b91c1c] transition-colors break-words line-clamp-2 leading-snug">
-                                  {courseTitle}
-                                </div>
-
-                                {(typeof discountPrice === 'number' ||
-                                  discountBadge) && (
-                                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] font-bold pt-0.5">
-                                    {typeof discountPrice === 'number' &&
-                                      discountPrice > 0 && (
-                                        <span className="text-emerald-700 font-mono">
-                                          অফার মূল্য: ৳
-                                          {toBengaliNumber(discountPrice)}
-                                        </span>
-                                      )}
-                                    {discountBadge && (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100/90 text-[#b91c1c] border border-rose-200 text-[10px] max-w-full">
-                                        <Sparkles className="w-2.5 h-2.5 shrink-0" />
-                                        <span className="truncate">{discountBadge}</span>
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Right: Real-time Countdown + Clickable CTA */}
-                            <div className="flex flex-col sm:items-end gap-2.5 shrink-0 w-full sm:w-auto items-center">
-                              <div className="flex items-center justify-center gap-1 sm:gap-2 w-full sm:w-auto max-w-full">
-                                <div className="glass-inset rounded-xl px-2 sm:px-2.5 py-1 text-center min-w-[44px] sm:min-w-[50px]">
-                                  <b className="text-sm sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                                    {parts.d}
-                                  </b>
-                                  <span className="text-[10px] text-[#6B4C4F]">
-                                    দিন
-                                  </span>
-                                </div>
-                                <span className="text-[#E22B2B] font-bold">:</span>
-                                <div className="glass-inset rounded-xl px-2 sm:px-2.5 py-1 text-center min-w-[44px] sm:min-w-[50px]">
-                                  <b className="text-sm sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                                    {parts.h}
-                                  </b>
-                                  <span className="text-[10px] text-[#6B4C4F]">
-                                    ঘণ্টা
-                                  </span>
-                                </div>
-                                <span className="text-[#E22B2B] font-bold">:</span>
-                                <div className="glass-inset rounded-xl px-2 sm:px-2.5 py-1 text-center min-w-[44px] sm:min-w-[50px]">
-                                  <b className="text-sm sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                                    {parts.m}
-                                  </b>
-                                  <span className="text-[10px] text-[#6B4C4F]">
-                                    মিনিট
-                                  </span>
-                                </div>
-                                <span className="text-[#E22B2B] font-bold">:</span>
-                                <div className="glass-inset rounded-xl px-2 sm:px-2.5 py-1 text-center min-w-[44px] sm:min-w-[50px]">
-                                  <b className="text-sm sm:text-lg text-[#E22B2B] block leading-none font-bold font-mono">
-                                    {parts.s}
-                                  </b>
-                                  <span className="text-[10px] text-[#6B4C4F]">
-                                    সেকেন্ড
-                                  </span>
-                                </div>
-                              </div>
-
-                              <span className="inline-flex items-center justify-center gap-1.5 w-full sm:w-auto px-4 py-2 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] group-hover:from-[#eb1c24] group-hover:to-[#991b1b] text-white text-xs font-extrabold shadow-[0_6px_16px_-4px_rgba(226,43,43,0.45)] transition-all">
-                                <span>অফারটি নিন ও ভর্তি হোন</span>
-                                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                              </span>
-                            </div>
-                          </a>
-                        );
-                      })}
-                    </div>
-                  ) : null
-                ) : (
-                  <div
-                    onClick={() => {
-                      if (
-                        settings?.countdownTargetCourse &&
-                        settings.countdownTargetCourse !== 'all'
-                      ) {
-                        const match = courses.find(
-                          (c) => c.slug === settings.countdownTargetCourse
-                        );
-                        if (match) {
-                          handleEnrollClick(match, 'legacy_offer_countdown');
-                        }
-                      }
-                    }}
-                    className={`inline-flex flex-col sm:flex-row items-center gap-3 sm:gap-6 glass-surface px-5 py-3 rounded-2xl mb-2 sm:mb-4 tabular-nums ${
-                      settings?.countdownTargetCourse &&
-                      settings.countdownTargetCourse !== 'all'
-                        ? 'cursor-pointer hover:bg-white/80 transition-colors'
-                        : ''
-                    }`}
-                    title={
-                      settings?.countdownTargetCourse &&
-                      settings.countdownTargetCourse !== 'all'
-                        ? 'এই কোর্সের অফারে যেতে ক্লিক করুন'
-                        : undefined
-                    }
-                  >
-                    <div className="flex items-center gap-2 text-[#B91C1C] text-xs sm:text-sm font-bold">
-                      <AlarmClock
-                        className="w-5 h-5 text-[#E22B2B] animate-pulse shrink-0"
-                        aria-hidden="true"
-                      />
-                      <span>
-                        {settings?.countdownLabel ||
-                          'HSC ২৮ আর্লি বার্ড স্পেশাল উপহার সহ ছাড়ে বাকি:'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
-                        <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                          {countdown.d}
-                        </b>
-                        <span className="text-[10px] text-[#6B4C4F]">দিন</span>
-                      </div>
-                      <span className="text-[#E22B2B] font-bold">:</span>
-                      <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
-                        <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                          {countdown.h}
-                        </b>
-                        <span className="text-[10px] text-[#6B4C4F]">ঘণ্টা</span>
-                      </div>
-                      <span className="text-[#E22B2B] font-bold">:</span>
-                      <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
-                        <b className="text-base sm:text-lg text-[#2A0F12] block leading-none font-bold font-mono">
-                          {countdown.m}
-                        </b>
-                        <span className="text-[10px] text-[#6B4C4F]">মিনিট</span>
-                      </div>
-                      <span className="text-[#E22B2B] font-bold">:</span>
-                      <div className="glass-inset rounded-xl px-2.5 py-1 text-center min-w-[50px]">
-                        <b className="text-base sm:text-lg text-[#E22B2B] block leading-none font-bold font-mono">
-                          {countdown.s}
-                        </b>
-                        <span className="text-[10px] text-[#6B4C4F]">সেকেন্ড</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <HeroOfferCountdown
+                settings={settings}
+                offerTimers={offerTimers}
+                hasOfferTimers={hasOfferTimers}
+                initialServerNow={serverNow}
+                courses={courses}
+                coursesById={coursesById}
+                onRecordOutboundClick={recordCourseOutboundClick}
+                onLegacyEnrollClick={handleEnrollClick}
+              />
             </div>
 
             {/* 3D CATEGORY & CLASS SELECTOR STRIP (GLASS-SHADE S-WAVE STRUCTURE) */}

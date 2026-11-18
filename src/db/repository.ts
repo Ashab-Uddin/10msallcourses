@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { cache } from 'react';
 import {
   Category,
   Course,
@@ -12,6 +13,7 @@ import { computeDiscountPercent } from '../lib/courseValidation.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import { toBengaliNumber } from '../utils/format.ts';
 import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
+import { invalidatePublicPortalCache } from '../lib/cacheInvalidation.ts';
 import {
   RepositoryError,
   normalizeCourseStatus,
@@ -198,7 +200,7 @@ function hydrateOfferTimers(store: LocalStore): OfferTimer[] {
     .filter((t): t is OfferTimer => Boolean(t));
 }
 
-export async function getPublicPortalData() {
+export const getPublicPortalData = cache(async () => {
   if (isSupabaseDatabaseReady()) {
     return sbGetPublicPortalData();
   }
@@ -233,7 +235,7 @@ export async function getPublicPortalData() {
     hasOfferTimers: allHydratedTimers.length > 0,
     serverNow: nowIso,
   };
-}
+});
 
 export async function getCourseBySlug(slug: string): Promise<Course | null> {
   if (isSupabaseDatabaseReady()) {
@@ -370,7 +372,9 @@ export async function getAdminOverviewData() {
 
 export async function createNewCourse(input: Record<string, unknown>) {
   if (isSupabaseDatabaseReady()) {
-    return sbCreateNewCourse(input);
+    const created = await sbCreateNewCourse(input);
+    invalidatePublicPortalCache();
+    return created;
   }
 
   const store = await loadStore(true);
@@ -458,13 +462,18 @@ export async function createNewCourse(input: Record<string, unknown>) {
 
   store.courses.unshift(newCourse);
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return newCourse;
 }
 
 export async function updateExistingCourse(id: number, input: Record<string, unknown>) {
   if (isSupabaseDatabaseReady()) {
-    return sbUpdateExistingCourse(id, input);
+    const updated = await sbUpdateExistingCourse(id, input);
+    if (updated) {
+      invalidatePublicPortalCache();
+    }
+    return updated;
   }
 
   const store = await loadStore(true);
@@ -608,6 +617,7 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
 
   store.courses[idx] = updated;
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return updated;
 }
@@ -616,7 +626,11 @@ export async function deleteCourseById(
   id: number
 ): Promise<{ deleted: boolean; found: boolean; previousImageUrl: string | null }> {
   if (isSupabaseDatabaseReady()) {
-    return sbDeleteCourseById(id);
+    const result = await sbDeleteCourseById(id);
+    if (result.deleted) {
+      invalidatePublicPortalCache();
+    }
+    return result;
   }
 
   const store = await loadStore(true);
@@ -629,6 +643,7 @@ export async function deleteCourseById(
   store.courses = store.courses.filter((c) => c.id !== id);
   store.offerTimers = store.offerTimers.filter((t) => t.courseId !== id);
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return {
     deleted: true,
@@ -639,7 +654,9 @@ export async function deleteCourseById(
 
 export async function createNewCategory(input: Record<string, unknown>) {
   if (isSupabaseDatabaseReady()) {
-    return sbCreateNewCategory(input);
+    const created = await sbCreateNewCategory(input);
+    invalidatePublicPortalCache();
+    return created;
   }
 
   const store = await loadStore(true);
@@ -674,13 +691,18 @@ export async function createNewCategory(input: Record<string, unknown>) {
 
   store.categories.push(newCat);
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return newCat;
 }
 
 export async function updateExistingCategory(id: number, input: Record<string, unknown>) {
   if (isSupabaseDatabaseReady()) {
-    return sbUpdateExistingCategory(id, input);
+    const updated = await sbUpdateExistingCategory(id, input);
+    if (updated) {
+      invalidatePublicPortalCache();
+    }
+    return updated;
   }
 
   const store = await loadStore(true);
@@ -744,6 +766,7 @@ export async function updateExistingCategory(id: number, input: Record<string, u
   }
 
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return updated;
 }
@@ -752,7 +775,11 @@ export async function deleteCategoryById(
   id: number
 ): Promise<{ deleted: boolean; found: boolean }> {
   if (isSupabaseDatabaseReady()) {
-    return sbDeleteCategoryById(id);
+    const result = await sbDeleteCategoryById(id);
+    if (result.deleted) {
+      invalidatePublicPortalCache();
+    }
+    return result;
   }
 
   const store = await loadStore(true);
@@ -773,13 +800,16 @@ export async function deleteCategoryById(
 
   store.categories = store.categories.filter((c) => c.id !== id);
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return { deleted: true, found: true };
 }
 
 export async function updatePortalSettings(input: Record<string, unknown>) {
   if (isSupabaseDatabaseReady()) {
-    return sbUpdatePortalSettings(input);
+    const updated = await sbUpdatePortalSettings(input);
+    invalidatePublicPortalCache();
+    return updated;
   }
 
   const store = await loadStore(true);
@@ -824,6 +854,7 @@ export async function updatePortalSettings(input: Record<string, unknown>) {
 
   store.settings = updated;
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return updated;
 }
@@ -943,7 +974,11 @@ export async function createOfferTimer(input: {
   | { ok: false; error: string; status: number }
 > {
   if (isSupabaseDatabaseReady()) {
-    return sbCreateOfferTimer(input);
+    const result = await sbCreateOfferTimer(input);
+    if (result.ok) {
+      invalidatePublicPortalCache();
+    }
+    return result;
   }
 
   const store = await loadStore(true);
@@ -983,6 +1018,7 @@ export async function createOfferTimer(input: {
     };
   }
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return { ok: true, timer: newTimer, serverNow: nowIso };
 }
@@ -1001,7 +1037,11 @@ export async function updateOfferTimer(
   | { ok: false; error: string; status: number }
 > {
   if (isSupabaseDatabaseReady()) {
-    return sbUpdateOfferTimer(id, input);
+    const result = await sbUpdateOfferTimer(id, input);
+    if (result.ok) {
+      invalidatePublicPortalCache();
+    }
+    return result;
   }
 
   const store = await loadStore(true);
@@ -1042,6 +1082,7 @@ export async function updateOfferTimer(
 
   store.offerTimers[idx] = updated;
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   return { ok: true, timer: updated, serverNow: nowIso };
 }
@@ -1054,7 +1095,11 @@ export async function setOfferTimerPaused(
   | { ok: false; error: string; status: number }
 > {
   if (isSupabaseDatabaseReady()) {
-    return sbSetOfferTimerPaused(id, isPaused);
+    const result = await sbSetOfferTimerPaused(id, isPaused);
+    if (result.ok) {
+      invalidatePublicPortalCache();
+    }
+    return result;
   }
 
   const store = await loadStore(true);
@@ -1101,6 +1146,7 @@ export async function setOfferTimerPaused(
   };
   store.offerTimers[idx] = updated;
   await persistStore(store);
+  invalidatePublicPortalCache();
 
   const hydrated = hydrateOfferTimers(store).find((t) => t.id === id) || updated;
   return { ok: true, timer: hydrated, serverNow: nowIso };
@@ -1110,7 +1156,11 @@ export async function deleteOfferTimer(
   id: number
 ): Promise<{ deleted: boolean; found: boolean }> {
   if (isSupabaseDatabaseReady()) {
-    return sbDeleteOfferTimer(id);
+    const result = await sbDeleteOfferTimer(id);
+    if (result.deleted) {
+      invalidatePublicPortalCache();
+    }
+    return result;
   }
 
   const store = await loadStore(true);
@@ -1120,5 +1170,6 @@ export async function deleteOfferTimer(
   }
   store.offerTimers = store.offerTimers.filter((t) => t.id !== id);
   await persistStore(store);
+  invalidatePublicPortalCache();
   return { deleted: true, found: true };
 }

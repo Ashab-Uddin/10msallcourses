@@ -1,9 +1,15 @@
 import fs from 'fs';
 import path from 'path';
+import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { Book, BookCategory, BookShelfTheme } from '../types.ts';
 import { computeDiscountPercent } from '../lib/courseValidation.ts';
 import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
 import { getSupabaseAdminClient } from '../lib/supabase/admin.ts';
+import {
+  CACHE_TAG_PUBLIC_BOOKSTORE,
+  invalidatePublicBookStoreCache,
+} from '../lib/cacheInvalidation.ts';
 import { parseFeatures, toBengaliNumber } from '../utils/format.ts';
 import {
   RepositoryError,
@@ -315,68 +321,86 @@ async function persistLocalBookStore(store: LocalBookStore): Promise<void> {
 // PUBLIC READ OPERATIONS
 // ============================================================================
 
-export async function getPublicBookStoreData(): Promise<{
+async function sbFetchPublicBookStoreData(): Promise<{
   bookCategories: BookCategory[];
   books: Book[];
 }> {
-  if (isSupabaseDatabaseReady()) {
-    try {
-      const supabase = getSupabaseAdminClient();
-      const [catsRes, booksRes] = await Promise.all([
-        supabase
-          .from('book_categories')
-          .select('*')
-          .eq('status', 'active')
-          .order('display_order', { ascending: true })
-          .order('id', { ascending: true }),
-        supabase
-          .from('books')
-          .select('*')
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false }),
-      ]);
+  try {
+    const supabase = getSupabaseAdminClient();
+    const [catsRes, booksRes] = await Promise.all([
+      supabase
+        .from('book_categories')
+        .select('*')
+        .eq('status', 'active')
+        .order('display_order', { ascending: true })
+        .order('id', { ascending: true }),
+      supabase
+        .from('books')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false }),
+    ]);
 
-      if (catsRes.error) {
-        if (catsRes.error.code === '42P01' || catsRes.error.code === 'PGRST205') {
-          return { bookCategories: DEFAULT_BOOK_CATEGORIES.map((c) => ({ ...c })), books: [] };
-        }
-        throw mapPgError(catsRes.error, 'বুক ক্যাটাগরি লোড করতে ব্যর্থ হয়েছে।');
+    if (catsRes.error) {
+      if (catsRes.error.code === '42P01' || catsRes.error.code === 'PGRST205') {
+        return { bookCategories: DEFAULT_BOOK_CATEGORIES.map((c) => ({ ...c })), books: [] };
       }
-      if (booksRes.error) {
-        if (booksRes.error.code === '42P01' || booksRes.error.code === 'PGRST205') {
-          return { bookCategories: DEFAULT_BOOK_CATEGORIES.map((c) => ({ ...c })), books: [] };
-        }
-        throw mapPgError(booksRes.error, 'বইয়ের তালিকা লোড করতে ব্যর্থ হয়েছে।');
-      }
-
-      return {
-        bookCategories: (catsRes.data || []).map((r) =>
-          mapBookCategoryRow(r as Record<string, unknown>)
-        ),
-        books: (booksRes.data || []).map((r) => mapBookRow(r as Record<string, unknown>)),
-      };
-    } catch (err) {
-      if (err instanceof RepositoryError) throw err;
-      throw mapPgError(err, 'বুক স্টোর ডেটা লোড করতে ব্যর্থ হয়েছে।');
+      throw mapPgError(catsRes.error, 'বুক ক্যাটাগরি লোড করতে ব্যর্থ হয়েছে।');
     }
+    if (booksRes.error) {
+      if (booksRes.error.code === '42P01' || booksRes.error.code === 'PGRST205') {
+        return { bookCategories: DEFAULT_BOOK_CATEGORIES.map((c) => ({ ...c })), books: [] };
+      }
+      throw mapPgError(booksRes.error, 'বইয়ের তালিকা লোড করতে ব্যর্থ হয়েছে।');
+    }
+
+    return {
+      bookCategories: (catsRes.data || []).map((r) =>
+        mapBookCategoryRow(r as Record<string, unknown>)
+      ),
+      books: (booksRes.data || []).map((r) => mapBookRow(r as Record<string, unknown>)),
+    };
+  } catch (err) {
+    if (err instanceof RepositoryError) throw err;
+    throw mapPgError(err, 'বুক স্টোর ডেটা লোড করতে ব্যর্থ হয়েছে।');
   }
-
-  const store = loadLocalBookStore();
-  const activeCategories = [...store.bookCategories]
-    .filter((c) => c.status === 'active')
-    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-
-  const activeCategorySlugs = new Set(activeCategories.map((c) => c.slug));
-  const activeBooks = store.books.filter(
-    (b) => b.status === 'active' && (activeCategorySlugs.size === 0 || activeCategorySlugs.has(b.categorySlug))
-  );
-
-  return {
-    bookCategories: activeCategories,
-    books: activeBooks,
-  };
 }
+
+const getCachedSupabasePublicBookStoreData = unstable_cache(
+  async () => sbFetchPublicBookStoreData(),
+  ['sb-public-bookstore-v1'],
+  {
+    tags: [CACHE_TAG_PUBLIC_BOOKSTORE],
+    revalidate: 60,
+  }
+);
+
+export const getPublicBookStoreData = cache(
+  async (): Promise<{
+    bookCategories: BookCategory[];
+    books: Book[];
+  }> => {
+    if (isSupabaseDatabaseReady()) {
+      return getCachedSupabasePublicBookStoreData();
+    }
+
+    const store = loadLocalBookStore();
+    const activeCategories = [...store.bookCategories]
+      .filter((c) => c.status === 'active')
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
+    const activeCategorySlugs = new Set(activeCategories.map((c) => c.slug));
+    const activeBooks = store.books.filter(
+      (b) => b.status === 'active' && (activeCategorySlugs.size === 0 || activeCategorySlugs.has(b.categorySlug))
+    );
+
+    return {
+      bookCategories: activeCategories,
+      books: activeBooks,
+    };
+  }
+);
 
 export async function getPublicBookByIdOrSlug(idOrSlug: string): Promise<Book | null> {
   const clean = idOrSlug.trim();
@@ -667,6 +691,7 @@ export async function createNewBook(input: Record<string, unknown>): Promise<Boo
       throw mapPgError(error, 'নতুন বই সংরক্ষণ করতে ব্যর্থ হয়েছে।');
     }
 
+    invalidatePublicBookStoreCache();
     return mapBookRow(data as Record<string, unknown>);
   }
 
@@ -719,6 +744,7 @@ export async function createNewBook(input: Record<string, unknown>): Promise<Boo
 
   store.books.unshift(newBook);
   await persistLocalBookStore(store);
+  invalidatePublicBookStoreCache();
 
   return newBook;
 }
@@ -842,7 +868,11 @@ export async function updateExistingBook(
       throw mapPgError(error, 'বইয়ের তথ্য আপডেট করতে ব্যর্থ হয়েছে।');
     }
 
-    return data ? mapBookRow(data as Record<string, unknown>) : null;
+    const updated = data ? mapBookRow(data as Record<string, unknown>) : null;
+    if (updated) {
+      invalidatePublicBookStoreCache();
+    }
+    return updated;
   }
 
   const store = loadLocalBookStore(true);
@@ -956,6 +986,7 @@ export async function updateExistingBook(
 
   store.books[idx] = updated;
   await persistLocalBookStore(store);
+  invalidatePublicBookStoreCache();
 
   return updated;
 }
@@ -975,6 +1006,7 @@ export async function deleteBookById(
       throw mapPgError(error, 'বইটি মুছে ফেলতে ব্যর্থ হয়েছে।');
     }
 
+    invalidatePublicBookStoreCache();
     return {
       deleted: true,
       found: true,
@@ -990,6 +1022,7 @@ export async function deleteBookById(
 
   store.books = store.books.filter((b) => b.id !== id);
   await persistLocalBookStore(store);
+  invalidatePublicBookStoreCache();
 
   return {
     deleted: true,
@@ -1076,6 +1109,7 @@ export async function createNewBookCategory(
       throw mapPgError(error, 'নতুন বুক ক্যাটাগরি তৈরি করতে ব্যর্থ হয়েছে।');
     }
 
+    invalidatePublicBookStoreCache();
     return mapBookCategoryRow(data as Record<string, unknown>);
   }
 
@@ -1106,6 +1140,7 @@ export async function createNewBookCategory(
 
   store.bookCategories.push(newCategory);
   await persistLocalBookStore(store);
+  invalidatePublicBookStoreCache();
 
   return newCategory;
 }
@@ -1182,7 +1217,11 @@ export async function updateExistingBookCategory(
       throw mapPgError(error, 'বুক ক্যাটাগরি আপডেট করতে ব্যর্থ হয়েছে।');
     }
 
-    return data ? mapBookCategoryRow(data as Record<string, unknown>) : null;
+    const updated = data ? mapBookCategoryRow(data as Record<string, unknown>) : null;
+    if (updated) {
+      invalidatePublicBookStoreCache();
+    }
+    return updated;
   }
 
   const store = loadLocalBookStore(true);
@@ -1255,6 +1294,7 @@ export async function updateExistingBookCategory(
   }
 
   await persistLocalBookStore(store);
+  invalidatePublicBookStoreCache();
 
   return updated;
 }
@@ -1290,6 +1330,7 @@ export async function deleteBookCategoryById(
       throw mapPgError(error, 'বুক ক্যাটাগরি মুছে ফেলতে ব্যর্থ হয়েছে।');
     }
 
+    invalidatePublicBookStoreCache();
     return { deleted: true, found: true };
   }
 
@@ -1309,6 +1350,7 @@ export async function deleteBookCategoryById(
 
   store.bookCategories = store.bookCategories.filter((c) => c.id !== id);
   await persistLocalBookStore(store);
+  invalidatePublicBookStoreCache();
 
   return { deleted: true, found: true };
 }

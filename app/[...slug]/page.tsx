@@ -4,7 +4,7 @@ import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import { buildSeoMetadata, buildStructuredData } from '@/src/lib/seo';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 interface CatchAllRouteProps {
   params: Promise<{ slug?: string[] }>;

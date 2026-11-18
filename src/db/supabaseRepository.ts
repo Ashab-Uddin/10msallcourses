@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import {
   Category,
   ClickRecord,
@@ -7,6 +8,7 @@ import {
 } from '../types.ts';
 import { INITIAL_SETTINGS } from './seedData.ts';
 import { getSupabaseAdminClient } from '../lib/supabase/admin.ts';
+import { CACHE_TAG_PUBLIC_PORTAL } from '../lib/cacheInvalidation.ts';
 import { computeDiscountPercent } from '../lib/courseValidation.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import { parseFeatures, toBengaliNumber } from '../utils/format.ts';
@@ -209,7 +211,7 @@ export function getSupabaseStorageInfo(): StorageInfo {
   };
 }
 
-export async function sbGetPublicPortalData() {
+async function sbFetchPublicPortalBase() {
   const supabase = getSupabaseAdminClient();
 
   const [catRes, courseRes, settingsRes, timerRes] = await Promise.all([
@@ -246,15 +248,36 @@ export async function sbGetPublicPortalData() {
     mapCourseRow(r as Record<string, unknown>)
   );
   const settings = mapSettingsRow((settingsRes.data as Record<string, unknown> | null) || null);
+  const allHydratedTimers = hydrateTimerRows(
+    (timerRes.data || []) as Array<Record<string, unknown>>,
+    courses
+  );
+
+  return {
+    categories,
+    courses,
+    settings,
+    allHydratedTimers,
+  };
+}
+
+const getCachedSupabasePortalBase = unstable_cache(
+  async () => sbFetchPublicPortalBase(),
+  ['sb-public-portal-base-v1'],
+  {
+    tags: [CACHE_TAG_PUBLIC_PORTAL],
+    revalidate: 60,
+  }
+);
+
+export async function sbGetPublicPortalData() {
+  const { categories, courses, settings, allHydratedTimers } =
+    await getCachedSupabasePortalBase();
 
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
   const activeCourseIds = new Set(
     courses.filter((c) => c.status === 'active').map((c) => c.id)
-  );
-  const allHydratedTimers = hydrateTimerRows(
-    (timerRes.data || []) as Array<Record<string, unknown>>,
-    courses
   );
   const offerTimers = allHydratedTimers.filter((t) => {
     if (!activeCourseIds.has(t.courseId)) return false;
