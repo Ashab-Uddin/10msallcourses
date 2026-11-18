@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  createAdminSessionToken,
-  setAdminSessionCookie,
-  verifyAdminCredentials,
-} from '@/src/lib/adminAuth';
+import { authenticateAdminLogin } from '@/src/lib/adminAuth';
 import { checkRateLimit } from '@/src/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +16,7 @@ export async function POST(req: NextRequest) {
           status: 429,
           headers: {
             'Retry-After': String(rate.retryAfterSeconds),
-            'Cache-Control': 'no-store',
+            'Cache-Control': 'private, no-store',
           },
         }
       );
@@ -30,36 +26,36 @@ export async function POST(req: NextRequest) {
     const email = String(body?.email || '');
     const password = String(body?.password || '');
 
-    const check = verifyAdminCredentials(email, password);
-    if (!check.ok) {
+    const result = await authenticateAdminLogin(req, email, password);
+    if (!result.ok) {
       return NextResponse.json(
-        { error: check.error },
+        { error: result.error },
         {
-          status: check.status,
-          headers: { 'Cache-Control': 'no-store' },
+          status: result.status,
+          headers: { 'Cache-Control': 'private, no-store' },
         }
       );
     }
 
-    const token = createAdminSessionToken(check.email, check.name);
     const res = NextResponse.json(
       {
         success: true,
-        token,
-        email: check.email,
-        name: check.name,
+        email: result.admin.email,
+        name: result.admin.name,
+        role: result.admin.role,
+        provider: result.admin.provider,
       },
       {
         headers: { 'Cache-Control': 'private, no-store' },
       }
     );
-    setAdminSessionCookie(res, token);
+    result.applySessionCookies(res);
     return res;
   } catch (err) {
     console.error('Admin login error:', err);
     return NextResponse.json(
       { error: 'লগইন প্রসেসে সমস্যা হয়েছে।' },
-      { status: 500 }
+      { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
     );
   }
 }

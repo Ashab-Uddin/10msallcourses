@@ -1,12 +1,18 @@
-import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { countCoursesUsingImageUrl } from '@/src/db/repository';
 import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
+import {
+  deleteImageKitFileById,
+  deleteImageKitFileByUrl,
+  isImageKitConfigured,
+  isManagedImageKitUrl,
+  uploadImageToImageKit,
+} from '@/src/lib/imagekit';
 import { checkRateLimit } from '@/src/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // 4MB (safely under Vercel's 4.5MB body limit)
-const MAX_INLINE_FALLBACK_BYTES = 750 * 1024; // 750KB max when cloud storage is not configured
 
 const ALLOWED_MIME_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -52,115 +58,63 @@ function detectImageTypeFromMagicBytes(buf: Buffer): string | null {
   return null;
 }
 
-async function uploadToVercelBlob(
-  buffer: Buffer,
-  contentType: string,
-  ext: string
-): Promise<string> {
-  const token = process.env.BLOB_READ_WRITE_TOKEN!.trim();
-  const safeFileName = `courses/course-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
-  const res = await fetch(`https://blob.vercel-storage.com/${safeFileName}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': contentType,
-      'x-api-version': '7',
-      'x-add-random-suffix': '1',
-      'x-cache-control-max-age': '31536000',
-    },
-    body: new Uint8Array(buffer),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Vercel Blob upload failed (${res.status}): ${text.slice(0, 200)}`);
-  }
-
-  const data = (await res.json()) as { url?: string };
-  if (!data.url) {
-    throw new Error('Vercel Blob response missing url');
-  }
-  return data.url;
-}
-
-async function uploadToCloudinary(
-  buffer: Buffer,
-  contentType: string
-): Promise<string> {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME!.trim();
-  const apiKey = process.env.CLOUDINARY_API_KEY!.trim();
-  const apiSecret = process.env.CLOUDINARY_API_SECRET!.trim();
-  const folder = process.env.CLOUDINARY_FOLDER?.trim() || '10ms-courses';
-  const timestamp = String(Math.floor(Date.now() / 1000));
-
-  const paramsToSign = `folder=${folder}&timestamp=${timestamp}`;
-  const signature = crypto
-    .createHash('sha1')
-    .update(`${paramsToSign}${apiSecret}`)
-    .digest('hex');
-
-  const form = new FormData();
-  form.append('file', `data:${contentType};base64,${buffer.toString('base64')}`);
-  form.append('api_key', apiKey);
-  form.append('timestamp', timestamp);
-  form.append('folder', folder);
-  form.append('signature', signature);
-
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`,
-    {
-      method: 'POST',
-      body: form,
-    }
-  );
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Cloudinary upload failed (${res.status}): ${text.slice(0, 200)}`);
-  }
-
-  const data = (await res.json()) as { secure_url?: string };
-  if (!data.secure_url) {
-    throw new Error('Cloudinary response missing secure_url');
-  }
-  return data.secure_url;
-}
-
 export async function POST(req: NextRequest) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
 
   const rate = checkRateLimit(req, 'admin_upload', 30, 10 * 60 * 1000);
   if (!rate.allowed) {
     return NextResponse.json(
       { error: 'অতিরিক্ত আপলোড অনুরোধ করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।' },
-      { status: 429, headers: { 'Retry-After': String(rate.retryAfterSeconds) } }
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rate.retryAfterSeconds),
+          'Cache-Control': 'private, no-store',
+        },
+      }
+    );
+  }
+
+  if (!isImageKitConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          'ImageKit ক্লাউড স্টোরেজ কনফিগার করা হয়নি। সার্ভার এনভায়রনমেন্ট ভ্যারিয়েবলে IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY এবং IMAGEKIT_URL_ENDPOINT সেট করুন অথবা সরাসরি বৈধ HTTPS ইমেজ URL ব্যবহার করুন।',
+      },
+      { status: 503, headers: { 'Cache-Control': 'private, no-store' } }
     );
   }
 
   try {
     const formData = await req.formData();
     const file = formData.get('file');
+    const previousFileIdRaw = formData.get('previousFileId');
+    const previousFileId =
+      typeof previousFileIdRaw === 'string' ? previousFileIdRaw.trim() : '';
 
     if (!(file instanceof File)) {
       return NextResponse.json(
         { error: 'কোনো ইমেজ ফাইল পাওয়া যায়নি।' },
-        { status: 400 }
+        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
       );
     }
 
     if (file.size === 0) {
       return NextResponse.json(
         { error: 'খালি ফাইল আপলোড করা যাবে না।' },
-        { status: 400 }
+        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
       );
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
         { error: 'ছবির আকার সর্বোচ্চ ৪ মেগাবাইট হতে পারবে।' },
-        { status: 400 }
+        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
       );
     }
 
@@ -174,60 +128,102 @@ export async function POST(req: NextRequest) {
           error:
             'অবৈধ ইমেজ ফরম্যাট। শুধুমাত্র JPG, PNG, WebP অথবা AVIF ছবি আপলোড করা যাবে।',
         },
-        { status: 400 }
+        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
       );
     }
 
     const ext = ALLOWED_MIME_EXT[detectedMime];
+    const uploaded = await uploadImageToImageKit(buffer, detectedMime, ext, file.name);
 
-    // 1. Prefer Vercel Blob when configured
-    if (process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
-      const url = await uploadToVercelBlob(buffer, detectedMime, ext);
-      return NextResponse.json(
-        { url, storage: 'vercel-blob', mimeType: detectedMime, size: buffer.length },
-        { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
-      );
+    // Best-effort cleanup of an unsaved draft thumbnail replaced during the same editing session
+    if (previousFileId && previousFileId !== uploaded.fileId) {
+      await deleteImageKitFileById(previousFileId).catch((err) => {
+        console.warn('[upload] Best-effort cleanup of replaced draft fileId failed:', err);
+      });
     }
 
-    // 2. Otherwise use Cloudinary when configured
-    if (
-      process.env.CLOUDINARY_CLOUD_NAME?.trim() &&
-      process.env.CLOUDINARY_API_KEY?.trim() &&
-      process.env.CLOUDINARY_API_SECRET?.trim()
-    ) {
-      const url = await uploadToCloudinary(buffer, detectedMime);
-      return NextResponse.json(
-        { url, storage: 'cloudinary', mimeType: detectedMime, size: buffer.length },
-        { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
-      );
-    }
-
-    // 3. Fallback for local dev / unconfigured cloud storage (requires compact compressed image)
-    if (buffer.length > MAX_INLINE_FALLBACK_BYTES) {
-      return NextResponse.json(
-        {
-          error:
-            'ক্লাউড স্টোরেজ কনফিগার করা নেই বলে সর্বোচ্চ ৭৫০ কেবি সাইজের ছবি আপলোড করা যাবে। স্থায়ী হাই-রেজোলিউশন ছবির জন্য Vercel Blob (BLOB_READ_WRITE_TOKEN) অথবা Cloudinary যুক্ত করুন।',
-        },
-        { status: 400 }
-      );
-    }
-
-    const dataUrl = `data:${detectedMime};base64,${buffer.toString('base64')}`;
     return NextResponse.json(
       {
-        url: dataUrl,
-        storage: 'inline-optimized',
+        url: uploaded.url,
+        fileId: uploaded.fileId,
+        filePath: uploaded.filePath,
+        width: uploaded.width,
+        height: uploaded.height,
+        size: uploaded.size ?? buffer.length,
         mimeType: detectedMime,
-        size: buffer.length,
+        storage: 'imagekit',
       },
       { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (err) {
-    console.error('Image upload failed:', err);
+    console.error('ImageKit upload failed:', err);
     return NextResponse.json(
-      { error: 'ছবি আপলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' },
-      { status: 500 }
+      { error: 'ImageKit-এ ছবি আপলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' },
+      { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
+  }
+
+  if (!isImageKitConfigured()) {
+    return NextResponse.json(
+      { deleted: false, skipped: true },
+      { status: 200, headers: { 'Cache-Control': 'private, no-store' } }
+    );
+  }
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const fileId = typeof body?.fileId === 'string' ? body.fileId.trim() : '';
+    const url = typeof body?.url === 'string' ? body.url.trim() : '';
+
+    if (!fileId && !url) {
+      return NextResponse.json(
+        { error: 'মুছে ফেলার জন্য fileId অথবা url প্রদান করুন।' },
+        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      );
+    }
+
+    if (url) {
+      const refCount = await countCoursesUsingImageUrl(url);
+      if (refCount > 0) {
+        return NextResponse.json(
+          { deleted: false, inUse: true },
+          { status: 200, headers: { 'Cache-Control': 'private, no-store' } }
+        );
+      }
+    }
+
+    if (fileId) {
+      const result = await deleteImageKitFileById(fileId);
+      return NextResponse.json(result, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
+    }
+
+    if (!isManagedImageKitUrl(url)) {
+      return NextResponse.json(
+        { deleted: false, unmanaged: true },
+        { headers: { 'Cache-Control': 'private, no-store' } }
+      );
+    }
+
+    const result = await deleteImageKitFileByUrl(url);
+    return NextResponse.json(result, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
+  } catch (err) {
+    console.error('ImageKit delete failed:', err);
+    return NextResponse.json(
+      { error: 'ImageKit থেকে ছবি মুছে ফেলতে সমস্যা হয়েছে।' },
+      { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
     );
   }
 }

@@ -31,7 +31,7 @@ import {
 } from '../../lib/offerTimerUtils.ts';
 
 interface OfferTimerManagerProps {
-  authToken: string;
+  authToken?: string;
   courses: Course[];
   timers: OfferTimer[];
   serverNow?: string;
@@ -65,7 +65,6 @@ const STATUS_META: Record<
 };
 
 export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
-  authToken,
   courses,
   timers,
   serverNow,
@@ -233,7 +232,7 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
     try {
       const res = await fetch('/api/admin/timers', {
         credentials: 'include',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        cache: 'no-store',
       });
       if (res.status === 401) {
         onShowToast('সেশনের মেয়াদ শেষ হয়েছে, অনুগ্রহ করে পুনরায় লগইন করুন।', 'error');
@@ -320,7 +319,6 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -374,7 +372,6 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ isPaused: nextPaused }),
       });
@@ -414,7 +411,6 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
       const res = await fetch(`/api/admin/timers/${target.id}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
       if (res.status === 401) {
         onShowToast('সেশনের মেয়াদ শেষ হয়েছে, অনুগ্রহ করে পুনরায় লগইন করুন।', 'error');
@@ -786,10 +782,16 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
                     className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
                       selectedCourse.status === 'active'
                         ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                        : 'bg-amber-100 text-amber-800 border-amber-200'
+                        : selectedCourse.status === 'closed'
+                        ? 'bg-amber-100 text-amber-800 border-amber-200'
+                        : 'bg-slate-100 text-slate-700 border-slate-300'
                     }`}
                   >
-                    {selectedCourse.status === 'active' ? 'Active' : 'Inactive'}
+                    {selectedCourse.status === 'active'
+                      ? 'Active'
+                      : selectedCourse.status === 'closed'
+                      ? 'Closed (ভর্তি বন্ধ)'
+                      : 'Inactive (লুকানো)'}
                   </span>
                 )}
               </div>

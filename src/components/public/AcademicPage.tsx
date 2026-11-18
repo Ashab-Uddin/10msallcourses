@@ -1,7 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Course } from '../../types.ts';
+import { Category, Course } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
+import {
+  CLASS_BENGALI_ORDINALS,
+  courseMatchesClass,
+} from '../../lib/categoryMatching.ts';
 import {
   Search,
   Sparkles,
@@ -32,8 +36,9 @@ function matchesAnyKeyword(haystack: string, keywords: string[]): boolean {
 
 interface AcademicPageProps {
   level: AcademicLevel;
-  batchOrClass: string; // e.g. 'ssc-27', 'ssc-28', 'hsc-26', 'hsc-27', 'hsc-28', 'class6', 'class7', 'class8', 'class9', 'class10'
+  batchOrClass: string; // e.g. 'ssc-27', 'ssc-28', 'hsc-26', 'hsc-27', 'hsc-28', 'class5', 'class6', 'class7', 'class8', 'class9', 'class10'
   courses: Course[];
+  categories?: Category[];
   onNavigate: (path: string, options?: { noScroll?: boolean }) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   sectionHash?: string;
@@ -50,6 +55,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   level,
   batchOrClass,
   courses,
+  categories = [],
   onNavigate,
   onEnrollClick,
   sectionHash,
@@ -108,8 +114,9 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
         { id: 'hsc-28', label: 'HSC 28', subLabel: '১ম বর্ষ ব্যাচ', path: '/hsc/hsc-28' },
       ];
     }
-    // Junior school: Class 6, 7, 8
+    // Junior school: Class 5, 6, 7, 8
     return [
+      { id: 'class5', label: 'Class 5', subLabel: '৫ম শ্রেণি', path: '/class-5' },
       { id: 'class6', label: 'Class 6', subLabel: '৬ষ্ঠ শ্রেণি', path: '/class-6' },
       { id: 'class7', label: 'Class 7', subLabel: '৭ম শ্রেণি', path: '/class-7' },
       { id: 'class8', label: 'Class 8', subLabel: '৮ম শ্রেণি', path: '/class-8' },
@@ -147,21 +154,20 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
       };
     }
 
-    // class 6 - 8
-    const classNum = batchOrClass.replace('class', '');
-    const ordinalMap: Record<string, string> = {
-      '6': '৬ষ্ঠ',
-      '7': '৭ম',
-      '8': '৮ম',
-    };
-    const bengaliOrdinal = ordinalMap[classNum] || `${toBengaliNumber(parseInt(classNum, 10) || 6)}ষ্ঠ`;
+    // class 5 - 8
+    const classNum = parseInt(batchOrClass.replace('class', ''), 10) || 6;
+    const bengaliOrdinal =
+      CLASS_BENGALI_ORDINALS[classNum] || `${toBengaliNumber(classNum)}ম`;
+    const dbCategory = categories.find((cat) => cat.slug === `class-${classNum}`);
     return {
       badge: `${bengaliOrdinal} শ্রেণি একাডেমিক`,
       title: `${bengaliOrdinal} শ্রেণি অনলাইন ব্যাচ ও বার্ষিক প্রস্তুতি`,
-      subtitle: `জাতীয় শিক্ষাক্রমের আলোকে ${bengaliOrdinal} শ্রেণির সকল বিষয়ের গোছানো লাইভ ক্লাস ও নিয়মিত মূল্যায়ন পরীক্ষা।`,
+      subtitle:
+        dbCategory?.subtitle ||
+        `জাতীয় শিক্ষাক্রমের আলোকে ${bengaliOrdinal} শ্রেণির সকল বিষয়ের গোছানো লাইভ ক্লাস ও নিয়মিত মূল্যায়ন পরীক্ষা।`,
       activeName: `Class ${classNum}`,
     };
-  }, [level, batchOrClass]);
+  }, [level, batchOrClass, categories]);
 
   // Filter courses strictly respecting Course Category first, then matching batch/class metadata
   const batchCourses = useMemo(() => {
@@ -284,16 +290,19 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
       }
 
       if (level === 'class') {
-        if (c.categorySlug !== 'school') return false;
+        if (batchOrClass === 'class5') {
+          return courseMatchesClass(c, 5);
+        }
         if (batchOrClass === 'class6') {
-          return matchesAnyKeyword(text, ['৬ষ্ঠ', 'ষষ্ঠ', 'class 6', 'class-6', 'class6']);
+          return courseMatchesClass(c, 6);
         }
         if (batchOrClass === 'class7') {
-          return matchesAnyKeyword(text, ['৭ম', 'সপ্তম', 'class 7', 'class-7', 'class7']);
+          return courseMatchesClass(c, 7);
         }
         if (batchOrClass === 'class8') {
-          return matchesAnyKeyword(text, ['৮ম', 'অষ্টম', 'class 8', 'class-8', 'class8']);
+          return courseMatchesClass(c, 8);
         }
+        if (c.categorySlug !== 'school') return false;
         if (batchOrClass === 'class9') {
           return matchesAnyKeyword(text, [
             '৯ম',

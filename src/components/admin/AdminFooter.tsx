@@ -26,6 +26,8 @@ interface AdminFooterProps {
     totalCourses: number;
     activeCourses: number;
     inactiveCourses: number;
+    newInquiries?: number;
+    totalBooks?: number;
   };
   categoriesCount: number;
   activeOfferTimersCount?: number;
@@ -189,6 +191,21 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
                     <span>Inactive Courses ({toBengaliNumber(stats.inactiveCourses)})</span>
                   </button>
                 </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onSelectTab('book_add')}
+                    className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
+                    <span>
+                      Book Add (বুক স্টোর)
+                      {typeof stats.totalBooks === 'number'
+                        ? ` (${toBengaliNumber(stats.totalBooks)})`
+                        : ''}
+                    </span>
+                  </button>
+                </li>
               </ul>
             </div>
 
@@ -218,6 +235,21 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
                     <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
                     <span>
                       Offer Timer ({toBengaliNumber(activeOfferTimersCount)}টি সক্রিয়)
+                    </span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => onSelectTab('inquiries')}
+                    className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
+                    <span>
+                      Customer Inquiries
+                      {(stats.newInquiries ?? 0) > 0
+                        ? ` (${toBengaliNumber(stats.newInquiries ?? 0)}টি নতুন)`
+                        : ''}
                     </span>
                   </button>
                 </li>

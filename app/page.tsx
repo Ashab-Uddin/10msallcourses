@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import App from '@/src/App';
 import { getPublicPortalData } from '@/src/db/repository';
+import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import { buildSeoMetadata, buildStructuredData } from '@/src/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +12,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const data = await getPublicPortalData();
+  const [data, bookData] = await Promise.all([
+    getPublicPortalData(),
+    getPublicBookStoreData(),
+  ]);
   const structuredData = buildStructuredData('/', data.categories, data.courses, data.settings);
 
   return (
@@ -31,6 +35,8 @@ export default async function Page() {
         initialOfferTimers={data.offerTimers}
         initialHasOfferTimers={data.hasOfferTimers}
         initialServerNow={data.serverNow}
+        initialBookCategories={bookData.bookCategories}
+        initialBooks={bookData.books}
       />
     </>
   );

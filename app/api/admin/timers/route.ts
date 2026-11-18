@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOfferTimer, getOfferTimers } from '@/src/db/repository';
+import { RepositoryError, createOfferTimer, getOfferTimers } from '@/src/db/repository';
 import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const data = await getOfferTimers();
@@ -25,8 +28,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const body = await req.json();
@@ -50,6 +56,9 @@ export async function POST(req: NextRequest) {
       }
     );
   } catch (error) {
+    if (error instanceof RepositoryError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Failed to create offer timer:', error);
     return NextResponse.json(
       { error: 'অফার টাইমার তৈরি করতে ব্যর্থ হয়েছে।' },

@@ -54,7 +54,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
   const savingsAmount = Math.max(0, course.originalPrice - course.discountPrice);
   const computedDiscountPercent = computeDiscountPercent(course.originalPrice, course.discountPrice);
-  const isClosed = course.status === 'closed' || course.status === 'inactive' || course.slug.includes('beim');
+  const isClosed = course.status === 'closed' || course.status === 'inactive';
 
   const getBannerStyle = () => {
     switch (course.gradientTheme) {
@@ -159,6 +159,16 @@ export const CourseCard: React.FC<CourseCardProps> = ({
       ? course.title.includes('28')
         ? 'SSC 28'
         : 'SSC 27'
+      : course.categorySlug === 'class-8'
+      ? 'CLASS 8'
+      : course.categorySlug === 'class-7'
+      ? 'CLASS 7'
+      : course.categorySlug === 'class-6'
+      ? 'CLASS 6'
+      : course.categorySlug === 'class-5'
+      ? 'CLASS 5'
+      : course.categorySlug === 'free-course'
+      ? 'FREE COURSE'
       : course.categorySlug === 'admission'
       ? 'এডমিশন'
       : '10MS';
@@ -174,6 +184,9 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     }
     if (course.categorySlug === 'skills') {
       return 'প্রফেশনাল স্কিল কোর্স';
+    }
+    if (course.categorySlug === 'free-course') {
+      return 'বিনামূল্যে ফ্রি কোর্স';
     }
     if (course.categorySlug === 'admission') {
       return 'বিশ্ববিদ্যালয় এডমিশন';
@@ -260,11 +273,18 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                     />
                   </div>
                 )}
-                {computedDiscountPercent > 0 && (
-                  <div className="absolute top-3 left-3 z-30 pointer-events-none">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white text-xs font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums">
-                      {toBengaliNumber(computedDiscountPercent)}% ছাড়
-                    </span>
+                {(computedDiscountPercent > 0 || isClosed) && (
+                  <div className="absolute top-3 left-3 z-30 pointer-events-none flex items-center gap-1.5">
+                    {computedDiscountPercent > 0 && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white text-xs font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums">
+                        {toBengaliNumber(computedDiscountPercent)}% ছাড়
+                      </span>
+                    )}
+                    {isClosed && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-600/95 text-white text-xs font-black tracking-tight shadow-md border border-amber-300/60">
+                        ভর্তি বন্ধ
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -364,7 +384,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                   <span className="text-xs text-[#6B4C4F] block">কোর্স ফি</span>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl font-black text-[#007a3d]">
-                      ৳{toBengaliNumber(course.discountPrice)}
+                      {course.discountPrice === 0 ? 'ফ্রি' : `৳${toBengaliNumber(course.discountPrice)}`}
                     </span>
                     {course.originalPrice > course.discountPrice && (
                       <span className="text-xs text-[#6B4C4F] line-through">
@@ -416,8 +436,12 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           onClick={() => handleCardClick('card_banner')}
           className={`relative w-full aspect-video overflow-hidden ${
             hasValidImage ? 'bg-white' : `${banner.bg} p-3.5`
-          } select-none cursor-pointer flex-shrink-0 flex flex-col justify-between`}
-          title="১০ মিনিট স্কুলে সরাসরি ভর্তি হতে ক্লিক করুন"
+          } select-none ${isClosed ? 'cursor-default' : 'cursor-pointer'} flex-shrink-0 flex flex-col justify-between`}
+          title={
+            isClosed
+              ? 'এই কোর্সটিতে বর্তমানে ভর্তি বন্ধ রয়েছে'
+              : '১০ মিনিট স্কুলে সরাসরি ভর্তি হতে ক্লিক করুন'
+          }
         >
           {hasValidImage ? (
             <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-white">
@@ -486,14 +510,20 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             </div>
           )}
 
-          {/* Top-Right Yellow Lightning Bolt ⚡ */}
+          {/* Top-Right Status Badge (Closed) or Yellow Lightning Bolt ⚡ */}
           <div className="absolute top-2.5 right-2.5 z-20 pointer-events-none">
-            <svg
-              className="w-4 h-4 text-amber-400 drop-shadow-sm fill-amber-400"
-              viewBox="0 0 24 24"
-            >
-              <path d="M13 2L3 14h8l-2 8 10-12h-8l2-8z" />
-            </svg>
+            {isClosed ? (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-600/95 text-white text-[10px] sm:text-[11px] font-black tracking-tight shadow-md border border-amber-300/60">
+                ভর্তি বন্ধ
+              </span>
+            ) : (
+              <svg
+                className="w-4 h-4 text-amber-400 drop-shadow-sm fill-amber-400"
+                viewBox="0 0 24 24"
+              >
+                <path d="M13 2L3 14h8l-2 8 10-12h-8l2-8z" />
+              </svg>
+            )}
           </div>
 
           {/* Bottom Row Inside Banner - Dynamic Live Batch & Discount Badges */}
@@ -552,7 +582,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             <div className="flex items-center justify-between pt-2.5 pb-3 border-t border-white/75 tabular-nums">
               <div className="flex items-baseline gap-2">
                 <span className="text-xl sm:text-2xl font-black text-[#007a3d] tracking-tight">
-                  ৳{toBengaliNumber(course.discountPrice)}
+                  {course.discountPrice === 0 ? 'ফ্রি' : `৳${toBengaliNumber(course.discountPrice)}`}
                 </span>
                 {course.originalPrice > course.discountPrice && (
                   <span className="text-xs text-[#7A5A5D] line-through font-normal">

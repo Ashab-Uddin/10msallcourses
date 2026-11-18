@@ -10,7 +10,15 @@ const SAFE_TRACKING_PARAMS = new Set([
 
 const FALLBACK_AFFILIATE_ORIGIN = 'https://10minuteschool.com';
 const MAX_URL_LENGTH = 2048;
-const MAX_INLINE_IMAGE_LENGTH = 1_400_000; // ~1MB base64 data URI cap
+const MAX_LOCAL_IMAGE_PATH_LENGTH = 512;
+
+// Mirrors PostgreSQL CHECK constraints (`chk_courses_affiliate_url_allowlist`,
+// `chk_courses_image_url_allowlist`, `chk_website_settings_*_link_allowlist`) 1:1.
+const PUBLIC_HTTPS_URL_RE =
+  /^https:\/\/([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+([A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59})(:[0-9]{1,5})?([/?#][^\s\x00-\x1f\x7f]*)?$/;
+
+const LOCAL_IMAGES_PATH_RE =
+  /^\/images\/[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
 
 export function validateExternalHttpUrl(raw: unknown): {
   valid: boolean;
@@ -18,7 +26,7 @@ export function validateExternalHttpUrl(raw: unknown): {
   error?: string;
 } {
   if (typeof raw !== 'string') {
-    return { valid: false, error: 'একটি বৈধ ওয়েব লিংক (URL) প্রদান করুন।' };
+    return { valid: false, error: 'একটি বৈধ ওয়েব লিংক (https://...) প্রদান করুন।' };
   }
 
   const trimmed = raw.trim();
@@ -30,18 +38,37 @@ export function validateExternalHttpUrl(raw: unknown): {
     return { valid: false, error: 'লিংকটি অতিরিক্ত দীর্ঘ (সর্বোচ্চ ২০৪৮ অক্ষর)।' };
   }
 
+  if (trimmed.includes('\\') || /[\s\x00-\x1f\x7f]/.test(trimmed)) {
+    return {
+      valid: false,
+      error: 'URL-এ কোনো স্পেস, ব্যাকস্ল্যাশ বা অনিরাপদ অক্ষর থাকতে পারবে না।',
+    };
+  }
+
   try {
     const parsed = new URL(trimmed);
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    if (parsed.protocol !== 'https:') {
       return {
         valid: false,
-        error: 'শুধুমাত্র http:// অথবা https:// দিয়ে শুরু হওয়া নিরাপদ লিংক গ্রহণযোগ্য।',
+        error: 'নিরাপত্তার জন্য শুধুমাত্র https:// দিয়ে শুরু হওয়া পাবলিক ওয়েব লিংক গ্রহণযোগ্য।',
       };
     }
-    if (!parsed.hostname) {
-      return { valid: false, error: 'সঠিক ডোমেইন নামসহ বৈধ URL প্রদান করুন।' };
+    if (parsed.username || parsed.password) {
+      return {
+        valid: false,
+        error: 'URL-এ ইউজারনেম বা পাসওয়ার্ড যুক্ত করা যাবে না।',
+      };
     }
-    return { valid: true, normalized: parsed.toString() };
+
+    const normalized = parsed.toString();
+    if (!PUBLIC_HTTPS_URL_RE.test(normalized)) {
+      return {
+        valid: false,
+        error: 'সঠিক পাবলিক ডোমেইনসহ বৈধ https:// URL প্রদান করুন (localhost বা IP গ্রহণযোগ্য নয়)।',
+      };
+    }
+
+    return { valid: true, normalized };
   } catch {
     return {
       valid: false,
@@ -56,7 +83,8 @@ export function buildAffiliateRedirectUrl(
   incomingSearchParams?: URLSearchParams | null
 ): string {
   const checked = validateExternalHttpUrl(rawUrl || '');
-  const baseUrlStr = checked.valid && checked.normalized ? checked.normalized : FALLBACK_AFFILIATE_ORIGIN;
+  const baseUrlStr =
+    checked.valid && checked.normalized ? checked.normalized : FALLBACK_AFFILIATE_ORIGIN;
 
   try {
     const target = new URL(baseUrlStr);
@@ -111,39 +139,40 @@ export function sanitizeImageUrl(raw: unknown): {
     return { valid: true, value: null };
   }
 
-  // Allow safe local relative paths (e.g., /images/...)
+  // Strictly reject inline data: URIs so PostgreSQL CHECK constraints & DB storage stay clean
+  if (trimmed.toLowerCase().startsWith('data:')) {
+    return {
+      valid: false,
+      value: null,
+      error:
+        'সরাসরি base64/data ইমেজ সংরক্ষণ করা যাবে না। অনুগ্রহ করে ImageKit-এ আপলোড করুন অথবা বৈধ https:// ইমেজ URL দিন।',
+    };
+  }
+
+  // Strict project-owned relative /images/... path allowlist (mirrors PostgreSQL CHECK constraint)
   if (trimmed.startsWith('/')) {
-    if (trimmed.includes('..') || trimmed.startsWith('//')) {
-      return { valid: false, value: null, error: 'অনিরাপদ লোকাল ইমেজ পাথ।' };
-    }
-    return { valid: true, value: trimmed };
-  }
-
-  // Allow safe raster Data URIs (for local dev / small optimized images)
-  if (trimmed.startsWith('data:')) {
-    const isValidRasterDataUri =
-      /^data:image\/(jpeg|jpg|png|webp|avif);base64,[A-Za-z0-9+/=\s]+$/i.test(trimmed);
-    if (!isValidRasterDataUri) {
+    if (
+      trimmed.length > MAX_LOCAL_IMAGE_PATH_LENGTH ||
+      trimmed.includes('..') ||
+      !LOCAL_IMAGES_PATH_RE.test(trimmed)
+    ) {
       return {
         valid: false,
         value: null,
-        error: 'শুধুমাত্র JPG, PNG, WebP বা AVIF ছবি গ্রহণযোগ্য।',
-      };
-    }
-    if (trimmed.length > MAX_INLINE_IMAGE_LENGTH) {
-      return {
-        valid: false,
-        value: null,
-        error: 'ইনলাইন ছবির আকার অতিরিক্ত বড়। অনুগ্রহ করে ১ মেগাবাইটের কম অথবা ক্লাউড ইমেজ URL ব্যবহার করুন।',
+        error: 'লোকাল ইমেজ পাথ অবশ্যই নিরাপদ /images/... ফরম্যাটে হতে হবে।',
       };
     }
     return { valid: true, value: trimmed };
   }
 
-  // External HTTP(S) CDN URL
+  // External public HTTPS CDN / ImageKit URL
   const checked = validateExternalHttpUrl(trimmed);
   if (!checked.valid) {
-    return { valid: false, value: null, error: checked.error || 'অবৈধ ইমেজ URL।' };
+    return {
+      valid: false,
+      value: null,
+      error: checked.error || 'অবৈধ ইমেজ URL। শুধুমাত্র https:// লিংক গ্রহণযোগ্য।',
+    };
   }
   return { valid: true, value: checked.normalized || trimmed };
 }

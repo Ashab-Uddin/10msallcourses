@@ -1,6 +1,12 @@
 import type { Metadata } from 'next';
-import { Category, Course, SiteSettings } from '@/src/types';
+import { BookCategory, Category, Course, SiteSettings } from '@/src/types';
 import { toBengaliNumber } from '@/src/utils/format';
+import {
+  CLASS_BENGALI_ORDINALS,
+  courseMatchesCategorySlug,
+  courseMatchesClass,
+  type JuniorClassNumber,
+} from '@/src/lib/categoryMatching';
 
 export function getSiteBaseUrl(): string {
   const explicit = process.env.APP_URL || process.env.NEXT_PUBLIC_SITE_URL;
@@ -23,10 +29,15 @@ interface ResolvedRouteSeo {
   isAdmin?: boolean;
 }
 
+function isPublicVisibleCourse(course: Course): boolean {
+  return course.status === 'active' || course.status === 'closed';
+}
+
 function resolveRouteSeo(
   pathname: string,
   categories: Category[],
-  settings?: SiteSettings | null
+  settings?: SiteSettings | null,
+  bookCategories: BookCategory[] = []
 ): ResolvedRouteSeo {
   const clean = pathname.replace(/\/+$/, '') || '/';
 
@@ -49,7 +60,7 @@ function resolveRouteSeo(
       filterCourses: (all) =>
         all.filter(
           (c) =>
-            c.status === 'active' &&
+            isPublicVisibleCourse(c) &&
             (c.categorySlug === 'hsc' || c.categorySlug === 'admission') &&
             (c.slug.includes('hsc-26') ||
               c.title.toLowerCase().includes('hsc 26') ||
@@ -67,7 +78,7 @@ function resolveRouteSeo(
       filterCourses: (all) =>
         all.filter(
           (c) =>
-            c.status === 'active' &&
+            isPublicVisibleCourse(c) &&
             c.categorySlug === 'hsc' &&
             (c.slug.includes('hsc-27') || c.title.toLowerCase().includes('hsc 27'))
         ),
@@ -89,7 +100,7 @@ function resolveRouteSeo(
       filterCourses: (all) =>
         all.filter(
           (c) =>
-            c.status === 'active' &&
+            isPublicVisibleCourse(c) &&
             c.categorySlug === 'hsc' &&
             (c.slug.includes('hsc-28') || c.title.toLowerCase().includes('hsc 28'))
         ),
@@ -111,11 +122,7 @@ function resolveRouteSeo(
         'দশম শ্রেণি ও SSC ২০২৭ বোর্ড পরীক্ষার পূর্ণাঙ্গ প্রস্তুতি, লাইভ ক্লাস, মডেল টেস্ট ও বোর্ড প্রশ্ন সমাধান।',
       canonicalPath: '/ssc/ssc-27',
       filterCourses: (all) =>
-        all.filter(
-          (c) =>
-            c.status === 'active' &&
-            c.categorySlug === 'school'
-        ),
+        all.filter((c) => isPublicVisibleCourse(c) && c.categorySlug === 'school'),
     };
   }
 
@@ -132,28 +139,43 @@ function resolveRouteSeo(
         'নবম শ্রেণি ও SSC ২০২৮ ব্যাচের বাংলা, ইংরেজি, গণিত, বিজ্ঞান, মানবিক ও ব্যবসায় শিক্ষার পূর্ণাঙ্গ একাডেমিক ব্যাচ।',
       canonicalPath: '/ssc/ssc-28',
       filterCourses: (all) =>
-        all.filter(
-          (c) =>
-            c.status === 'active' &&
-            c.categorySlug === 'school'
-        ),
+        all.filter((c) => isPublicVisibleCourse(c) && c.categorySlug === 'school'),
     };
   }
 
-  const classMatch = clean.match(/^\/(?:academic\/)?class-?([6-8])$/);
+  const classMatch = clean.match(/^\/(?:academic\/)?class-?([5-8])$/);
   if (classMatch) {
-    const num = Number(classMatch[1]);
-    const bnClass = `${toBengaliNumber(num)}ম`;
+    const num = Number(classMatch[1]) as JuniorClassNumber;
+    const bnClass = CLASS_BENGALI_ORDINALS[num] || `${toBengaliNumber(num)}ম`;
+    const dbCat = categories.find((c) => c.slug === `class-${num}`);
     return {
       title: `${bnClass} শ্রেণি অনলাইন ব্যাচ — ১০ মিনিট স্কুল`,
-      description: `টেন মিনিট স্কুলের ${bnClass} শ্রেণির বাংলা, ইংরেজি, গণিত ও বিজ্ঞান বিষয়ের লাইভ ক্লাস, লেকচার নোট ও সাপ্তাহিক পরীক্ষা।`,
+      description:
+        dbCat?.subtitle ||
+        `টেন মিনিট স্কুলের ${bnClass} শ্রেণির বাংলা, ইংরেজি, গণিত ও বিজ্ঞান বিষয়ের লাইভ ক্লাস, লেকচার নোট ও সাপ্তাহিক পরীক্ষা।`,
       canonicalPath: `/class-${num}`,
       filterCourses: (all) =>
+        all.filter((c) => isPublicVisibleCourse(c) && courseMatchesClass(c, num)),
+    };
+  }
+
+  if (
+    clean === '/free-course' ||
+    clean === '/free' ||
+    clean === '/free-courses' ||
+    clean === '/category/free-course' ||
+    clean === '/categories/free-course'
+  ) {
+    const freeCat = categories.find((c) => c.slug === 'free-course');
+    return {
+      title: `${freeCat?.name || 'ফ্রি কোর্স'} — ১০ মিনিট স্কুল`,
+      description:
+        freeCat?.subtitle ||
+        'শিক্ষার্থীদের জন্য ১০ মিনিট স্কুলের সম্পূর্ণ বিনামূল্যের কোর্স, মাস্টারক্লাস ও লার্নিং কনটেন্ট।',
+      canonicalPath: '/free-course',
+      filterCourses: (all) =>
         all.filter(
-          (c) =>
-            c.status === 'active' &&
-            c.categorySlug === 'school' &&
-            (c.slug.includes(`class-${num}`) || (c.targetStudents || '').includes(`Class ${num}`))
+          (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, 'free-course')
         ),
     };
   }
@@ -167,7 +189,7 @@ function resolveRouteSeo(
       filterCourses: (all) =>
         all.filter(
           (c) =>
-            c.status === 'active' &&
+            isPublicVisibleCourse(c) &&
             (c.categorySlug === 'skills' || c.categorySlug === 'language-learning')
         ),
     };
@@ -181,7 +203,8 @@ function resolveRouteSeo(
         skillsCat?.subtitle ||
         'স্পোকেন ইংলিশ, ফ্রিল্যান্সিং, ওয়েব ডেভেলপমেন্ট, ডিজিটাল মার্কেটিং ও প্রফেশনাল ক্যারিয়ার স্কিল কোর্সসমূহ।',
       canonicalPath: '/skills',
-      filterCourses: (all) => all.filter((c) => c.status === 'active' && c.categorySlug === 'skills'),
+      filterCourses: (all) =>
+        all.filter((c) => isPublicVisibleCourse(c) && c.categorySlug === 'skills'),
     };
   }
 
@@ -198,22 +221,33 @@ function resolveRouteSeo(
         'মেডিকেল, বুয়েট, ঢাকা বিশ্ববিদ্যালয় ক, খ, গ ইউনিট এবং গুচ্ছ ভর্তি পরীক্ষার পূর্ণাঙ্গ অনলাইন এডমিশন ব্যাচ।',
       canonicalPath: '/admission',
       filterCourses: (all) =>
-        all.filter((c) => c.status === 'active' && c.categorySlug === 'admission'),
+        all.filter((c) => isPublicVisibleCourse(c) && c.categorySlug === 'admission'),
     };
   }
 
-  if (clean === '/books' || clean === '/category/books' || clean === '/categories/books') {
+  if (
+    clean === '/books' ||
+    clean === '/book-store' ||
+    clean === '/category/books' ||
+    clean === '/categories/books' ||
+    clean.startsWith('/books/')
+  ) {
+    const bookCatSlug = clean.startsWith('/books/')
+      ? clean.slice('/books/'.length).split('/')[0]
+      : '';
+    const matchedBookCat = bookCatSlug
+      ? bookCategories.find((cat) => cat.slug === bookCatSlug)
+      : undefined;
+
     return {
-      title: '১০ মিনিট স্কুল বই ও মাস্টারবুক সমূহ — 10msallcourse.com',
+      title: matchedBookCat
+        ? `${matchedBookCat.sectionTitle || matchedBookCat.name} — 10MS বুক স্টোর`
+        : '10MS বুক স্টোর — সেরা শিক্ষার্থীদের প্রয়োজনীয় বই ও উপকরণ — 10msallcourse.com',
       description:
-        'একাডেমিক, এডমিশন ও ক্যারিয়ার স্কিল প্রস্তুতির সেরা মাস্টারবুক, লেকচার শিট ও প্রশ্নব্যাংক সংগ্রহ।',
-      canonicalPath: '/books',
-      filterCourses: (all) =>
-        all.filter(
-          (c) =>
-            c.status === 'active' &&
-            (c.categorySlug === 'books' || c.title.includes('বই') || c.slug.includes('book'))
-        ),
+        matchedBookCat?.subtitle ||
+        'এইচএসসি, এসএসসি, অষ্টম, ৭ম ও ৬ষ্ঠ শ্রেণির সেরা প্রিন্টেড মাস্টারবুক, লেকচার গাইড ও প্রয়োজনীয় শিক্ষাউপকরণ সংগ্রহ।',
+      canonicalPath: matchedBookCat ? `/books/${matchedBookCat.slug}` : '/books',
+      filterCourses: () => [],
     };
   }
 
@@ -226,7 +260,8 @@ function resolveRouteSeo(
         cat?.subtitle ||
         `টেন মিনিট স্কুলের ${cat?.name || slug} ক্যাটাগরির সকল অনলাইন কোর্স ও ব্যাচ ডিসকাউন্টেড মূল্যে দেখুন।`,
       canonicalPath: `/category/${slug}`,
-      filterCourses: (all) => all.filter((c) => c.status === 'active' && c.categorySlug === slug),
+      filterCourses: (all) =>
+        all.filter((c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, slug)),
     };
   }
 
@@ -238,17 +273,18 @@ function resolveRouteSeo(
       settings?.heroSubtitle ||
       'সরাসরি সর্বোচ্চ প্রাথমিক ছাড়ে যেকোনো একাডেমিক, HSC, SSC, এডমিশন ও ক্যারিয়ার স্কিল প্রোগ্রামে ভর্তি হোন।',
     canonicalPath: '/',
-    filterCourses: (all) => all.filter((c) => c.status === 'active'),
+    filterCourses: (all) => all.filter(isPublicVisibleCourse),
   };
 }
 
 export function buildSeoMetadata(
   pathname: string,
   categories: Category[],
-  settings?: SiteSettings | null
+  settings?: SiteSettings | null,
+  bookCategories: BookCategory[] = []
 ): Metadata {
   const baseUrl = getSiteBaseUrl();
-  const resolved = resolveRouteSeo(pathname, categories, settings);
+  const resolved = resolveRouteSeo(pathname, categories, settings, bookCategories);
 
   if (resolved.isAdmin) {
     return {
@@ -308,7 +344,10 @@ export function buildStructuredData(
   const resolved = resolveRouteSeo(pathname, categories, settings);
   if (resolved.isAdmin) return null;
 
-  const matched = resolved.filterCourses(courses).slice(0, 12);
+  const matched = resolved
+    .filterCourses(courses)
+    .sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1))
+    .slice(0, 12);
   const pageUrl = `${baseUrl}${resolved.canonicalPath}`;
 
   return {
@@ -375,6 +414,10 @@ export function buildStructuredData(
                   '@type': 'Course',
                   name: course.title,
                   description: course.description,
+                  image:
+                    course.imageUrl && course.imageUrl.startsWith('https://')
+                      ? course.imageUrl
+                      : `${baseUrl}/images/logo.png`,
                   provider: {
                     '@type': 'Organization',
                     name: '10 Minute School',
@@ -383,7 +426,10 @@ export function buildStructuredData(
                     '@type': 'Offer',
                     priceCurrency: 'BDT',
                     price: course.discountPrice,
-                    availability: 'https://schema.org/InStock',
+                    availability:
+                      course.status === 'active'
+                        ? 'https://schema.org/InStock'
+                        : 'https://schema.org/SoldOut',
                     url: `${baseUrl}/go/${course.slug}`,
                   },
                 },

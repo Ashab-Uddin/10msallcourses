@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminOverviewData, updatePortalSettings } from '@/src/db/repository';
+import {
+  RepositoryError,
+  getAdminOverviewData,
+  updatePortalSettings,
+} from '@/src/db/repository';
 import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
 import { validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const data = await getAdminOverviewData();
@@ -21,32 +28,43 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const body = await req.json().catch(() => ({}));
 
-    if (typeof body?.whatsappLink === 'string' && body.whatsappLink.trim()) {
-      const check = validateExternalHttpUrl(body.whatsappLink);
-      if (!check.valid) {
-        return NextResponse.json(
-          { error: 'বৈধ হোয়াটসঅ্যাপ লিংক (https://wa.me/...) প্রদান করুন।' },
-          { status: 400 }
-        );
+    if (typeof body?.whatsappLink === 'string') {
+      if (body.whatsappLink.trim()) {
+        const check = validateExternalHttpUrl(body.whatsappLink);
+        if (!check.valid) {
+          return NextResponse.json(
+            { error: 'বৈধ হোয়াটসঅ্যাপ লিংক (https://wa.me/...) প্রদান করুন।' },
+            { status: 400 }
+          );
+        }
+        body.whatsappLink = check.normalized;
+      } else {
+        body.whatsappLink = '';
       }
-      body.whatsappLink = check.normalized;
     }
 
-    if (typeof body?.messengerLink === 'string' && body.messengerLink.trim()) {
-      const check = validateExternalHttpUrl(body.messengerLink);
-      if (!check.valid) {
-        return NextResponse.json(
-          { error: 'বৈধ ফেসবুক মেসেঞ্জার লিংক (https://m.me/...) প্রদান করুন।' },
-          { status: 400 }
-        );
+    if (typeof body?.messengerLink === 'string') {
+      if (body.messengerLink.trim()) {
+        const check = validateExternalHttpUrl(body.messengerLink);
+        if (!check.valid) {
+          return NextResponse.json(
+            { error: 'বৈধ ফেসবুক মেসেঞ্জার লিংক (https://m.me/...) প্রদান করুন।' },
+            { status: 400 }
+          );
+        }
+        body.messengerLink = check.normalized;
+      } else {
+        body.messengerLink = '';
       }
-      body.messengerLink = check.normalized;
     }
 
     const data = await updatePortalSettings(body);
@@ -54,6 +72,9 @@ export async function POST(req: NextRequest) {
       headers: { 'Cache-Control': 'private, no-store' },
     });
   } catch (error) {
+    if (error instanceof RepositoryError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Save settings failed:', error);
     return NextResponse.json({ error: 'সেটিংস সংরক্ষণ ব্যর্থ হয়েছে।' }, { status: 500 });
   }

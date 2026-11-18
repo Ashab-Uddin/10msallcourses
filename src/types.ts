@@ -97,3 +97,44 @@ export interface OfferTimer {
   updatedAt: string;
 }
 
+export type BookShelfTheme = 'blue' | 'rose' | 'amber' | 'emerald' | 'slate';
+
+export interface BookCategory {
+  id: number;
+  name: string;
+  slug: string;
+  sectionTitle?: string | null;
+  subtitle?: string | null;
+  shelfTheme?: BookShelfTheme;
+  displayOrder: number;
+  status: 'active' | 'inactive';
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface Book {
+  id: number;
+  title: string;
+  slug: string;
+  categoryId: number | null;
+  categorySlug: string;
+  bookType: string;
+  author: string;
+  publisher: string;
+  edition: string;
+  pages: string;
+  coverImageUrl: string | null;
+  originalPrice: number;
+  price: number;
+  discountPercent: number;
+  affiliateUrl: string;
+  orderUrl?: string;
+  features: string; // JSON string array
+  isFeatured: boolean;
+  clickCount?: number;
+  status: 'active' | 'inactive';
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+

@@ -15,7 +15,7 @@ import {
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 
 interface AdminLoginProps {
-  onLoginSuccess: (token: string, email: string, name: string) => void;
+  onLoginSuccess: (email: string, name: string) => void;
   onBackToSite: () => void;
 }
 
@@ -52,9 +52,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
       const contentType = res.headers.get('content-type') || '';
       let data: {
         error?: string;
-        token?: string;
+        success?: boolean;
         email?: string;
         name?: string;
+        role?: string;
+        provider?: string;
       } = {};
       if (contentType.includes('application/json')) {
         data = await res.json().catch(() => ({}));
@@ -63,25 +65,23 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
         try {
           data = text ? JSON.parse(text) : {};
         } catch {
-          data = { error: 'সার্ভার থেকে অপ্রত্যাশিত রেসপন্স এসেছে।' };
+          data = {
+            error:
+              res.status === 502 || res.status === 503 || res.status === 504
+                ? 'সার্ভার প্রস্তুত হচ্ছে, অনুগ্রহ করে ২-৩ সেকেন্ড পর আবার চেষ্টা করুন।'
+                : 'সার্ভার থেকে অপ্রত্যাশিত রেসপন্স এসেছে।',
+          };
         }
       }
 
-      if (!res.ok || !data.token) {
+      if (!res.ok || !data.success) {
         throw new Error(data?.error || `লগইন ব্যর্থ হয়েছে (${res.status})।`);
       }
 
-      const token = data.token;
       const userEmail = data.email || cleanEmail;
       const userName = data.name || 'Site Admin';
 
-      try {
-        sessionStorage.setItem('10ms_auth_token', token);
-        sessionStorage.setItem('10ms_admin_email', userEmail);
-        sessionStorage.setItem('10ms_admin_name', userName);
-      } catch {}
-
-      onLoginSuccess(token, userEmail, userName);
+      onLoginSuccess(userEmail, userName);
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : 'সার্ভারে লগইন করতে সমস্যা হয়েছে।';
@@ -204,7 +204,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
           <div className="pt-3 border-t border-rose-200/50 text-[11px] text-[#6B4C4F] flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1 font-medium">
               <Lock className="w-3.5 h-3.5 text-rose-500" />
-              <span>Signed Session Auth</span>
+              <span>HttpOnly Secure Auth</span>
             </span>
             <span className="text-emerald-700 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />

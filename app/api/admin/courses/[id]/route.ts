@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   RepositoryError,
+  countCoursesUsingImageUrl,
   deleteCourseById,
-  getAdminOverviewData,
+  getCourseById,
   normalizeCourseStatus,
   parseSafePrice,
   updateExistingCourse,
@@ -10,6 +11,7 @@ import {
 import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
 import { sanitizeImageUrl, validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
 import { validateCoursePricing, validateSingleBatchKeyword } from '@/src/lib/courseValidation';
+import { deleteImageKitFileByUrl, isManagedImageKitUrl } from '@/src/lib/imagekit';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,18 +21,43 @@ function parsePositiveId(raw: string): number | null {
   return num;
 }
 
+async function cleanupOrphanedImageKitThumbnail(
+  previousImageUrl: string | null | undefined,
+  excludeCourseId: number
+): Promise<void> {
+  if (!previousImageUrl || !isManagedImageKitUrl(previousImageUrl)) {
+    return;
+  }
+  try {
+    const remainingRefs = await countCoursesUsingImageUrl(previousImageUrl, excludeCourseId);
+    if (remainingRefs === 0) {
+      await deleteImageKitFileByUrl(previousImageUrl);
+    }
+  } catch (err) {
+    console.warn('[courses] Best-effort ImageKit thumbnail cleanup warning:', err);
+  }
+}
+
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const { id } = await params;
     const courseId = parsePositiveId(id);
     if (!courseId) {
       return NextResponse.json({ error: 'অবৈধ কোর্স আইডি।' }, { status: 400 });
+    }
+
+    const existing = await getCourseById(courseId);
+    if (!existing) {
+      return NextResponse.json({ error: 'কোর্সটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
     }
 
     const body = await req.json().catch(() => ({}));
@@ -84,11 +111,6 @@ export async function PUT(
     }
 
     if (origCheck || discCheck) {
-      const overview = await getAdminOverviewData();
-      const existing = overview.courses.find((c) => c.id === courseId);
-      if (!existing) {
-        return NextResponse.json({ error: 'কোর্সটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
-      }
       const effectiveOriginal = origCheck ? origCheck.value : existing.originalPrice;
       const effectiveDiscount = discCheck ? discCheck.value : existing.discountPrice;
       const pricingCheck = validateCoursePricing(effectiveOriginal, effectiveDiscount);
@@ -114,6 +136,16 @@ export async function PUT(
     if (!data) {
       return NextResponse.json({ error: 'কোর্সটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
     }
+
+    // Best-effort ImageKit cleanup if an old managed thumbnail was replaced or removed
+    if (
+      body.imageUrl !== undefined &&
+      existing.imageUrl &&
+      existing.imageUrl !== data.imageUrl
+    ) {
+      await cleanupOrphanedImageKitThumbnail(existing.imageUrl, courseId);
+    }
+
     return NextResponse.json(data, {
       headers: { 'Cache-Control': 'private, no-store' },
     });
@@ -130,8 +162,11 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const { id } = await params;
@@ -143,10 +178,21 @@ export async function DELETE(
     if (!result.found) {
       return NextResponse.json({ error: 'কোর্সটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
     }
-    return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'private, no-store' },
-    });
+
+    if (result.previousImageUrl) {
+      await cleanupOrphanedImageKitThumbnail(result.previousImageUrl, courseId);
+    }
+
+    return NextResponse.json(
+      { deleted: result.deleted, found: result.found },
+      {
+        headers: { 'Cache-Control': 'private, no-store' },
+      }
+    );
   } catch (error) {
+    if (error instanceof RepositoryError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Delete course failed:', error);
     return NextResponse.json({ error: 'কোর্স মুছে ফেলতে সমস্যা হয়েছে।' }, { status: 500 });
   }

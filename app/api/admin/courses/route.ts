@@ -13,8 +13,11 @@ import { validateCoursePricing, validateSingleBatchKeyword } from '@/src/lib/cou
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const data = await getAdminOverviewData();
@@ -25,10 +28,7 @@ export async function GET(req: NextRequest) {
 
     const status = searchParams.get('status')?.trim();
     if (status && status !== 'all') {
-      courses =
-        status === 'inactive'
-          ? courses.filter((c) => c.status !== 'active')
-          : courses.filter((c) => c.status === status);
+      courses = courses.filter((c) => c.status === status);
     }
 
     const category = searchParams.get('category')?.trim();
@@ -74,8 +74,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const body = await req.json().catch(() => ({}));

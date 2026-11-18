@@ -5,6 +5,7 @@ import {
   recordCourseClick,
 } from '@/src/db/repository';
 import { buildAffiliateRedirectUrl } from '@/src/lib/affiliateUrl';
+import { checkRateLimit } from '@/src/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +14,33 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    const rate = checkRateLimit(req, 'public_go_redirect', 60, 60 * 1000);
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: 'অতিরিক্ত অনুরোধ করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rate.retryAfterSeconds),
+            'Cache-Control': 'no-store',
+          },
+        }
+      );
+    }
+
     const { slug } = await params;
-    const course = await getCourseBySlug(slug);
+    let cleanSlug = '';
+    try {
+      cleanSlug = decodeURIComponent(slug || '').trim();
+    } catch {
+      cleanSlug = (slug || '').trim();
+    }
+
+    if (!cleanSlug) {
+      return NextResponse.redirect(new URL('/', req.url), 307);
+    }
+
+    const course = await getCourseBySlug(cleanSlug);
 
     // Block missing or inactive/closed courses from redirecting to checkout
     if (!course || course.status !== 'active') {
@@ -26,7 +52,7 @@ export async function GET(
     const settings = await getPortalSettings();
 
     // Await click recording so serverless runtimes (Vercel) do not drop the write
-    await recordCourseClick(slug, referrer, userAgent).catch((err) => {
+    await recordCourseClick(cleanSlug, referrer, userAgent).catch((err) => {
       console.error('Click tracking error on /go redirect:', err);
     });
 

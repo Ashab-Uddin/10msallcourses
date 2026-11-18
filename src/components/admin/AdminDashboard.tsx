@@ -1,7 +1,14 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Category, ClickRecord, Course, OfferTimer, SiteSettings } from '../../types.ts';
+import {
+  Category,
+  ClickRecord,
+  Course,
+  CustomerInquiry,
+  OfferTimer,
+  SiteSettings,
+} from '../../types.ts';
 import { computeOfferTimerStatus } from '../../lib/offerTimerUtils.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
@@ -36,6 +43,18 @@ const CourseCard = dynamic(
   () => import('../public/CourseCard.tsx').then((m) => m.CourseCard),
   { ssr: false }
 );
+
+const BookStoreAdminManager = dynamic(
+  () => import('./BookStoreAdminManager.tsx').then((m) => m.BookStoreAdminManager),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-strong rounded-3xl p-10 text-center text-sm font-bold text-[#6B4C4F]">
+        বুক স্টোর ম্যানেজার লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
 import {
   LayoutDashboard,
   BookOpen,
@@ -61,12 +80,16 @@ import {
   ExternalLink,
   SlidersHorizontal,
   AlarmClock,
+  MessageSquare,
+  Phone,
+  CheckCheck,
+  ShoppingBag,
 } from 'lucide-react';
 
 const COURSES_PER_PAGE = 12;
 
 interface AdminDashboardProps {
-  authToken: string;
+  authToken?: string;
   adminEmail: string;
   adminName: string;
   currentPath?: string;
@@ -83,12 +106,15 @@ export type AdminPageTab =
   | 'active_courses'
   | 'inactive_courses'
   | 'categories'
+  | 'book_add'
+  | 'book_store'
+  | 'book_categories'
   | 'offer_timers'
+  | 'inquiries'
   | 'settings'
   | 'course_editor';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  authToken,
   adminEmail,
   adminName,
   currentPath = '/admin/overview',
@@ -103,8 +129,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (p.includes('/admin/courses/active')) return 'active_courses';
     if (p.includes('/admin/courses/inactive')) return 'inactive_courses';
     if (p.includes('/admin/courses')) return 'all_courses';
+    if (p.includes('/admin/books/new')) return 'book_add';
+    if (p.includes('/admin/book-categories')) return 'book_categories';
+    if (p.includes('/admin/books')) return 'book_store';
     if (p.includes('/admin/categories')) return 'categories';
     if (p.includes('/admin/offer-timers')) return 'offer_timers';
+    if (p.includes('/admin/inquiries')) return 'inquiries';
     if (p.includes('/admin/settings')) return 'settings';
     return 'overview';
   };
@@ -120,15 +150,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     totalCourses: 0,
     activeCourses: 0,
     inactiveCourses: 0,
+    closedCourses: 0,
+    hiddenCourses: 0,
     popularCourses: 0,
     totalClicks: 0,
+    totalInquiries: 0,
+    newInquiries: 0,
   });
+  const [bookStats, setBookStats] = useState({ totalBooks: 0, activeBooks: 0 });
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [recentClicks, setRecentClicks] = useState<ClickRecord[]>([]);
-  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [, setSettings] = useState<SiteSettings | null>(null);
   const [offerTimers, setOfferTimers] = useState<OfferTimer[]>([]);
+  const [inquiries, setInquiries] = useState<CustomerInquiry[]>([]);
+  const [inquiriesLoading, setInquiriesLoading] = useState(false);
+  const [inquiriesLoaded, setInquiriesLoaded] = useState(false);
+  const [inquiryFilter, setInquiryFilter] = useState<'all' | 'new' | 'resolved'>('all');
+  const [inquiryActionId, setInquiryActionId] = useState<number | null>(null);
   const [storageInfo, setStorageInfo] = useState<{
     backend: string;
     persistentOnVercel: boolean;
@@ -199,6 +239,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     [onLogout, showToast]
   );
 
+  const handleBookStoreUnauthorized = useCallback(() => {
+    showToast('সেশনের মেয়াদ শেষ হয়েছে, অনুগ্রহ করে পুনরায় লগইন করুন।', 'error');
+    onLogout();
+  }, [onLogout, showToast]);
+
   // Sync tab with external route change without calling setState synchronously inside useEffect
   const [prevPath, setPrevPath] = useState(currentPath);
   if (currentPath !== prevPath) {
@@ -227,7 +272,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       active_courses: '/admin/courses/active',
       inactive_courses: '/admin/courses/inactive',
       categories: '/admin/categories',
+      book_add: '/admin/books/new',
+      book_store: '/admin/books',
+      book_categories: '/admin/book-categories',
       offer_timers: '/admin/offer-timers',
+      inquiries: '/admin/inquiries',
       settings: '/admin/settings',
     };
 
@@ -239,6 +288,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Fetch Customer Inquiries
+  const fetchInquiries = useCallback(
+    async (showFeedback = false) => {
+      setInquiriesLoading(true);
+      try {
+        const res = await fetch('/api/admin/messages', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (handleUnauthorizedResponse(res)) return;
+        if (!res.ok) throw new Error('বার্তা তালিকা লোড করা যায়নি।');
+        const data = await res.json();
+        const rows: CustomerInquiry[] = Array.isArray(data) ? data : [];
+        setInquiries(rows);
+        setInquiriesLoaded(true);
+        setStats((prev) => ({
+          ...prev,
+          totalInquiries: rows.length,
+          newInquiries: rows.filter((r) => r.status === 'new').length,
+        }));
+        if (showFeedback) {
+          showToast('ইনকোয়ারি তালিকা রিফ্রেশ করা হয়েছে।', 'info');
+        }
+      } catch (err: any) {
+        showToast(err.message || 'বার্তা লোড করতে ত্রুটি হয়েছে।', 'error');
+      } finally {
+        setInquiriesLoading(false);
+      }
+    },
+    [handleUnauthorizedResponse, showToast]
+  );
+
   // Fetch Dashboard Overview & Core Data
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -246,13 +327,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const res = await fetch('/api/admin/overview', {
         credentials: 'include',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        cache: 'no-store',
       });
       if (handleUnauthorizedResponse(res)) return;
       if (!res.ok) throw new Error('এডমিন ডেটা লোড করতে ব্যর্থ হয়েছে।');
 
       const data = await res.json();
-      setStats(data.stats || {});
+      setStats({
+        totalCourses: data.stats?.totalCourses ?? 0,
+        activeCourses: data.stats?.activeCourses ?? 0,
+        inactiveCourses: data.stats?.inactiveCourses ?? 0,
+        closedCourses: data.stats?.closedCourses ?? 0,
+        hiddenCourses: data.stats?.hiddenCourses ?? 0,
+        popularCourses: data.stats?.popularCourses ?? 0,
+        totalClicks: data.stats?.totalClicks ?? 0,
+        totalInquiries: data.stats?.totalInquiries ?? 0,
+        newInquiries: data.stats?.newInquiries ?? 0,
+      });
       setCourses(data.courses || []);
       setCategories(data.categories || []);
       setRecentClicks(data.recentClicks || []);
@@ -284,13 +375,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setCountdownTargetDate(data.settings.countdownTargetDate || '');
         setDefaultAffiliateRef(data.settings.defaultAffiliateRef || '');
       }
+      // Non-blocking lightweight fetch for Book Store count badge
+      fetch('/api/admin/books', {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+        .then((bookRes) => (bookRes.ok ? bookRes.json() : null))
+        .then((bookData) => {
+          if (bookData?.stats) {
+            setBookStats({
+              totalBooks: bookData.stats.totalBooks ?? 0,
+              activeBooks: bookData.stats.activeBooks ?? 0,
+            });
+          }
+        })
+        .catch(() => {});
     } catch (err: any) {
       console.error('Failed to load admin data:', err);
       setError(err.message || 'ডেটা লোড করতে ব্যর্থ হয়েছে।');
     } finally {
       setLoading(false);
     }
-  }, [authToken, handleUnauthorizedResponse]);
+  }, [handleUnauthorizedResponse]);
 
   useEffect(() => {
     let cancelled = false;
@@ -305,6 +411,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       cancelled = true;
     };
   }, [fetchDashboardData]);
+
+  useEffect(() => {
+    if (activeTab !== 'inquiries' || inquiriesLoaded) return;
+    let cancelled = false;
+    const loadInquiries = async () => {
+      await Promise.resolve();
+      if (!cancelled) {
+        await fetchInquiries(false);
+      }
+    };
+    void loadInquiries();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, inquiriesLoaded, fetchInquiries]);
 
   const categoryNameBySlug = useMemo(() => {
     const map = new Map<string, string>();
@@ -326,15 +447,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Filtered Courses List
   const displayedCourses = useMemo(() => {
     return courses.filter((course) => {
-      // 1. Status Filter by Tab or explicit selector
+      // 1. Status Filter by Tab or explicit 3-state selector
       if (activeTab === 'active_courses') {
         if (course.status !== 'active') return false;
       } else if (activeTab === 'inactive_courses') {
         if (course.status === 'active') return false;
       } else if (filterStatus !== 'all') {
-        if (filterStatus === 'inactive') {
-          if (course.status === 'active') return false;
-        } else if (course.status !== filterStatus) {
+        if (course.status !== filterStatus) {
           return false;
         }
       }
@@ -367,9 +486,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return displayedCourses.slice(start, start + COURSES_PER_PAGE);
   }, [displayedCourses, safeCurrentPage]);
 
-  // Handle Course Active/Inactive Quick Toggle
-  const handleToggleStatus = async (course: Course) => {
-    const newStatus = course.status === 'active' ? 'inactive' : 'active';
+  // Handle 3-State Course Status Change (active | closed | inactive)
+  const handleChangeCourseStatus = async (
+    course: Course,
+    newStatus: 'active' | 'closed' | 'inactive'
+  ) => {
+    if (course.status === newStatus) return;
     setStatusTogglingId(course.id);
 
     try {
@@ -378,35 +500,112 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ status: newStatus }),
       });
 
       if (handleUnauthorizedResponse(res)) return;
-      if (!res.ok) throw new Error('কোর্সের স্ট্যাটাস পরিবর্তন করা সম্ভব হয়নি।');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'কোর্সের স্ট্যাটাস পরিবর্তন করা সম্ভব হয়নি।');
+      }
 
-      setCourses((prev) =>
-        prev.map((c) => (c.id === course.id ? { ...c, status: newStatus } : c))
-      );
-
-      setStats((prev) => ({
-        ...prev,
-        activeCourses: newStatus === 'active' ? prev.activeCourses + 1 : Math.max(0, prev.activeCourses - 1),
-        inactiveCourses: newStatus === 'inactive' ? prev.inactiveCourses + 1 : Math.max(0, prev.inactiveCourses - 1),
-      }));
+      setCourses((prev) => {
+        const nextCourses = prev.map((c) =>
+          c.id === course.id ? { ...c, status: newStatus } : c
+        );
+        const activeCount = nextCourses.filter((c) => c.status === 'active').length;
+        const closedCount = nextCourses.filter((c) => c.status === 'closed').length;
+        const hiddenCount = nextCourses.filter((c) => c.status === 'inactive').length;
+        setStats((s) => ({
+          ...s,
+          activeCourses: activeCount,
+          inactiveCourses: nextCourses.length - activeCount,
+          closedCourses: closedCount,
+          hiddenCourses: hiddenCount,
+        }));
+        return nextCourses;
+      });
 
       onDataMutated();
-      showToast(
+      const statusToast =
         newStatus === 'active'
-          ? `"${course.title}" কোর্সটি এখন ওয়েবসাইটে চালু (Active) রয়েছে।`
-          : `"${course.title}" কোর্সটি বন্ধ (Inactive / ভর্তি বন্ধ) করা হয়েছে।`,
-        'success'
-      );
+          ? `"${course.title}" কোর্সটি এখন চালু (Active) রয়েছে।`
+          : newStatus === 'closed'
+          ? `"${course.title}" কোর্সটিতে "ভর্তি বন্ধ" (Closed) স্ট্যাটাস সেট করা হয়েছে।`
+          : `"${course.title}" কোর্সটি পাবলিক ওয়েবসাইট থেকে লুকানো (Inactive) হয়েছে।`;
+      showToast(statusToast, 'success');
     } catch (err: any) {
       showToast(err.message || 'স্ট্যাটাস পরিবর্তনে ত্রুটি হয়েছে।', 'error');
     } finally {
       setStatusTogglingId(null);
+    }
+  };
+
+  // Handle Inquiry Status Toggle & Deletion
+  const handleUpdateInquiryStatus = async (
+    inquiry: CustomerInquiry,
+    nextStatus: 'new' | 'resolved'
+  ) => {
+    setInquiryActionId(inquiry.id);
+    try {
+      const res = await fetch(`/api/admin/messages/${inquiry.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (handleUnauthorizedResponse(res)) return;
+      if (!res.ok) throw new Error('ইনকোয়ারি স্ট্যাটাস আপডেট করা যায়নি।');
+
+      setInquiries((prev) => {
+        const next = prev.map((item) =>
+          item.id === inquiry.id ? { ...item, status: nextStatus } : item
+        );
+        setStats((s) => ({
+          ...s,
+          totalInquiries: next.length,
+          newInquiries: next.filter((r) => r.status === 'new').length,
+        }));
+        return next;
+      });
+      showToast(
+        nextStatus === 'resolved'
+          ? 'বার্তাটি সমাধানকৃত (Resolved) হিসেবে চিহ্নিত হয়েছে।'
+          : 'বার্তাটি পুনরায় নতুন (New) হিসেবে চিহ্নিত হয়েছে।',
+        'success'
+      );
+    } catch (err: any) {
+      showToast(err.message || 'আপডেট করতে সমস্যা হয়েছে।', 'error');
+    } finally {
+      setInquiryActionId(null);
+    }
+  };
+
+  const handleDeleteInquiry = async (inquiry: CustomerInquiry) => {
+    setInquiryActionId(inquiry.id);
+    try {
+      const res = await fetch(`/api/admin/messages/${inquiry.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (handleUnauthorizedResponse(res)) return;
+      if (!res.ok) throw new Error('বার্তাটি মুছে ফেলা সম্ভব হয়নি।');
+
+      setInquiries((prev) => {
+        const next = prev.filter((item) => item.id !== inquiry.id);
+        setStats((s) => ({
+          ...s,
+          totalInquiries: next.length,
+          newInquiries: next.filter((r) => r.status === 'new').length,
+        }));
+        return next;
+      });
+      showToast('ইনকোয়ারি বার্তাটি মুছে ফেলা হয়েছে।', 'info');
+    } catch (err: any) {
+      showToast(err.message || 'ডিলিট করতে সমস্যা হয়েছে।', 'error');
+    } finally {
+      setInquiryActionId(null);
     }
   };
 
@@ -421,7 +620,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(courseData),
       });
@@ -450,25 +648,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const res = await fetch(`/api/admin/courses/${deleteModalCourse.id}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
 
       if (handleUnauthorizedResponse(res)) return;
       if (!res.ok) throw new Error('কোর্সটি মুছে ফেলা সম্ভব হয়নি।');
 
-      setCourses((prev) => prev.filter((c) => c.id !== deleteModalCourse.id));
-      setStats((prev) => ({
-        ...prev,
-        totalCourses: Math.max(0, prev.totalCourses - 1),
-        activeCourses:
-          deleteModalCourse.status === 'active'
-            ? Math.max(0, prev.activeCourses - 1)
-            : prev.activeCourses,
-        inactiveCourses:
-          deleteModalCourse.status !== 'active'
-            ? Math.max(0, prev.inactiveCourses - 1)
-            : prev.inactiveCourses,
-      }));
+      setCourses((prev) => {
+        const nextCourses = prev.filter((c) => c.id !== deleteModalCourse.id);
+        const activeCount = nextCourses.filter((c) => c.status === 'active').length;
+        const closedCount = nextCourses.filter((c) => c.status === 'closed').length;
+        const hiddenCount = nextCourses.filter((c) => c.status === 'inactive').length;
+        setStats((s) => ({
+          ...s,
+          totalCourses: nextCourses.length,
+          activeCourses: activeCount,
+          inactiveCourses: nextCourses.length - activeCount,
+          closedCourses: closedCount,
+          hiddenCourses: hiddenCount,
+        }));
+        return nextCourses;
+      });
 
       onDataMutated();
       showToast(`"${deleteModalCourse.title}" কোর্সটি মুছে ফেলা হয়েছে।`, 'info');
@@ -505,7 +704,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -539,7 +737,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const res = await fetch(`/api/admin/categories/${deleteModalCat.id}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
 
       if (handleUnauthorizedResponse(res)) return;
@@ -584,7 +781,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -617,7 +813,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify({ showCountdownTimer: updatedVal }),
       });
@@ -694,10 +889,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       badge: categories.length,
     },
     {
+      id: 'book_add' as AdminPageTab,
+      label: 'Book Add (বুক স্টোর)',
+      icon: <ShoppingBag className="w-4 h-4 shrink-0" />,
+      badge: bookStats.totalBooks,
+    },
+    {
       id: 'offer_timers' as AdminPageTab,
       label: 'Offer Timer',
       icon: <AlarmClock className="w-4 h-4 shrink-0" />,
       badge: activeOfferTimersCount,
+    },
+    {
+      id: 'inquiries' as AdminPageTab,
+      label: 'Inquiries',
+      icon: <MessageSquare className="w-4 h-4 shrink-0" />,
+      badge: stats.newInquiries,
     },
     {
       id: 'settings' as AdminPageTab,
@@ -754,7 +961,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onRequestLogout={() => setShowLogoutConfirm(true)}
         adminName={adminName}
         adminEmail={adminEmail}
-        stats={stats}
+        stats={{ ...stats, totalBooks: bookStats.totalBooks }}
         categoriesCount={categories.length}
         activeOfferTimersCount={activeOfferTimersCount}
       />
@@ -776,7 +983,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {sidebarNavItems.map((item) => {
               const isActive =
                 activeTab === item.id ||
-                (activeTab === 'course_editor' && item.id === 'all_courses');
+                (activeTab === 'course_editor' && item.id === 'all_courses') ||
+                ((activeTab === 'book_store' || activeTab === 'book_categories') &&
+                  item.id === 'book_add');
               return (
                 <button
                   key={item.id}
@@ -826,7 +1035,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {sidebarNavItems.map((item) => {
                 const isActive =
                   activeTab === item.id ||
-                  (activeTab === 'course_editor' && item.id === 'all_courses');
+                  (activeTab === 'course_editor' && item.id === 'all_courses') ||
+                  ((activeTab === 'book_store' || activeTab === 'book_categories') &&
+                    item.id === 'book_add');
 
                 return (
                   <button
@@ -890,7 +1101,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {/* MAIN CONTENT AREA */}
         <main className="flex-1 min-w-0 w-full">
-          {error && courses.length === 0 ? (
+          {activeTab === 'book_add' ||
+          activeTab === 'book_store' ||
+          activeTab === 'book_categories' ? (
+            <BookStoreAdminManager
+              initialView={
+                activeTab === 'book_store'
+                  ? 'list'
+                  : activeTab === 'book_categories'
+                  ? 'categories'
+                  : 'add'
+              }
+              onUnauthorized={handleBookStoreUnauthorized}
+              onDataMutated={onDataMutated}
+              onShowToast={showToast}
+              onStatsChange={setBookStats}
+              onOpenPublicBookStore={() =>
+                onNavigate ? onNavigate('/books') : (window.location.href = '/books')
+              }
+            />
+          ) : error && courses.length === 0 ? (
             <div className="glass-strong rounded-3xl p-8 text-center space-y-3">
               <AlertCircle className="w-9 h-9 text-[#E22B2B] mx-auto" />
               <h2 className="text-base font-black text-[#2A0F12]">ডেটা লোড করতে সমস্যা হয়েছে</h2>
@@ -914,7 +1144,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 1: DEDICATED ADD / EDIT COURSE PAGE              */
             /* ===================================================== */
             <CourseEditorPage
-              authToken={authToken}
               course={editingCourse}
               categories={categories}
               onBackToList={() => handleTabSwitch('all_courses')}
@@ -929,6 +1158,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="glass-surface rounded-2xl border border-amber-300/80 bg-amber-50/85 px-4 py-3 text-xs font-bold text-amber-900 flex items-start gap-2.5 leading-relaxed">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span>{storageInfo.warning}</span>
+                </div>
+              )}
+              {storageInfo?.backend === 'supabase-postgres' && !storageInfo?.warning && (
+                <div className="glass-surface rounded-2xl border border-emerald-300/70 bg-emerald-50/75 px-4 py-2.5 text-xs font-bold text-emerald-900 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    Supabase PostgreSQL প্রোডাকশন ডাটাবেস সংযুক্ত রয়েছে (RLS ও সিকিউর অথেনটিকেশন সক্রিয়)।
+                  </span>
                 </div>
               )}
 
@@ -1207,10 +1444,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
                                 course.status === 'active'
                                   ? 'bg-emerald-100/90 text-emerald-800 border-emerald-200'
-                                  : 'bg-amber-100/90 text-amber-800 border-amber-200'
+                                  : course.status === 'closed'
+                                  ? 'bg-amber-100/90 text-amber-800 border-amber-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-300'
                               }`}
                             >
-                              {course.status === 'active' ? 'চালু' : 'ভর্তি বন্ধ'}
+                              {course.status === 'active'
+                                ? 'চালু'
+                                : course.status === 'closed'
+                                ? 'ভর্তি বন্ধ'
+                                : 'লুকানো'}
                             </span>
                           </td>
                           <td className="py-3 px-3 text-right whitespace-nowrap">
@@ -1348,7 +1591,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     >
                       <option value="all">সব স্ট্যাটাস</option>
                       <option value="active">চালু (Active)</option>
-                      <option value="inactive">ভর্তি বন্ধ (Inactive)</option>
+                      <option value="closed">ভর্তি বন্ধ (Closed)</option>
+                      <option value="inactive">লুকানো (Inactive)</option>
                     </select>
                   )}
 
@@ -1443,12 +1687,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-extrabold ${
                                       course.status === 'active'
                                         ? 'bg-emerald-100/90 text-emerald-800 border-emerald-300'
-                                        : 'bg-amber-100/90 text-amber-800 border-amber-300'
+                                        : course.status === 'closed'
+                                        ? 'bg-amber-100/90 text-amber-800 border-amber-300'
+                                        : 'bg-slate-100 text-slate-700 border-slate-300'
                                     }`}
                                   >
                                     {course.status === 'active'
                                       ? 'চালু (Active)'
-                                      : 'ভর্তি বন্ধ (Inactive)'}
+                                      : course.status === 'closed'
+                                      ? 'ভর্তি বন্ধ (Closed)'
+                                      : 'লুকানো (Inactive)'}
                                   </span>
                                 </div>
 
@@ -1536,29 +1784,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <span>Edit</span>
                                 </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleStatus(course)}
+                                <select
+                                  value={
+                                    course.status === 'active' ||
+                                    course.status === 'closed' ||
+                                    course.status === 'inactive'
+                                      ? course.status
+                                      : 'inactive'
+                                  }
+                                  onChange={(e) =>
+                                    void handleChangeCourseStatus(
+                                      course,
+                                      e.target.value as 'active' | 'closed' | 'inactive'
+                                    )
+                                  }
                                   disabled={isToggling}
-                                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
+                                  aria-label="কোর্স স্ট্যাটাস পরিবর্তন"
+                                  className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer outline-none disabled:opacity-50 ${
                                     course.status === 'active'
-                                      ? 'border-amber-200 bg-amber-50 text-amber-800'
-                                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                      : course.status === 'closed'
+                                      ? 'border-amber-300 bg-amber-50 text-amber-800'
+                                      : 'border-slate-300 bg-slate-100 text-slate-700'
                                   }`}
-                                  title="স্ট্যাটাস পরিবর্তন করতে ক্লিক করুন"
                                 >
-                                  {course.status === 'active' ? (
-                                    <>
-                                      <XCircle className="w-3.5 h-3.5" />
-                                      <span>{isToggling ? 'আপডেট...' : 'বন্ধ করুন'}</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <CheckCircle2 className="w-3.5 h-3.5" />
-                                      <span>{isToggling ? 'আপডেট...' : 'চালু করুন'}</span>
-                                    </>
-                                  )}
-                                </button>
+                                  <option value="active">চালু (Active)</option>
+                                  <option value="closed">ভর্তি বন্ধ (Closed)</option>
+                                  <option value="inactive">লুকানো (Inactive)</option>
+                                </select>
 
                                 <button
                                   type="button"
@@ -1659,34 +1912,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 )}
                               </td>
 
-                              {/* Status Toggle Switch */}
+                              {/* 3-State Status Selector */}
                               <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleStatus(course)}
+                                <select
+                                  value={
+                                    course.status === 'active' ||
+                                    course.status === 'closed' ||
+                                    course.status === 'inactive'
+                                      ? course.status
+                                      : 'inactive'
+                                  }
+                                  onChange={(e) =>
+                                    void handleChangeCourseStatus(
+                                      course,
+                                      e.target.value as 'active' | 'closed' | 'inactive'
+                                    )
+                                  }
                                   disabled={isToggling}
-                                  className={`px-3 py-1 rounded-full text-[11px] font-extrabold transition cursor-pointer border inline-flex items-center gap-1.5 mx-auto ${
+                                  aria-label={`${course.title} স্ট্যাটাস`}
+                                  className={`px-3 py-1 rounded-full text-[11px] font-extrabold transition cursor-pointer border outline-none disabled:opacity-50 ${
                                     course.status === 'active'
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                                      : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                      : course.status === 'closed'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                      : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200/80'
                                   }`}
-                                  title="স্ট্যাটাস পরিবর্তন করতে ক্লিক করুন"
                                 >
-                                  <span
-                                    className={`w-2 h-2 rounded-full ${
-                                      course.status === 'active'
-                                        ? 'bg-emerald-500'
-                                        : 'bg-amber-500'
-                                    }`}
-                                  />
-                                  <span>
-                                    {isToggling
+                                  <option value="active">
+                                    {isToggling && course.status === 'active'
                                       ? 'আপডেট হচ্ছে...'
-                                      : course.status === 'active'
-                                      ? 'চালু (Active)'
-                                      : 'ভর্তি বন্ধ (Inactive)'}
-                                  </span>
-                                </button>
+                                      : 'চালু (Active)'}
+                                  </option>
+                                  <option value="closed">
+                                    {isToggling && course.status === 'closed'
+                                      ? 'আপডেট হচ্ছে...'
+                                      : 'ভর্তি বন্ধ (Closed)'}
+                                  </option>
+                                  <option value="inactive">
+                                    {isToggling && course.status === 'inactive'
+                                      ? 'আপডেট হচ্ছে...'
+                                      : 'লুকানো (Inactive)'}
+                                  </option>
+                                </select>
                               </td>
 
                               {/* Actions */}
@@ -2060,7 +2327,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 6: DEDICATED OFFER COUNTDOWN TIMER MANAGEMENT    */
             /* ===================================================== */
             <OfferTimerManager
-              authToken={authToken}
               courses={courses}
               timers={offerTimers}
               serverNow={serverNow}
@@ -2085,6 +2351,200 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }}
               onShowToast={showToast}
             />
+          ) : activeTab === 'inquiries' ? (
+            /* ===================================================== */
+            /* VIEW 7: CUSTOMER INQUIRIES & SUPPORT MESSAGES         */
+            /* ===================================================== */
+            <div className="space-y-5">
+              <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#ff5252] to-[#b91c1c] text-white flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] shrink-0">
+                    <MessageSquare className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h1 className="text-lg sm:text-xl font-black text-[#2A0F12]">
+                      শিক্ষার্থী ইনকোয়ারি ও বার্তা (Customer Inquiries)
+                    </h1>
+                    <p className="text-xs text-[#6B4C4F] mt-0.5">
+                      ওয়েবসাইটের সাপোর্ট ফর্ম থেকে প্রাপ্ত সকল ভর্তি জিজ্ঞাসা দেখুন ও সমাধানকৃত হিসেবে চিহ্নিত করুন।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <span className="px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold tabular-nums">
+                    নতুন: {toBengaliNumber(stats.newInquiries)}টি
+                  </span>
+                  <span className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold tabular-nums">
+                    মোট: {toBengaliNumber(stats.totalInquiries)}টি
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void fetchInquiries(true)}
+                    disabled={inquiriesLoading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-rose-200 bg-white/80 hover:bg-white text-xs font-bold text-[#2A0F12] transition cursor-pointer disabled:opacity-60"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 text-[#eb1c24] ${
+                        inquiriesLoading ? 'animate-spin' : ''
+                      }`}
+                    />
+                    <span>রিফ্রেশ</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-200/50 pb-3.5">
+                  <div className="flex items-center gap-1.5">
+                    {(
+                      [
+                        { id: 'all', label: 'সব বার্তা' },
+                        { id: 'new', label: 'নতুন (New)' },
+                        { id: 'resolved', label: 'সমাধানকৃত (Resolved)' },
+                      ] as const
+                    ).map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setInquiryFilter(f.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                          inquiryFilter === f.id
+                            ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-sm'
+                            : 'bg-white/80 border border-rose-200/70 text-[#2A0F12] hover:bg-rose-50'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {inquiriesLoading && inquiries.length === 0 ? (
+                  <div className="py-12 text-center space-y-2 text-[#6B4C4F]">
+                    <RefreshCw className="w-7 h-7 text-[#eb1c24] animate-spin mx-auto" />
+                    <p className="text-xs font-bold">বার্তাগুলো লোড হচ্ছে...</p>
+                  </div>
+                ) : (
+                  (() => {
+                    const filteredInquiries = inquiries.filter((item) =>
+                      inquiryFilter === 'all' ? true : item.status === inquiryFilter
+                    );
+
+                    if (filteredInquiries.length === 0) {
+                      return (
+                        <div className="py-12 text-center space-y-2 text-[#6B4C4F]">
+                          <MessageSquare className="w-9 h-9 text-rose-300 mx-auto" />
+                          <p className="text-sm font-bold text-[#2A0F12]">
+                            কোনো ইনকোয়ারি বার্তা পাওয়া যায়নি
+                          </p>
+                          <p className="text-xs">
+                            শিক্ষার্থীরা ওয়েবসাইট থেকে নতুন বার্তা পাঠালে এখানে প্রদর্শিত হবে।
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        {filteredInquiries.map((inq) => {
+                          const isBusy = inquiryActionId === inq.id;
+                          return (
+                            <div
+                              key={inq.id}
+                              className="glass-card rounded-2xl p-4 border border-rose-200/60 space-y-2.5"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="space-y-0.5 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-black text-[#2A0F12]">
+                                      {inq.name}
+                                    </span>
+                                    <span
+                                      className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                        inq.status === 'new'
+                                          ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                          : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                      }`}
+                                    >
+                                      {inq.status === 'new' ? 'নতুন (New)' : 'সমাধানকৃত'}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B4C4F]">
+                                    {inq.phoneOrEmail.includes('@') ? (
+                                      <a
+                                        href={`mailto:${inq.phoneOrEmail.trim()}`}
+                                        className="inline-flex items-center gap-1 font-mono font-bold text-[#b91c1c] hover:underline"
+                                      >
+                                        <Phone className="w-3 h-3" />
+                                        <span>{inq.phoneOrEmail}</span>
+                                      </a>
+                                    ) : (
+                                      <a
+                                        href={`tel:${inq.phoneOrEmail.replace(/[^+\d]/g, '')}`}
+                                        className="inline-flex items-center gap-1 font-mono font-bold text-[#b91c1c] hover:underline"
+                                      >
+                                        <Phone className="w-3 h-3" />
+                                        <span>{inq.phoneOrEmail}</span>
+                                      </a>
+                                    )}
+                                    {inq.courseTitle && (
+                                      <span className="font-semibold text-[#2A0F12]/80">
+                                        • কোর্স: {inq.courseTitle}
+                                      </span>
+                                    )}
+                                    <span className="text-[11px] font-mono">
+                                      {new Date(inq.createdAt).toLocaleString('bn-BD')}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={() =>
+                                      void handleUpdateInquiryStatus(
+                                        inq,
+                                        inq.status === 'new' ? 'resolved' : 'new'
+                                      )
+                                    }
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
+                                      inq.status === 'new'
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                                        : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                                    }`}
+                                  >
+                                    <CheckCheck className="w-3.5 h-3.5" />
+                                    <span>
+                                      {inq.status === 'new' ? 'সমাধানকৃত করুন' : 'পুনরায় নতুন'}
+                                    </span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={() => void handleDeleteInquiry(inq)}
+                                    className="p-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-[#eb1c24] hover:text-white transition cursor-pointer disabled:opacity-50"
+                                    title="মুছে ফেলুন"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <p className="text-xs text-[#2A0F12] bg-white/80 rounded-xl p-3 border border-rose-100 leading-relaxed whitespace-pre-wrap break-words">
+                                {inq.message}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
+            </div>
           ) : null}
         </main>
       </div>
@@ -2097,7 +2557,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onDownloadZip={onDownloadZip}
         adminName={adminName}
         adminEmail={adminEmail}
-        stats={stats}
+        stats={{ ...stats, totalBooks: bookStats.totalBooks }}
         categoriesCount={categories.length}
         activeOfferTimersCount={activeOfferTimersCount}
       />

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Trophy,
   Target,
@@ -8,14 +8,23 @@ import {
   BookOpen,
   Lightbulb,
   Backpack,
+  BookMarked,
+  NotebookPen,
+  School,
+  Library,
+  Laptop,
+  Gift,
 } from 'lucide-react';
+import { Category } from '../../types.ts';
 
 interface ClassSelectorStripProps {
   onNavigate: (path: string) => void;
+  categories?: Category[];
 }
 
 interface BatchCardItem {
   id: string;
+  categorySlug?: string;
   tag: string;
   title: string;
   subLabel: string;
@@ -33,6 +42,7 @@ interface BatchCardItem {
 const BATCH_ITEMS: BatchCardItem[] = [
   {
     id: 'hsc-26',
+    categorySlug: 'hsc',
     tag: 'HSC 26',
     title: 'HSC ২৬',
     subLabel: 'এডমিশন ভর্তি চলছে',
@@ -49,6 +59,7 @@ const BATCH_ITEMS: BatchCardItem[] = [
   },
   {
     id: 'hsc-27',
+    categorySlug: 'hsc',
     tag: 'HSC 27',
     title: 'HSC ২৭',
     subLabel: 'অনলাইন ব্যাচ চলছে',
@@ -65,6 +76,7 @@ const BATCH_ITEMS: BatchCardItem[] = [
   },
   {
     id: 'hsc-28',
+    categorySlug: 'hsc',
     tag: 'HSC 28',
     title: 'HSC ২৮',
     subLabel: 'অনলাইন ব্যাচ চলছে',
@@ -81,6 +93,7 @@ const BATCH_ITEMS: BatchCardItem[] = [
   },
   {
     id: 'ssc-27',
+    categorySlug: 'school',
     tag: 'SSC 27',
     title: 'দশম শ্রেণি',
     subLabel: 'SSC ২০২৭ ব্যাচ',
@@ -97,6 +110,7 @@ const BATCH_ITEMS: BatchCardItem[] = [
   },
   {
     id: 'ssc-28',
+    categorySlug: 'school',
     tag: 'CLASS 9',
     title: '৯ম শ্রেণি',
     subLabel: 'SSC ২০২৮ ব্যাচ',
@@ -112,11 +126,12 @@ const BATCH_ITEMS: BatchCardItem[] = [
     Icon: Lightbulb,
   },
   {
-    id: 'class-6-8',
-    tag: 'CLASS 6–8',
-    title: '৬ষ্ঠ–৮ম শ্রেণি',
+    id: 'class-8',
+    categorySlug: 'class-8',
+    tag: 'CLASS 8',
+    title: '৮ম শ্রেণি',
     subLabel: 'বার্ষিক অনলাইন ব্যাচ',
-    path: '/class-7/',
+    path: '/class-8/',
     topGradient:
       'bg-[radial-gradient(circle_at_25%_20%,#2dd4bf_0%,#0d9488_52%,#134e4a_100%)]',
     iconGlow: 'shadow-[0_12px_24px_-6px_rgba(19,78,74,0.65)]',
@@ -127,9 +142,122 @@ const BATCH_ITEMS: BatchCardItem[] = [
     statusColor: 'text-[#0f766e]',
     Icon: Backpack,
   },
+  {
+    id: 'class-7',
+    categorySlug: 'class-7',
+    tag: 'CLASS 7',
+    title: '৭ম শ্রেণি',
+    subLabel: 'বার্ষিক অনলাইন ব্যাচ',
+    path: '/class-7/',
+    topGradient:
+      'bg-[radial-gradient(circle_at_25%_20%,#34d399_0%,#059669_52%,#064e3b_100%)]',
+    iconGlow: 'shadow-[0_12px_24px_-6px_rgba(6,78,59,0.65)]',
+    pillBorder: 'border-[#059669]/75',
+    pillText: 'text-[#047857]',
+    pillBg: 'bg-emerald-50/85',
+    hoverShadow: 'hover:shadow-[0_18px_36px_-12px_rgba(5,150,105,0.42)]',
+    statusColor: 'text-[#047857]',
+    Icon: BookMarked,
+  },
+  {
+    id: 'class-6',
+    categorySlug: 'class-6',
+    tag: 'CLASS 6',
+    title: '৬ষ্ঠ শ্রেণি',
+    subLabel: 'বার্ষিক অনলাইন ব্যাচ',
+    path: '/class-6/',
+    topGradient:
+      'bg-[radial-gradient(circle_at_25%_20%,#818cf8_0%,#4f46e5_52%,#312e81_100%)]',
+    iconGlow: 'shadow-[0_12px_24px_-6px_rgba(49,46,129,0.65)]',
+    pillBorder: 'border-[#4f46e5]/75',
+    pillText: 'text-[#4338ca]',
+    pillBg: 'bg-indigo-50/85',
+    hoverShadow: 'hover:shadow-[0_18px_36px_-12px_rgba(79,70,229,0.42)]',
+    statusColor: 'text-[#4338ca]',
+    Icon: NotebookPen,
+  },
+  {
+    id: 'class-5',
+    categorySlug: 'class-5',
+    tag: 'CLASS 5',
+    title: '৫ম শ্রেণি',
+    subLabel: 'প্রাথমিক অনলাইন ব্যাচ',
+    path: '/class-5/',
+    topGradient:
+      'bg-[radial-gradient(circle_at_25%_20%,#f59e0b_0%,#d97706_52%,#78350f_100%)]',
+    iconGlow: 'shadow-[0_12px_24px_-6px_rgba(120,53,15,0.65)]',
+    pillBorder: 'border-[#d97706]/75',
+    pillText: 'text-[#b45309]',
+    pillBg: 'bg-amber-50/85',
+    hoverShadow: 'hover:shadow-[0_18px_36px_-12px_rgba(217,119,6,0.42)]',
+    statusColor: 'text-[#b45309]',
+    Icon: School,
+  },
+  {
+    id: 'book-store',
+    categorySlug: 'books',
+    tag: 'BOOK STORE',
+    title: 'বুক স্টোর',
+    subLabel: 'প্রিন্টেড মাস্টারবুক',
+    path: '/books',
+    topGradient:
+      'bg-[radial-gradient(circle_at_25%_20%,#fb7185_0%,#e11d48_52%,#881337_100%)]',
+    iconGlow: 'shadow-[0_12px_24px_-6px_rgba(136,19,55,0.65)]',
+    pillBorder: 'border-[#e11d48]/75',
+    pillText: 'text-[#be123c]',
+    pillBg: 'bg-rose-50/85',
+    hoverShadow: 'hover:shadow-[0_18px_36px_-12px_rgba(225,29,72,0.42)]',
+    statusColor: 'text-[#be123c]',
+    Icon: Library,
+  },
+  {
+    id: 'skills',
+    categorySlug: 'skills',
+    tag: 'SKILLS',
+    title: 'স্কিলস',
+    subLabel: 'ক্যারিয়ার ও আইটি কোর্স',
+    path: '/skills',
+    topGradient:
+      'bg-[radial-gradient(circle_at_25%_20%,#60a5fa_0%,#2563eb_52%,#1e3a8a_100%)]',
+    iconGlow: 'shadow-[0_12px_24px_-6px_rgba(30,58,138,0.65)]',
+    pillBorder: 'border-[#2563eb]/75',
+    pillText: 'text-[#1d4ed8]',
+    pillBg: 'bg-blue-50/85',
+    hoverShadow: 'hover:shadow-[0_18px_36px_-12px_rgba(37,99,235,0.42)]',
+    statusColor: 'text-[#1d4ed8]',
+    Icon: Laptop,
+  },
+  {
+    id: 'free-course',
+    categorySlug: 'free-course',
+    tag: 'FREE COURSE',
+    title: 'ফ্রি কোর্স',
+    subLabel: 'বিনামূল্যে শিখুন',
+    path: '/free-course',
+    topGradient:
+      'bg-[radial-gradient(circle_at_25%_20%,#4ade80_0%,#16a34a_52%,#14532d_100%)]',
+    iconGlow: 'shadow-[0_12px_24px_-6px_rgba(20,83,45,0.65)]',
+    pillBorder: 'border-[#16a34a]/75',
+    pillText: 'text-[#15803d]',
+    pillBg: 'bg-green-50/85',
+    hoverShadow: 'hover:shadow-[0_18px_36px_-12px_rgba(22,163,74,0.42)]',
+    statusColor: 'text-[#15803d]',
+    Icon: Gift,
+  },
 ];
 
-export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({ onNavigate }) => {
+export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
+  onNavigate,
+  categories = [],
+}) => {
+  const categoryBySlug = useMemo(() => {
+    const map = new Map<string, Category>();
+    for (const cat of categories) {
+      map.set(cat.slug, cat);
+    }
+    return map;
+  }, [categories]);
+
   return (
     <div className="wrap relative z-20 mt-6">
       {/* Section Strip Title */}
@@ -149,10 +277,15 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({ onNaviga
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4 p-3.5 sm:p-5 rounded-3xl glass-surface">
         {BATCH_ITEMS.map((item) => {
           const IconComponent = item.Icon;
+          const linkedCategory = item.categorySlug
+            ? categoryBySlug.get(item.categorySlug)
+            : undefined;
           return (
             <button
               key={item.id}
               type="button"
+              data-category-id={linkedCategory?.id ?? undefined}
+              data-category-slug={item.categorySlug}
               onClick={() => onNavigate(item.path)}
               className="group flex flex-col items-center cursor-pointer text-left focus:outline-none"
             >

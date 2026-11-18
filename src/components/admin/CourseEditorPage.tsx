@@ -95,7 +95,6 @@ function dedupeCommaKeywords(text: string): string {
 }
 
 export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
-  authToken = '',
   course,
   categories,
   onBackToList,
@@ -141,6 +140,16 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   );
   const [newFeatureInput, setNewFeatureInput] = useState('');
   const [isPopular, setIsPopular] = useState<boolean>(course?.isPopular ?? true);
+  const [status, setStatus] = useState<'active' | 'closed' | 'inactive'>(() => {
+    if (
+      course?.status === 'active' ||
+      course?.status === 'closed' ||
+      course?.status === 'inactive'
+    ) {
+      return course.status;
+    }
+    return 'active';
+  });
 
   const hasOriginalPrice = originalPriceInput.trim() !== '';
   const hasDiscountPrice = discountPriceInput.trim() !== '';
@@ -150,6 +159,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [draftUploadedFileId, setDraftUploadedFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Batch validation & selection tracking
@@ -335,7 +345,33 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     });
   };
 
-  // Production Image Upload handler (validates type/size, optimizes, uploads via /api/admin/upload)
+  const deleteUnsavedDraftUpload = (fileId: string | null) => {
+    if (!fileId) return;
+    fetch('/api/admin/upload', {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId }),
+    }).catch(() => {});
+  };
+
+  const handleRemoveImage = () => {
+    if (draftUploadedFileId) {
+      deleteUnsavedDraftUpload(draftUploadedFileId);
+      setDraftUploadedFileId(null);
+    }
+    setImageUrl('');
+  };
+
+  const handleBackToList = () => {
+    if (draftUploadedFileId) {
+      deleteUnsavedDraftUpload(draftUploadedFileId);
+      setDraftUploadedFileId(null);
+    }
+    onBackToList();
+  };
+
+  // Production ImageKit Upload handler (validates type/size, optimizes, uploads via /api/admin/upload)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -359,20 +395,25 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       const preparedFile = await optimizeImageForUpload(file);
       const formData = new FormData();
       formData.append('file', preparedFile);
+      if (draftUploadedFileId) {
+        formData.append('previousFileId', draftUploadedFileId);
+      }
 
       const res = await fetch('/api/admin/upload', {
         method: 'POST',
         credentials: 'include',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
         body: formData,
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) {
-        throw new Error(data.error || 'ছবি আপলোড করতে সমস্যা হয়েছে।');
+        throw new Error(data.error || 'ImageKit-এ ছবি আপলোড করতে সমস্যা হয়েছে।');
       }
 
       setImageUrl(data.url);
+      setDraftUploadedFileId(
+        typeof data.fileId === 'string' && data.fileId ? data.fileId : null
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'ছবি আপলোড করতে সমস্যা হয়েছে।');
     } finally {
@@ -417,7 +458,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       features: JSON.stringify(featuresList),
       affiliateUrl: affiliateUrl.trim(),
       isPopular,
-      status: course?.status && course.status !== 'draft' ? course.status : 'active',
+      status,
       clickCount: course?.clickCount || 0,
     };
   }, [
@@ -441,6 +482,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     rating,
     shortBadge,
     slug,
+    status,
     studentCount,
     targetStudents,
     title,
@@ -520,11 +562,12 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       features: featuresList,
       affiliateUrl: affiliateUrl.trim(),
       isPopular,
-      status: course?.status && course.status !== 'draft' ? course.status : 'active',
+      status,
     };
 
     try {
       await onSave(payload, course?.id);
+      setDraftUploadedFileId(null);
     } catch (err: any) {
       setError(err.message || 'কোর্সটি সংরক্ষণ করতে সমস্যা হয়েছে।');
     } finally {
@@ -553,7 +596,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
-            onClick={onBackToList}
+            onClick={handleBackToList}
             className="p-2.5 rounded-xl border border-white/90 bg-white/80 hover:bg-rose-50 text-[#2A0F12] hover:text-[#eb1c24] transition cursor-pointer shadow-2xs shrink-0"
             title="কোর্স লিস্টে ফিরে যান"
           >
@@ -570,7 +613,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
         <div className="hidden lg:flex items-center gap-2.5 justify-end shrink-0">
           <button
             type="button"
-            onClick={onBackToList}
+            onClick={handleBackToList}
             disabled={saving}
             className="px-4 py-2 rounded-xl border border-slate-200 bg-white/90 hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 text-[#2A0F12] font-bold text-xs transition cursor-pointer shadow-2xs"
           >
@@ -1009,7 +1052,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                       type="text"
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://cdn.10minuteschool.com/images/..."
+                      placeholder="https://ik.imagekit.io/... অথবা https://cdn.10minuteschool.com/..."
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs font-mono text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                     />
                   </div>
@@ -1018,17 +1061,17 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileUpload}
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp,image/avif"
                     className="hidden"
                   />
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadingImage}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer shrink-0 shadow-2xs"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer shrink-0 shadow-2xs disabled:opacity-60"
                   >
                     <Upload className="w-4 h-4 text-slate-500" />
-                    <span>{uploadingImage ? 'আপলোড হচ্ছে...' : 'কম্পিউটার থেকে আপলোড'}</span>
+                    <span>{uploadingImage ? 'ImageKit-এ আপলোড হচ্ছে...' : 'ImageKit-এ আপলোড'}</span>
                   </button>
                 </div>
               </div>
@@ -1036,7 +1079,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
               {/* Live Thumbnail Preview Box */}
               {imageUrl ? (
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={imageUrl}
@@ -1046,23 +1089,21 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                         (e.target as HTMLElement).style.display = 'none';
                       }}
                     />
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>লাইভ ইমেজ সংযুক্ত হয়েছে</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>লাইভ CDN ইমেজ সংযুক্ত হয়েছে</span>
                       </div>
                       <div className="text-[11px] text-slate-500 font-mono truncate max-w-xs sm:max-w-md">
-                        {imageUrl.startsWith('data:')
-                          ? 'অপ্টিমাইজড ইমেজ সংযুক্ত'
-                          : imageUrl}
+                        {imageUrl}
                       </div>
                     </div>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => setImageUrl('')}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                    onClick={handleRemoveImage}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer shrink-0"
                     title="ছবি মুছে ফেলুন"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -1070,7 +1111,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                 </div>
               ) : (
                 <div className="p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 text-center text-xs text-slate-500">
-                  কোনো ছবি নির্বাচন করা হয়নি। ইমেজ লিঙ্ক দিন অথবা কম্পিউটার থেকে ছবি আপলোড করুন।
+                  কোনো ছবি নির্বাচন করা হয়নি। HTTPS CDN লিঙ্ক দিন অথবা কম্পিউটার থেকে ImageKit-এ ছবি আপলোড করুন।
                 </div>
               )}
 
@@ -1195,6 +1236,55 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
               </div>
             </div>
 
+            {/* 3-State Course Status (Option 2 Public Visibility Policy) */}
+            <div className="pt-3 border-t border-rose-100 space-y-2">
+              <label className="block text-xs font-bold text-slate-700">
+                কোর্সের প্রকাশনা স্ট্যাটাস (Course Visibility Status):
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {(
+                  [
+                    {
+                      value: 'active',
+                      label: 'চালু (Active)',
+                      hint: 'পাবলিক সাইটে ভর্তি চালু',
+                      activeClass: 'bg-emerald-50 border-emerald-400 text-emerald-900',
+                    },
+                    {
+                      value: 'closed',
+                      label: 'ভর্তি বন্ধ (Closed)',
+                      hint: '“ভর্তি বন্ধ” ব্যাজসহ দৃশ্যমান',
+                      activeClass: 'bg-amber-50 border-amber-400 text-amber-900',
+                    },
+                    {
+                      value: 'inactive',
+                      label: 'লুকানো (Inactive)',
+                      hint: 'পাবলিক সাইটে অদৃশ্য',
+                      activeClass: 'bg-slate-100 border-slate-400 text-slate-900',
+                    },
+                  ] as const
+                ).map((opt) => {
+                  const selected = status === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setStatus(opt.value)}
+                      aria-pressed={selected}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        selected
+                          ? `${opt.activeClass} shadow-xs ring-1 ring-inset ring-current/15`
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-rose-300 hover:bg-rose-50/40'
+                      }`}
+                    >
+                      <div className="text-xs font-black">{opt.label}</div>
+                      <div className="text-[10.5px] opacity-80 mt-0.5">{opt.hint}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Popular toggle */}
             <div className="pt-2 border-t border-rose-100 flex items-center gap-2">
               <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -1257,7 +1347,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
           <div className="lg:hidden glass-strong rounded-3xl p-4 sm:p-5 flex items-center justify-end gap-2.5">
             <button
               type="button"
-              onClick={onBackToList}
+              onClick={handleBackToList}
               disabled={saving}
               className="flex-1 sm:flex-initial px-4 py-2 rounded-xl border border-slate-200 bg-white/90 hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 text-[#2A0F12] font-bold text-xs transition cursor-pointer shadow-2xs text-center"
             >

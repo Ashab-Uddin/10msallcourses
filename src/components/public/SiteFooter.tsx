@@ -21,6 +21,7 @@ export interface SiteFooterProps {
   onNavigate: (path: string) => void;
   onQuickFilter?: (catSlug: string, queryText?: string) => void;
   onDirectCourseLink?: (slug: string) => void;
+  isAdminAuthenticated?: boolean;
   authToken?: string | null;
   whatsappNumber?: string;
   whatsappLink?: string;
@@ -29,6 +30,7 @@ export interface SiteFooterProps {
 export const SiteFooter: React.FC<SiteFooterProps> = ({
   onNavigate,
   onQuickFilter,
+  isAdminAuthenticated = false,
   authToken,
   whatsappNumber = '+880 1625171822',
   whatsappLink = 'https://wa.me/8801625171822',
@@ -580,7 +582,13 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => onNavigate(authToken ? '/admin/dashboard' : '/admin/login')}
+                  onClick={() =>
+                    onNavigate(
+                      isAdminAuthenticated || authToken
+                        ? '/admin/dashboard'
+                        : '/admin/login'
+                    )
+                  }
                   className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-rose-100 font-bold px-3 py-1.5 rounded-full border border-white/20 transition cursor-pointer text-xs"
                 >
                   <Lock className="w-3.5 h-3.5 text-amber-400" />

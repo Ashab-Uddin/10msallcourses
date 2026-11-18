@@ -16,6 +16,8 @@ import {
   XCircle,
   ExternalLink,
   AlarmClock,
+  MessageSquare,
+  ShoppingBag,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
@@ -31,6 +33,8 @@ interface AdminNavbarProps {
     totalCourses: number;
     activeCourses: number;
     inactiveCourses: number;
+    newInquiries?: number;
+    totalBooks?: number;
   };
   categoriesCount: number;
   activeOfferTimersCount?: number;
@@ -58,6 +62,11 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
     activeTab === 'inactive_courses' ||
     activeTab === 'add_course' ||
     activeTab === 'course_editor';
+
+  const isBookStoreSection =
+    activeTab === 'book_add' ||
+    activeTab === 'book_store' ||
+    activeTab === 'book_categories';
 
   const activePillClass =
     'bg-rose-50 text-[#eb1c24] border border-rose-200/80 font-bold shadow-2xs';
@@ -110,10 +119,28 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
       badge: categoriesCount,
     },
     {
+      id: 'book_add',
+      label: 'Book Add (বুক স্টোর)',
+      icon: <ShoppingBag className="w-4 h-4" />,
+      badge: stats.totalBooks,
+    },
+    {
+      id: 'book_store',
+      label: 'All Books Directory',
+      icon: <BookOpen className="w-4 h-4" />,
+      badge: stats.totalBooks,
+    },
+    {
       id: 'offer_timers',
       label: 'Offer Timer',
       icon: <AlarmClock className="w-4 h-4" />,
       badge: activeOfferTimersCount,
+    },
+    {
+      id: 'inquiries',
+      label: 'Inquiries',
+      icon: <MessageSquare className="w-4 h-4" />,
+      badge: stats.newInquiries,
     },
     {
       id: 'settings',
@@ -231,6 +258,32 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
 
           <button
             type="button"
+            onClick={() => handleNavClick('book_add')}
+            className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              isBookStoreSection ? activePillClass : inactivePillClass
+            }`}
+          >
+            <ShoppingBag
+              className={`w-3.5 h-3.5 ${
+                isBookStoreSection ? 'text-[#eb1c24]' : 'text-[#6B4C4F]'
+              }`}
+            />
+            <span>Book Add</span>
+            {(stats.totalBooks ?? 0) > 0 && (
+              <span
+                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full tabular-nums ${
+                  isBookStoreSection
+                    ? 'bg-[#eb1c24]/15 text-[#b91c1c]'
+                    : 'bg-rose-100/80 text-[#6B4C4F]'
+                }`}
+              >
+                {toBengaliNumber(stats.totalBooks ?? 0)}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleNavClick('categories')}
             className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'categories' ? activePillClass : inactivePillClass
@@ -266,6 +319,32 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
                 }`}
               >
                 {toBengaliNumber(activeOfferTimersCount)}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNavClick('inquiries')}
+            className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'inquiries' ? activePillClass : inactivePillClass
+            }`}
+          >
+            <MessageSquare
+              className={`w-3.5 h-3.5 ${
+                activeTab === 'inquiries' ? 'text-[#eb1c24]' : 'text-[#6B4C4F]'
+              }`}
+            />
+            <span>Inquiries</span>
+            {(stats.newInquiries ?? 0) > 0 && (
+              <span
+                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full tabular-nums ${
+                  activeTab === 'inquiries'
+                    ? 'bg-[#eb1c24]/15 text-[#b91c1c]'
+                    : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {toBengaliNumber(stats.newInquiries ?? 0)}
               </span>
             )}
           </button>
@@ -365,7 +444,8 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
             {mobileLinks.map((item) => {
               const isActive =
                 activeTab === item.id ||
-                (activeTab === 'course_editor' && item.id === 'all_courses');
+                (activeTab === 'course_editor' && item.id === 'all_courses') ||
+                (activeTab === 'book_categories' && item.id === 'book_add');
               return (
                 <button
                   key={item.id}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Category, Course } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
+import { courseMatchesCategorySlug } from '../../lib/categoryMatching.ts';
 import { Search, Sparkles } from 'lucide-react';
 
 interface CategoryPageProps {
@@ -20,18 +21,18 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   courses,
   onBack,
   onEnrollClick,
-  onSelectCategory,
-  onNavigate,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [priceFilter, setPriceFilter] = useState('all');
 
-  const isLanguageLearning = categorySlug === 'language-learning';
-  const isSkills = categorySlug === 'skills';
-  const isAdmission = categorySlug === 'admission';
-  const isBooks = categorySlug === 'books';
+  const normalizedSlug = categorySlug === 'free' ? 'free-course' : categorySlug;
+  const isLanguageLearning = normalizedSlug === 'language-learning';
+  const isSkills = normalizedSlug === 'skills';
+  const isAdmission = normalizedSlug === 'admission';
+  const isBooks = normalizedSlug === 'books';
+  const isFreeCourse = normalizedSlug === 'free-course';
 
-  let currentCategory = categories.find((c) => c.slug === categorySlug);
+  let currentCategory = categories.find((c) => c.slug === normalizedSlug);
   if (isLanguageLearning) {
     currentCategory = {
       id: 999,
@@ -72,11 +73,21 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
       displayOrder: 5,
       status: 'active',
     };
+  } else if (!currentCategory && isFreeCourse) {
+    currentCategory = {
+      id: 9,
+      name: 'ফ্রি কোর্স',
+      slug: 'free-course',
+      subtitle: 'সম্পূর্ণ বিনামূল্যের কোর্স, মাস্টারক্লাস ও লার্নিং কনটেন্ট',
+      badgeColor: 'emerald',
+      displayOrder: 9,
+      status: 'active',
+    };
   } else if (!currentCategory) {
     currentCategory = categories[0] || {
       id: 0,
       name: 'কোর্স ক্যাটালগ',
-      slug: categorySlug,
+      slug: normalizedSlug,
       subtitle: 'সকল উপলব্ধ কোর্স ও অনলাইন ব্যাচ',
       badgeColor: '#E22B2B',
       displayOrder: 1,
@@ -84,25 +95,9 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     };
   }
 
-  const categoryCourses = courses.filter((c) => {
-    if (isLanguageLearning) {
-      if (c.categorySlug === 'language-learning') return true;
-      const text = `${c.title} ${c.slug} ${c.description}`.toLowerCase();
-      return (
-        text.includes('english') ||
-        text.includes('spoken') ||
-        text.includes('ielts') ||
-        text.includes('মুনজেরিন') ||
-        text.includes('ভাষা')
-      );
-    }
-    if (isBooks) {
-      if (c.categorySlug === 'books') return true;
-      const text = `${c.title} ${c.slug} ${c.description}`.toLowerCase();
-      return text.includes('বুক') || text.includes('বই') || text.includes('নোট');
-    }
-    return c.categorySlug === currentCategory.slug;
-  });
+  const categoryCourses = courses.filter((c) =>
+    courseMatchesCategorySlug(c, currentCategory.slug)
+  );
 
   const filteredCourses = categoryCourses.filter((c) => {
     const q = searchQuery.toLowerCase().trim();

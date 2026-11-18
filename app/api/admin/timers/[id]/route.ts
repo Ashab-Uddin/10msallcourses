@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  RepositoryError,
   deleteOfferTimer,
   setOfferTimerPaused,
   updateOfferTimer,
@@ -12,8 +13,11 @@ export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const { id } = await context.params;
@@ -40,6 +44,9 @@ export async function PUT(
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {
+    if (error instanceof RepositoryError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Failed to update offer timer:', error);
     return NextResponse.json(
       { error: 'অফার টাইমার আপডেট করতে ব্যর্থ হয়েছে।' },
@@ -52,8 +59,11 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const { id } = await context.params;
@@ -80,6 +90,9 @@ export async function PATCH(
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {
+    if (error instanceof RepositoryError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Failed to toggle offer timer pause state:', error);
     return NextResponse.json(
       { error: 'অফার টাইমারের অবস্থা পরিবর্তন করা যায়নি।' },
@@ -92,8 +105,11 @@ export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const { id } = await context.params;
@@ -110,6 +126,9 @@ export async function DELETE(
       headers: { 'Cache-Control': 'private, no-store' },
     });
   } catch (error) {
+    if (error instanceof RepositoryError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Failed to delete offer timer:', error);
     return NextResponse.json(
       { error: 'অফার টাইমার মুছে ফেলতে ব্যর্থ হয়েছে।' },

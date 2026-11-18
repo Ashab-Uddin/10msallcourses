@@ -1,0 +1,65 @@
+{
+  "bookCategories": [
+    {
+      "id": 1,
+      "name": "এইচএসসি",
+      "slug": "hsc",
+      "sectionTitle": "এইচএসসি'র সকল বই",
+      "subtitle": "HSC বিজ্ঞান, মানবিক ও ব্যবসায় শিক্ষা বিভাগের মাস্টারবুক ও গাইড",
+      "shelfTheme": "blue",
+      "displayOrder": 1,
+      "status": "active",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": 2,
+      "name": "এসএসসি",
+      "slug": "ssc",
+      "sectionTitle": "এসএসসি'র সকল বই",
+      "subtitle": "নবম-দশম শ্রেণি ও SSC বোর্ড পরীক্ষার পূর্ণাঙ্গ মাস্টারবুক",
+      "shelfTheme": "rose",
+      "displayOrder": 2,
+      "status": "active",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": 3,
+      "name": "অষ্টম শ্রেণি",
+      "slug": "class-8",
+      "sectionTitle": "অষ্টম শ্রেণির সকল বই",
+      "subtitle": "অষ্টম শ্রেণির বিষয়ভিত্তিক মাস্টারবুক ও প্র্যাকটিস গাইড",
+      "shelfTheme": "amber",
+      "displayOrder": 3,
+      "status": "active",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": 4,
+      "name": "৭ম শ্রেণি",
+      "slug": "class-7",
+      "sectionTitle": "৭ম শ্রেণির সকল বই",
+      "subtitle": "৭ম শ্রেণির সকল বিষয়ের সহজপাঠ্য মাস্টারবুক",
+      "shelfTheme": "emerald",
+      "displayOrder": 4,
+      "status": "active",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": 5,
+      "name": "৬ষ্ঠ শ্রেণি",
+      "slug": "class-6",
+      "sectionTitle": "৬ষ্ঠ শ্রেণির সকল বই",
+      "subtitle": "৬ষ্ঠ শ্রেণির ভিত্তি মজবুত করার প্রয়োজনীয় বইসমূহ",
+      "shelfTheme": "slate",
+      "displayOrder": 5,
+      "status": "active",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "books": []
+}

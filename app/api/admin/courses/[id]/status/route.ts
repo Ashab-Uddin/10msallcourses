@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateExistingCourse } from '@/src/db/repository';
+import { RepositoryError, updateExistingCourse } from '@/src/db/repository';
 import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
@@ -8,8 +8,11 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!isAuthorizedAdminRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await isAuthorizedAdminRequest(req))) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
   }
   try {
     const { id } = await params;
@@ -35,6 +38,9 @@ export async function PATCH(
       headers: { 'Cache-Control': 'private, no-store' },
     });
   } catch (error) {
+    if (error instanceof RepositoryError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Update course status failed:', error);
     return NextResponse.json({ error: 'কোর্সের স্ট্যাটাস আপডেট ব্যর্থ হয়েছে।' }, { status: 500 });
   }

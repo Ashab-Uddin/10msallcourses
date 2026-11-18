@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import App from '@/src/App';
 import { getPublicPortalData } from '@/src/db/repository';
+import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import { buildSeoMetadata, buildStructuredData } from '@/src/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +16,11 @@ export async function generateMetadata({ params }: CatchAllRouteProps): Promise<
   if (pathname.startsWith('/admin')) {
     return buildSeoMetadata(pathname, []);
   }
-  const data = await getPublicPortalData();
-  return buildSeoMetadata(pathname, data.categories, data.settings);
+  const [data, bookData] = await Promise.all([
+    getPublicPortalData(),
+    getPublicBookStoreData(),
+  ]);
+  return buildSeoMetadata(pathname, data.categories, data.settings, bookData.bookCategories);
 }
 
 export default async function CatchAllPage({ params }: CatchAllRouteProps) {
@@ -27,7 +31,10 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
     return <App />;
   }
 
-  const data = await getPublicPortalData();
+  const [data, bookData] = await Promise.all([
+    getPublicPortalData(),
+    getPublicBookStoreData(),
+  ]);
   const structuredData = buildStructuredData(
     pathname,
     data.categories,
@@ -52,6 +59,8 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
         initialOfferTimers={data.offerTimers}
         initialHasOfferTimers={data.hasOfferTimers}
         initialServerNow={data.serverNow}
+        initialBookCategories={bookData.bookCategories}
+        initialBooks={bookData.books}
       />
     </>
   );

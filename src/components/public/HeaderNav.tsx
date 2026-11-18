@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import Image from 'next/image';
-import { Course } from '../../types.ts';
+import { BookCategory, Course } from '../../types.ts';
 import {
   Home,
   GraduationCap,
@@ -18,6 +18,7 @@ import {
 
 interface HeaderNavProps {
   courses: Course[];
+  bookCategories?: BookCategory[];
   searchQuery: string;
   onSearchChange: (val: string) => void;
   onSearchSubmit: () => void;
@@ -41,6 +42,7 @@ interface SubMenuItem {
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
+  bookCategories = [],
   searchQuery,
   onSearchChange,
   onSearchSubmit,
@@ -73,7 +75,15 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     }
 
     if (clean.includes('/admission') || clean === '/category/admission') return 'admission';
-    if (clean.includes('/books') || clean === '/category/books') return 'books';
+    if (
+      clean === '/books' ||
+      clean.startsWith('/books/') ||
+      clean === '/book-store' ||
+      clean === '/category/books' ||
+      clean === '/categories/books'
+    ) {
+      return 'books';
+    }
 
     if (clean === '/' && !searchQuery.trim()) return 'home';
 
@@ -125,6 +135,17 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     { label: '💼 ব্যবসায় শিক্ষা (Business Studies)', urlPath: '/hsc/hsc-28#business-studies' },
     { label: '📚 মানবিক বিভাগ (Humanities)', urlPath: '/hsc/hsc-28#humanities' },
     { label: '🎯 HSC 2028 সকল কোর্স', urlPath: '/hsc/hsc-28' },
+  ];
+
+  // Dynamic Book Store categories dropdown items
+  const bookStoreItems: SubMenuItem[] = [
+    { label: '📚 সকল বই (10MS বুক স্টোর)', urlPath: '/books' },
+    ...bookCategories
+      .filter((cat) => cat.status === 'active')
+      .map((cat) => ({
+        label: cat.sectionTitle || `${cat.name}-এর সকল বই`,
+        urlPath: `/books/${cat.slug}`,
+      })),
   ];
 
   const handleSubItemClick = (item: SubMenuItem) => {
@@ -428,17 +449,54 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             <span>ভর্তি পরীক্ষা</span>
           </button>
 
-          {/* 7. বুক স্টোর */}
-          <button
-            type="button"
-            onClick={() => handleDirectNavClick('books')}
-            className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
-              activeNavKey === 'books' ? activePillClass : inactivePillClass
-            }`}
+          {/* 7. বুক স্টোর (with dynamic Book Store categories dropdown) */}
+          <div
+            onMouseEnter={() => handleMouseEnter('books')}
+            onMouseLeave={handleMouseLeave}
+            className="relative"
           >
-            <ShoppingBag className={`w-3.5 h-3.5 ${activeNavKey === 'books' ? 'text-[#eb1c24]' : 'text-indigo-500'}`} />
-            <span>বুক স্টোর</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleDirectNavClick('books')}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                activeNavKey === 'books' ? activePillClass : inactivePillClass
+              }`}
+            >
+              <ShoppingBag className={`w-3.5 h-3.5 ${activeNavKey === 'books' ? 'text-[#eb1c24]' : 'text-indigo-500'}`} />
+              <span>বুক স্টোর</span>
+              {bookStoreItems.length > 1 && (
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    activeMenu === 'books' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
+                  }`}
+                />
+              )}
+            </button>
+
+            {activeMenu === 'books' && bookStoreItems.length > 1 && (
+              <div
+                onMouseEnter={() => {
+                  if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                }}
+                onMouseLeave={handleMouseLeave}
+                className="absolute right-0 top-full mt-2 w-[270px] bg-white rounded-2xl border border-rose-100 border-t-[3px] border-t-[#eb1c24] shadow-[0_16px_40px_rgba(0,0,0,0.12)] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden"
+              >
+                <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  বুক স্টোর ক্যাটাগরি
+                </div>
+                {bookStoreItems.map((item, idx) => (
+                  <button
+                    key={item.urlPath + idx}
+                    type="button"
+                    onClick={() => handleSubItemClick(item)}
+                    className="w-full text-left px-4 py-2 text-[12.5px] font-semibold text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60 transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </nav>
 
         {/* RIGHT: SEARCH BAR PILL */}
@@ -614,16 +672,48 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               <Award className="w-4 h-4 text-emerald-600" />
               <span>ভর্তি পরীক্ষা</span>
             </button>
-            <button
-              type="button"
-              onClick={() => handleDirectNavClick('books')}
-              className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
-                activeNavKey === 'books' ? 'text-[#eb1c24] bg-rose-50 border border-rose-200' : 'text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              <ShoppingBag className="w-4 h-4 text-indigo-500" />
-              <span>বুক স্টোর ও প্রিন্টেড নোট</span>
-            </button>
+            {bookStoreItems.length > 1 ? (
+              <details className="group" open={activeNavKey === 'books'}>
+                <summary
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
+                    activeNavKey === 'books'
+                      ? 'text-[#eb1c24] bg-rose-50/70'
+                      : 'text-slate-800 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-indigo-500" />
+                    <span>বুক স্টোর ও প্রিন্টেড বই</span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  {bookStoreItems.map((item, idx) => (
+                    <button
+                      key={item.urlPath + idx}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className="w-full text-left px-2.5 py-1.5 text-xs rounded-md text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70 font-medium transition-colors"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDirectNavClick('books')}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                  activeNavKey === 'books'
+                    ? 'text-[#eb1c24] bg-rose-50 border border-rose-200'
+                    : 'text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4 text-indigo-500" />
+                <span>বুক স্টোর ও প্রিন্টেড বই</span>
+              </button>
+            )}
           </div>
         </div>
       )}

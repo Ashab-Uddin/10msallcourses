@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef, useSyncExtern
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Category, Course, OfferTimer, SiteSettings } from './types.ts';
+import { Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
 import { computeOfferTimerStatus, getCountdownParts } from './lib/offerTimerUtils.ts';
 import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
@@ -16,6 +16,10 @@ import { GlassAmbientBackdrop } from './components/public/GlassAmbientBackdrop.t
 import { FloatingContactWidget } from './components/public/FloatingContactWidget.tsx';
 import { SiteFooter } from './components/public/SiteFooter.tsx';
 import { toBengaliNumber } from './utils/format.ts';
+import {
+  CLASS_BENGALI_ORDINALS,
+  courseMatchesCategorySlug,
+} from './lib/categoryMatching.ts';
 import {
   AlertCircle,
   ChevronRight,
@@ -55,6 +59,17 @@ const AcademicPage = dynamic(
   }
 );
 
+const BookStorePage = dynamic(
+  () => import('./components/public/BookStorePage.tsx').then((m) => m.BookStorePage),
+  {
+    loading: () => (
+      <div className="max-w-[1240px] mx-auto px-4 py-16 text-center text-sm font-bold text-[#6B4C4F]">
+        বুক স্টোর লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
+
 const AdminLogin = dynamic(
   () => import('./components/admin/AdminLogin.tsx').then((m) => m.AdminLogin),
   {
@@ -86,16 +101,8 @@ export interface AppProps {
   initialOfferTimers?: OfferTimer[];
   initialHasOfferTimers?: boolean;
   initialServerNow?: string;
-}
-
-function subscribeSessionAuth(callback: () => void) {
-  if (typeof window === 'undefined') return () => {};
-  window.addEventListener('storage', callback);
-  window.addEventListener('10ms-auth-change', callback);
-  return () => {
-    window.removeEventListener('storage', callback);
-    window.removeEventListener('10ms-auth-change', callback);
-  };
+  initialBookCategories?: BookCategory[];
+  initialBooks?: Book[];
 }
 
 function subscribeHashChange(callback: () => void) {
@@ -108,16 +115,9 @@ function subscribeHashChange(callback: () => void) {
   };
 }
 
-function getSessionItem(key: string): string {
-  try {
-    return typeof window !== 'undefined' ? sessionStorage.getItem(key) || '' : '';
-  } catch {
-    return '';
-  }
-}
-
 type RouteState =
   | { view: 'home' }
+  | { view: 'bookstore'; categorySlug?: string }
   | { view: 'category'; slug: string; subFilter?: string }
   | { view: 'academic'; level: AcademicLevel; batchOrClass: string; sectionHash?: string }
   | { view: 'admin_login' }
@@ -150,9 +150,29 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
     return { view: 'category', slug: 'admission' };
   }
 
-  // 4. Books: /books/ or /category/books/
-  if (clean === '/books' || clean === '/category/books' || clean === '/categories/books') {
-    return { view: 'category', slug: 'books' };
+  // 3b. Free Course: /free-course, /free, /free-courses, /category/free-course
+  if (
+    clean === '/free-course' ||
+    clean === '/free' ||
+    clean === '/free-courses' ||
+    clean === '/category/free-course' ||
+    clean === '/categories/free-course'
+  ) {
+    return { view: 'category', slug: 'free-course' };
+  }
+
+  // 4. Book Store: /books, /book-store, /books/:categorySlug, /category/books
+  if (
+    clean === '/books' ||
+    clean === '/book-store' ||
+    clean === '/category/books' ||
+    clean === '/categories/books'
+  ) {
+    return { view: 'bookstore' };
+  }
+  if (clean.startsWith('/books/')) {
+    const bookCatSlug = clean.slice('/books/'.length).split('/')[0];
+    return { view: 'bookstore', categorySlug: bookCatSlug || undefined };
   }
 
   // 5. HSC Dedicated Routes: /hsc/hsc-26/, /hsc/hsc-27/, /hsc/hsc-28/ (plus legacy support)
@@ -190,8 +210,8 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
     return { view: 'academic', level: 'ssc', batchOrClass: 'ssc-27', sectionHash: cleanHash };
   }
 
-  // 7. Junior School Classes: /class-6/, /class-7/, /class-8/
-  const classMatch = clean.match(/^\/(?:academic\/)?class-?([6-8])$/);
+  // 7. Junior School Classes: /class-5/, /class-6/, /class-7/, /class-8/
+  const classMatch = clean.match(/^\/(?:academic\/)?class-?([5-8])$/);
   if (classMatch) {
     return { view: 'academic', level: 'class', batchOrClass: `class${classMatch[1]}`, sectionHash: cleanHash };
   }
@@ -224,6 +244,8 @@ export default function App({
   initialOfferTimers = [],
   initialHasOfferTimers = false,
   initialServerNow,
+  initialBookCategories = [],
+  initialBooks = [],
 }: AppProps) {
   const currentPathname = usePathname() || '/';
   const [navOverride, setNavOverride] = useState<{
@@ -248,26 +270,11 @@ export default function App({
     [currentPath, currentHash]
   );
 
-  // Auth state synchronized via useSyncExternalStore from sessionStorage so admin access
-  // persists across refreshes without hydration mismatches or cascading effect renders.
-  const authToken =
-    useSyncExternalStore(
-      subscribeSessionAuth,
-      () => getSessionItem('10ms_auth_token'),
-      () => ''
-    ) || null;
-  const adminEmail = useSyncExternalStore(
-    subscribeSessionAuth,
-    () => getSessionItem('10ms_admin_email'),
-    () => ''
-  );
-  const adminName = useSyncExternalStore(
-    subscribeSessionAuth,
-    () => getSessionItem('10ms_admin_name'),
-    () => ''
-  );
-
-  const [verifiedAdminToken, setVerifiedAdminToken] = useState<string | null>(null);
+  // Server-verified HttpOnly cookie admin session (zero client-side secret token storage)
+  const [adminSession, setAdminSession] = useState<{
+    email: string;
+    name: string;
+  } | null>(null);
   const [adminSessionChecked, setAdminSessionChecked] = useState<boolean>(false);
   const [appToast, setAppToast] = useState<{ message: string; type: 'error' | 'info' } | null>(null);
 
@@ -278,47 +285,36 @@ export default function App({
     }, 4000);
   }, []);
 
-  // Verify admin session against /api/admin/session (HttpOnly cookie or signed Bearer token)
+  // Verify admin session against /api/admin/session via HttpOnly cookie
   useEffect(() => {
     if (route.view !== 'admin_dashboard') return;
-    if (authToken && verifiedAdminToken === authToken) return;
+    if (adminSession) return;
 
     let cancelled = false;
     const verifySession = async () => {
       try {
         const res = await fetch('/api/admin/session', {
           credentials: 'include',
-          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
           cache: 'no-store',
         });
         if (cancelled) return;
 
         if (res.ok) {
           const data = await res.json();
-          if (data?.authenticated && data?.token) {
-            try {
-              sessionStorage.setItem('10ms_auth_token', data.token);
-              sessionStorage.setItem('10ms_admin_email', data.email || '');
-              sessionStorage.setItem('10ms_admin_name', data.name || '');
-              window.dispatchEvent(new Event('10ms-auth-change'));
-            } catch {}
-            setVerifiedAdminToken(data.token);
+          if (data?.authenticated) {
+            setAdminSession({
+              email: data.email || '',
+              name: data.name || 'Site Admin',
+            });
             setAdminSessionChecked(true);
             return;
           }
         }
 
-        // Invalid or expired session: purge any stale/forged local token
-        try {
-          sessionStorage.removeItem('10ms_auth_token');
-          sessionStorage.removeItem('10ms_admin_email');
-          sessionStorage.removeItem('10ms_admin_name');
-          window.dispatchEvent(new Event('10ms-auth-change'));
-        } catch {}
-        setVerifiedAdminToken(null);
+        setAdminSession(null);
       } catch {
         if (!cancelled) {
-          setVerifiedAdminToken(null);
+          setAdminSession(null);
         }
       } finally {
         if (!cancelled) {
@@ -331,18 +327,14 @@ export default function App({
     return () => {
       cancelled = true;
     };
-  }, [route.view, authToken, verifiedAdminToken]);
+  }, [route.view, adminSession]);
 
-  const handleAdminLogin = (token: string, email: string, name: string) => {
-    try {
-      sessionStorage.setItem('10ms_auth_token', token);
-      sessionStorage.setItem('10ms_admin_email', email);
-      sessionStorage.setItem('10ms_admin_name', name);
-      window.dispatchEvent(new Event('10ms-auth-change'));
-    } catch {}
-    setVerifiedAdminToken(token);
+  const handleAdminLogin = (email: string, name: string) => {
+    setAdminSession({ email, name });
     setAdminSessionChecked(true);
-    navigate('/admin/dashboard');
+    if (!currentPath.startsWith('/admin/') || currentPath === '/admin/login') {
+      navigate('/admin/dashboard');
+    }
   };
 
   const handleAdminLogout = () => {
@@ -351,13 +343,7 @@ export default function App({
       credentials: 'include',
     }).catch(() => {});
 
-    try {
-      sessionStorage.removeItem('10ms_auth_token');
-      sessionStorage.removeItem('10ms_admin_email');
-      sessionStorage.removeItem('10ms_admin_name');
-      window.dispatchEvent(new Event('10ms-auth-change'));
-    } catch {}
-    setVerifiedAdminToken(null);
+    setAdminSession(null);
     setAdminSessionChecked(true);
     navigate('/');
   };
@@ -365,6 +351,8 @@ export default function App({
   // Public portal data initialized from Server Component props (zero initial client waterfall)
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [courses, setCourses] = useState<Course[]>(initialCourses);
+  const [bookCategories, setBookCategories] = useState<BookCategory[]>(initialBookCategories);
+  const [books, setBooks] = useState<Book[]>(initialBooks);
   const [settings, setSettings] = useState<SiteSettings | null>(initialSettings);
   const [offerTimers, setOfferTimers] = useState<OfferTimer[]>(initialOfferTimers);
   const [hasOfferTimers, setHasOfferTimers] = useState<boolean>(
@@ -378,8 +366,12 @@ export default function App({
     return 0;
   });
   const serverOffsetRef = useRef<number>(0);
+  const hasInitialPortalData =
+    initialCategories.length > 0 || initialSettings !== null;
+  const hasInitialBookData =
+    initialBookCategories.length > 0 || initialBooks.length > 0;
   const [loading, setLoading] = useState<boolean>(
-    initialCourses.length === 0 && !currentPathname.startsWith('/admin')
+    !hasInitialPortalData && !currentPathname.startsWith('/admin')
   );
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -396,7 +388,6 @@ export default function App({
     try {
       const res = await fetch('/api/download-project-zip', {
         credentials: 'include',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -555,10 +546,10 @@ export default function App({
         throw new Error('সার্ভার থেকে কোর্স ডেটা লোড করা সম্ভব হয়নি।');
       }
       const data = await res.json();
-      if (data.categories && data.categories.length > 0) {
+      if (Array.isArray(data.categories)) {
         setCategories(data.categories);
       }
-      if (data.courses && data.courses.length > 0) {
+      if (Array.isArray(data.courses)) {
         setCourses(data.courses);
       }
       if (Array.isArray(data.offerTimers)) {
@@ -590,9 +581,30 @@ export default function App({
     }
   }, [setFetchError, setCategories, setCourses, setOfferTimers, setHasOfferTimers, setNowMs, setSettings]);
 
+  const fetchPublicBooks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/public/books', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.bookCategories)) {
+        setBookCategories(data.bookCategories);
+      }
+      if (Array.isArray(data.books)) {
+        setBooks(data.books);
+      }
+    } catch (err) {
+      console.warn('Book store data fetch fallback:', err);
+    }
+  }, [setBookCategories, setBooks]);
+
+  const handleAdminDataMutated = useCallback(() => {
+    void fetchPublicData();
+    void fetchPublicBooks();
+  }, [fetchPublicData, fetchPublicBooks]);
+
   useEffect(() => {
     // Skip redundant client API fetch if SSR already provided public data or on admin routes
-    if (initialCourses.length > 0 || currentPathname.startsWith('/admin')) {
+    if (hasInitialPortalData || currentPathname.startsWith('/admin')) {
       return;
     }
     let active = true;
@@ -605,11 +617,35 @@ export default function App({
     return () => {
       active = false;
     };
-  }, [fetchPublicData, initialCourses.length, currentPathname]);
+  }, [fetchPublicData, hasInitialPortalData, currentPathname]);
+
+  useEffect(() => {
+    if (hasInitialBookData || currentPathname.startsWith('/admin')) {
+      return;
+    }
+    let active = true;
+    const run = async () => {
+      await Promise.resolve();
+      if (active) {
+        await fetchPublicBooks();
+      }
+    };
+    void run();
+    return () => {
+      active = false;
+    };
+  }, [fetchPublicBooks, hasInitialBookData, currentPathname]);
 
   // Sync browser document.title for all dynamic academic routes and catalog views
   useEffect(() => {
-    if (route.view === 'academic') {
+    if (route.view === 'bookstore') {
+      const matchedBookCat = route.categorySlug
+        ? bookCategories.find((cat) => cat.slug === route.categorySlug)
+        : undefined;
+      document.title = matchedBookCat
+        ? `${matchedBookCat.sectionTitle || matchedBookCat.name} — 10MS বুক স্টোর`
+        : '10MS স্টোর — বুক স্টোর ও প্রিন্টেড বই — 10msallcourse.com';
+    } else if (route.view === 'academic') {
       if (route.level === 'ssc') {
         document.title =
           route.batchOrClass === 'ssc-27'
@@ -624,17 +660,22 @@ export default function App({
           document.title = 'HSC 28 অনলাইন ব্যাচ — ১০ মিনিট স্কুল';
         }
       } else if (route.level === 'class') {
-        const cNum = route.batchOrClass.replace('class', '');
-        document.title = `${toBengaliNumber(parseInt(cNum, 10) || 6)} শ্রেণি অনলাইন ব্যাচ — ১০ মিনিট স্কুল`;
+        const cNum = parseInt(route.batchOrClass.replace('class', ''), 10) || 6;
+        const bnOrdinal = CLASS_BENGALI_ORDINALS[cNum] || `${toBengaliNumber(cNum)}ম`;
+        document.title = `${bnOrdinal} শ্রেণি অনলাইন ব্যাচ — ১০ মিনিট স্কুল`;
       }
     } else if (route.view === 'category') {
       const cat = categories.find((c) => c.slug === route.slug);
-      document.title = cat ? `${cat.name} — ১০ মিনিট স্কুল` : 'কোর্স ক্যাটালগ — ১০ মিনিট স্কুল';
+      document.title = cat
+        ? `${cat.name} — ১০ মিনিট স্কুল`
+        : route.slug === 'free-course'
+          ? 'ফ্রি কোর্স — ১০ মিনিট স্কুল'
+          : 'কোর্স ক্যাটালগ — ১০ মিনিট স্কুল';
     } else if (route.view === 'home') {
       document.title =
         settings?.siteTitle || '১০ মিনিট স্কুল কোর্স — ৩D ক্লাস সিলেক্টর ও মডার্ন কোর্স পোর্টাল';
     }
-  }, [route, categories, settings?.siteTitle]);
+  }, [route, categories, bookCategories, settings?.siteTitle]);
 
   // Record outbound click in background without blocking direct link navigation
   const recordCourseOutboundClick = (course: Pick<Course, 'id' | 'slug'>, referrer = 'course_card') => {
@@ -791,7 +832,7 @@ export default function App({
   }
 
   if (route.view === 'admin_dashboard') {
-    const isVerified = Boolean(authToken && verifiedAdminToken === authToken);
+    const isVerified = Boolean(adminSession);
     if (!adminSessionChecked && !isVerified) {
       return (
         <div className="min-h-screen flex items-center justify-center p-4 text-center">
@@ -803,7 +844,7 @@ export default function App({
       );
     }
 
-    if (!isVerified) {
+    if (!adminSession) {
       return (
         <AdminLogin
           onLoginSuccess={handleAdminLogin}
@@ -832,16 +873,72 @@ export default function App({
           </div>
         )}
         <AdminDashboard
-          authToken={authToken!}
-          adminEmail={adminEmail}
-          adminName={adminName}
+          adminEmail={adminSession.email}
+          adminName={adminSession.name}
           currentPath={currentPath}
           onNavigate={navigate}
           onLogout={handleAdminLogout}
-          onDataMutated={fetchPublicData}
+          onDataMutated={handleAdminDataMutated}
           onDownloadZip={handleDownloadZip}
         />
       </>
+    );
+  }
+
+  if (route.view === 'bookstore') {
+    return (
+      <div className="relative min-h-screen pb-20 md:pb-0">
+        <GlassAmbientBackdrop />
+
+        <HeaderNav
+          courses={courses}
+          bookCategories={bookCategories}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchSubmit={() => {
+            navigate('/');
+            setTimeout(() => {
+              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
+            }, 80);
+          }}
+          onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
+          onNavigateHome={() => navigate('/')}
+          onEnrollClick={handleEnrollClick}
+          onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
+          onNavigate={navigate}
+          currentPath={currentPath}
+          currentHash={currentHash}
+        />
+
+        <main className="relative z-10 pt-3">
+          <BookStorePage
+            bookCategories={bookCategories}
+            books={books}
+            initialCategorySlug={route.categorySlug}
+            settings={settings}
+            onBack={() => navigate('/')}
+            onRefreshBooks={fetchPublicBooks}
+          />
+        </main>
+
+        <SiteFooter
+          onNavigate={navigate}
+          onQuickFilter={handleQuickFilterSelect}
+          onDirectCourseLink={handleDirectCourseLink}
+          isAdminAuthenticated={Boolean(adminSession)}
+          whatsappNumber={whatsappNumber}
+          whatsappLink={whatsappLink}
+        />
+
+        <MobileBottomNav activeTab={getMobileActiveTab()} onTabChange={handleMobileNav} />
+
+        <FloatingContactWidget
+          whatsappLink={whatsappLink}
+          whatsappNumber={whatsappNumber}
+          callNumber={callNumber}
+          messengerLink={messengerLink}
+        />
+      </div>
     );
   }
 
@@ -852,6 +949,7 @@ export default function App({
 
         <HeaderNav
           courses={courses}
+          bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onSearchSubmit={() => {
@@ -886,7 +984,7 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
-          authToken={authToken}
+          isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
         />
@@ -910,6 +1008,7 @@ export default function App({
 
         <HeaderNav
           courses={courses}
+          bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onSearchSubmit={() => {
@@ -933,6 +1032,7 @@ export default function App({
             batchOrClass={route.batchOrClass}
             sectionHash={route.sectionHash || currentHash}
             courses={courses}
+            categories={categories}
             onNavigate={navigate}
             onEnrollClick={handleEnrollClick}
           />
@@ -943,7 +1043,7 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
-          authToken={authToken}
+          isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
         />
@@ -980,7 +1080,7 @@ export default function App({
       c.features.toLowerCase().includes(q);
 
     const matchesCategory =
-      selectedCategory === 'all' || c.categorySlug === selectedCategory;
+      selectedCategory === 'all' || courseMatchesCategorySlug(c, selectedCategory);
 
     const matchesPrice =
       priceFilter === 'all' ||
@@ -1006,6 +1106,7 @@ export default function App({
       {/* FLOATING FROSTED GLASS HEADER */}
       <HeaderNav
         courses={courses}
+        bookCategories={bookCategories}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSearchSubmit={() => {
@@ -1270,7 +1371,7 @@ export default function App({
             </div>
 
             {/* 3D CATEGORY & CLASS SELECTOR STRIP (GLASS-SHADE S-WAVE STRUCTURE) */}
-            <ClassSelectorStrip onNavigate={navigate} />
+            <ClassSelectorStrip onNavigate={navigate} categories={categories} />
           </section>
 
           {/* 3 MAIN PATHWAYS (Academic, Skills, Admission) */}
@@ -1586,7 +1687,9 @@ export default function App({
               ) : (
                 /* DEFAULT CATEGORY-WISE SECTIONS (Frosted Glass Container) */
                 categories.map((cat) => {
-                  const catCourses = courses.filter((c) => c.categorySlug === cat.slug);
+                  const catCourses = courses.filter((c) =>
+                    courseMatchesCategorySlug(c, cat.slug)
+                  );
                   if (catCourses.length === 0) return null;
 
                   const sectionId = `${cat.slug}-section`;
@@ -1795,7 +1898,7 @@ export default function App({
         onNavigate={navigate}
         onQuickFilter={handleQuickFilterSelect}
         onDirectCourseLink={handleDirectCourseLink}
-        authToken={authToken}
+        isAdminAuthenticated={Boolean(adminSession)}
         whatsappNumber={whatsappNumber}
         whatsappLink={whatsappLink}
       />

@@ -42,6 +42,12 @@ export const BATCH_KEYWORD_OPTIONS: BatchKeywordOption[] = [
       /(?:^|[\s,|/(\[])(?:ssc[\s-]*(?:2028|28|২০২৮|২৮)|এসএসসি[\s-]*(?:2028|28|২০২৮|২৮)|class[\s-]*9|(?:৯ম|নবম)(?:[\s-]*শ্রে[ণন]ি)?)(?=$|[\s,|/)\].!])/i,
   },
   {
+    id: 'class-5',
+    label: 'Class 5',
+    subLabel: '৫ম শ্রেণি',
+    matcher: /(?:^|[\s,|/(\[])(?:class[\s-]*5|(?:৫ম|পঞ্চম)(?:[\s-]*শ্রে[ণন]ি)?)(?=$|[\s,|/)\].!])/i,
+  },
+  {
     id: 'class-6',
     label: 'Class 6',
     subLabel: '৬ষ্ঠ শ্রেণি',

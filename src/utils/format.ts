@@ -77,22 +77,3 @@ export function getGradientClasses(theme: string): {
       };
   }
 }
-
-export const PRESET_COURSE_IMAGES = [
-  {
-    label: 'HSC Science 3D Cover',
-    url: '/images/course_hsc_science_1791228377506.jpg',
-  },
-  {
-    label: 'Spoken English & IELTS Cover',
-    url: '/images/course_spoken_english_1791228393736.jpg',
-  },
-  {
-    label: 'Web Development & Coding Cover',
-    url: '/images/course_web_development_1791228405497.jpg',
-  },
-  {
-    label: 'Varsity Admission Cover',
-    url: '/images/course_varsity_admission_1791228416821.jpg',
-  },
-];

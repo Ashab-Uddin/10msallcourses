@@ -52,6 +52,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
         />
+        <link rel="preconnect" href="https://ik.imagekit.io" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://ik.imagekit.io" />
         <link rel="preconnect" href="https://cdn.10minuteschool.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://cdn.10minuteschool.com" />
       </head>

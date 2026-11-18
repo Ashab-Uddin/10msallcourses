@@ -43,6 +43,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (courseTitle && courseTitle.length > 200) {
+      return NextResponse.json(
+        { error: 'কোর্সের শিরোনাম অতিরিক্ত দীর্ঘ।' },
+        { status: 400 }
+      );
+    }
 
     const inquiry = await saveCustomerInquiry({
       name,

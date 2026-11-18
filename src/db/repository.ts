@@ -8,30 +8,54 @@ import {
   CustomerInquiry,
   OfferTimer,
 } from '../types.ts';
-import { INITIAL_CATEGORIES, INITIAL_COURSES, INITIAL_SETTINGS } from './seedData.ts';
+import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
 import { computeDiscountPercent } from '../lib/courseValidation.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import { toBengaliNumber } from '../utils/format.ts';
+import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
+import {
+  RepositoryError,
+  normalizeCourseStatus,
+  normalizeSlug,
+  parseSafePrice,
+  type StorageInfo,
+} from './repositoryShared.ts';
+import {
+  getSupabaseStorageInfo,
+  sbCountCoursesUsingImageUrl,
+  sbCreateNewCategory,
+  sbCreateNewCourse,
+  sbCreateOfferTimer,
+  sbDeleteCategoryById,
+  sbDeleteCourseById,
+  sbDeleteCustomerInquiry,
+  sbDeleteOfferTimer,
+  sbGetAdminOverviewData,
+  sbGetCourseById,
+  sbGetCourseBySlug,
+  sbGetCustomerInquiries,
+  sbGetOfferTimers,
+  sbGetPortalSettings,
+  sbGetPublicPortalData,
+  sbRecordCourseClick,
+  sbSaveCustomerInquiry,
+  sbSetOfferTimerPaused,
+  sbUpdateCustomerInquiryStatus,
+  sbUpdateExistingCategory,
+  sbUpdateExistingCourse,
+  sbUpdateOfferTimer,
+  sbUpdatePortalSettings,
+} from './supabaseRepository.ts';
+
+export {
+  RepositoryError,
+  normalizeCourseStatus,
+  parseSafePrice,
+  type StorageInfo,
+};
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'database.json');
-const REDIS_STORE_KEY = process.env.STORE_REDIS_KEY?.trim() || '10ms_portal:store:v1';
-const REMOTE_CACHE_TTL_MS = 3000;
-
-export class RepositoryError extends Error {
-  status: number;
-  constructor(message: string, status = 400) {
-    super(message);
-    this.name = 'RepositoryError';
-    this.status = status;
-  }
-}
-
-export interface StorageInfo {
-  backend: 'upstash-redis' | 'local-json';
-  persistentOnVercel: boolean;
-  warning?: string;
-}
 
 interface LocalStore {
   categories: Category[];
@@ -42,31 +66,9 @@ interface LocalStore {
   offerTimers: OfferTimer[];
 }
 
-function getRedisConfig(): { url: string; token: string } | null {
-  const url = (
-    process.env.UPSTASH_REDIS_REST_URL ||
-    process.env.KV_REST_API_URL ||
-    ''
-  ).trim();
-  const token = (
-    process.env.UPSTASH_REDIS_REST_TOKEN ||
-    process.env.KV_REST_API_TOKEN ||
-    ''
-  ).trim();
-
-  if (url && token) {
-    return { url: url.replace(/\/+$/, ''), token };
-  }
-  return null;
-}
-
 export function getStorageInfo(): StorageInfo {
-  const redis = getRedisConfig();
-  if (redis) {
-    return {
-      backend: 'upstash-redis',
-      persistentOnVercel: true,
-    };
+  if (isSupabaseDatabaseReady()) {
+    return getSupabaseStorageInfo();
   }
   const onVercel = process.env.VERCEL === '1';
   return {
@@ -75,40 +77,23 @@ export function getStorageInfo(): StorageInfo {
     ...(onVercel
       ? {
           warning:
-            'Vercel Serverless-এ স্থায়ী ডাটা সংরক্ষণের জন্য UPSTASH_REDIS_REST_URL এবং UPSTASH_REDIS_REST_TOKEN (অথবা Vercel KV) এনভায়রনমেন্ট ভ্যারিয়েবল যুক্ত করুন।',
+            'Vercel Production-এ স্থায়ী ডাটা সংরক্ষণের জন্য Supabase PostgreSQL (`NEXT_PUBLIC_SUPABASE_URL` এবং `SUPABASE_SECRET_KEY`) কনফিগার করা আবশ্যক।',
         }
-      : {}),
+      : {
+          warning:
+            'বর্তমানে লোকাল JSON প্রিভিউ মোড চালু রয়েছে। Production-এ Supabase PostgreSQL এনভায়রনমেন্ট ভ্যারিয়েবল যুক্ত করলে স্বয়ংক্রিয়ভাবে PostgreSQL ডাটাবেস ব্যবহৃত হবে।',
+        }),
   };
 }
 
 let cachedStore: LocalStore | null = null;
-let cachedAtMs = 0;
 let writeQueue: Promise<void> = Promise.resolve();
 
-function buildDefaultSeedStore(): LocalStore {
+function buildDefaultStore(): LocalStore {
   return {
     categories: INITIAL_CATEGORIES.map((c) => ({ ...c })),
-    courses: INITIAL_COURSES.map((c) => ({ ...c })),
-    clicks: [
-      {
-        id: 1,
-        courseId: 1,
-        courseSlug: 'hsc-28-pcmb',
-        courseTitle: 'HSC 28 অনলাইন ব্যাচ (PCMB)',
-        referrer: 'google.com',
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        clickedAt: new Date(Date.now() - 3600000).toISOString(),
-      },
-      {
-        id: 2,
-        courseId: 13,
-        courseSlug: 'spoken-english-munzereen',
-        courseTitle: 'ঘরে বসে Spoken English',
-        referrer: 'facebook.com',
-        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
-        clickedAt: new Date(Date.now() - 7200000).toISOString(),
-      },
-    ],
+    courses: [],
+    clicks: [],
     settings: { ...INITIAL_SETTINGS },
     inquiries: [],
     offerTimers: [],
@@ -116,22 +101,19 @@ function buildDefaultSeedStore(): LocalStore {
 }
 
 function normalizeStoreShape(raw: Partial<LocalStore> | null | undefined): LocalStore {
-  const seed = buildDefaultSeedStore();
+  const defaults = buildDefaultStore();
   if (!raw || typeof raw !== 'object') {
-    return seed;
+    return defaults;
   }
 
   return {
     categories:
       Array.isArray(raw.categories) && raw.categories.length > 0
         ? raw.categories
-        : seed.categories,
-    courses:
-      Array.isArray(raw.courses) && raw.courses.length > 0
-        ? raw.courses
-        : seed.courses,
+        : defaults.categories,
+    courses: Array.isArray(raw.courses) ? raw.courses : [],
     clicks: Array.isArray(raw.clicks) ? raw.clicks : [],
-    settings: raw.settings ? { ...seed.settings, ...raw.settings } : seed.settings,
+    settings: raw.settings ? { ...defaults.settings, ...raw.settings } : defaults.settings,
     inquiries: Array.isArray(raw.inquiries) ? raw.inquiries : [],
     offerTimers: Array.isArray(raw.offerTimers) ? raw.offerTimers : [],
   };
@@ -148,7 +130,7 @@ function readLocalFileStore(): LocalStore {
     console.error('[repository] Failed to read local database.json:', err);
   }
 
-  const initial = buildDefaultSeedStore();
+  const initial = buildDefaultStore();
   if (process.env.VERCEL !== '1') {
     try {
       if (!fs.existsSync(DATA_DIR)) {
@@ -162,96 +144,29 @@ function readLocalFileStore(): LocalStore {
   return initial;
 }
 
-async function redisCommand<T = unknown>(command: unknown[]): Promise<T | null> {
-  const redis = getRedisConfig();
-  if (!redis) return null;
-
-  const res = await fetch(redis.url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${redis.token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(command),
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Redis REST error (${res.status}): ${errText.slice(0, 200)}`);
-  }
-
-  const data = (await res.json()) as { result?: T; error?: string };
-  if (data.error) {
-    throw new Error(`Redis command error: ${data.error}`);
-  }
-  return data.result ?? null;
-}
-
 async function loadStore(forceFresh = false): Promise<LocalStore> {
-  const now = Date.now();
-  const redis = getRedisConfig();
-
-  if (redis) {
-    if (!forceFresh && cachedStore && now - cachedAtMs < REMOTE_CACHE_TTL_MS) {
-      return cachedStore;
-    }
-
-    try {
-      const rawValue = await redisCommand<string>(['GET', REDIS_STORE_KEY]);
-      if (typeof rawValue === 'string' && rawValue.trim()) {
-        const parsed = normalizeStoreShape(JSON.parse(rawValue) as Partial<LocalStore>);
-        cachedStore = parsed;
-        cachedAtMs = now;
-        return parsed;
-      }
-
-      // First run on fresh Redis instance: seed from bundled data/database.json so zero existing data is lost.
-      const seeded = readLocalFileStore();
-      await redisCommand(['SET', REDIS_STORE_KEY, JSON.stringify(seeded)]);
-      cachedStore = seeded;
-      cachedAtMs = now;
-      return seeded;
-    } catch (err) {
-      console.error('[repository] Upstash Redis read failed, falling back to cache/local:', err);
-      if (cachedStore) return cachedStore;
-      const fallback = readLocalFileStore();
-      cachedStore = fallback;
-      cachedAtMs = now;
-      return fallback;
-    }
-  }
-
   if (cachedStore && !forceFresh) {
     return cachedStore;
   }
 
   const local = readLocalFileStore();
   cachedStore = local;
-  cachedAtMs = now;
   return local;
 }
 
 async function persistStore(store: LocalStore): Promise<void> {
+  // Never silently pretend writes persisted on Vercel serverless without Supabase PostgreSQL.
+  if (process.env.VERCEL === '1') {
+    throw new RepositoryError(
+      'Vercel Production-এ ডাটাবেস কনফিগার করা হয়নি। স্থায়ী ডাটা সংরক্ষণের জন্য Vercel Environment Variables-এ `NEXT_PUBLIC_SUPABASE_URL` এবং `SUPABASE_SECRET_KEY` সেট করুন।',
+      503
+    );
+  }
+
   cachedStore = store;
-  cachedAtMs = Date.now();
   const serialized = JSON.stringify(store, null, 2);
-  const redis = getRedisConfig();
 
   const runPersist = async () => {
-    if (redis) {
-      await redisCommand(['SET', REDIS_STORE_KEY, serialized]);
-      return;
-    }
-
-    // In Vercel serverless without Redis configured, filesystem is read-only — keep in-memory without throwing EROFS.
-    if (process.env.VERCEL === '1') {
-      console.warn(
-        '[repository] Running on Vercel without UPSTASH_REDIS_REST_URL/KV_REST_API_URL; mutation is ephemeral in memory.'
-      );
-      return;
-    }
-
     if (!fs.existsSync(DATA_DIR)) {
       await fs.promises.mkdir(DATA_DIR, { recursive: true });
     }
@@ -266,44 +181,6 @@ async function persistStore(store: LocalStore): Promise<void> {
     console.error('[repository] Failed to persist store:', err);
   });
   await nextWrite;
-}
-
-function normalizeSlug(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u0980-\u09FF\s_-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-export function parseSafePrice(value: unknown): { valid: boolean; value: number } {
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value) || value < 0) return { valid: false, value: 0 };
-    return { valid: true, value: Math.round(value) };
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return { valid: false, value: 0 };
-    const ascii = trimmed.replace(/[০-৯]/g, (d) => String('০১২৩৪৫৬৭৮৯'.indexOf(d)));
-    if (!/^\d+$/.test(ascii)) return { valid: false, value: 0 };
-    const normalized = ascii.replace(/^0+(?=\d)/, '').replace(/^0+$/, '0');
-    const parsed = Number(normalized);
-    if (!Number.isFinite(parsed) || parsed < 0) return { valid: false, value: 0 };
-    return { valid: true, value: Math.round(parsed) };
-  }
-  return { valid: false, value: 0 };
-}
-
-export function normalizeCourseStatus(
-  status: unknown,
-  fallback: 'active' | 'inactive' | 'closed' = 'active'
-): 'active' | 'inactive' | 'closed' {
-  if (status === 'active' || status === 'inactive' || status === 'closed') {
-    return status;
-  }
-  return fallback;
 }
 
 function hydrateOfferTimers(store: LocalStore): OfferTimer[] {
@@ -330,15 +207,24 @@ function hydrateOfferTimers(store: LocalStore): OfferTimer[] {
 }
 
 export async function getPublicPortalData() {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetPublicPortalData();
+  }
+
   const store = await loadStore();
   const activeCategories = [...store.categories]
     .filter((c) => c.status === 'active')
     .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
 
+  // Approved Option 2 visibility: Public visitors see `active` and `closed` courses only; `inactive` is hidden.
+  const publicCourses = store.courses.filter(
+    (c) => c.status === 'active' || c.status === 'closed'
+  );
+
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
   const activeCourseIds = new Set(
-    store.courses.filter((c) => c.status === 'active').map((c) => c.id)
+    publicCourses.filter((c) => c.status === 'active').map((c) => c.id)
   );
   const allHydratedTimers = hydrateOfferTimers(store);
   const offerTimers = allHydratedTimers.filter((t) => {
@@ -349,7 +235,7 @@ export async function getPublicPortalData() {
 
   return {
     categories: activeCategories,
-    courses: store.courses,
+    courses: publicCourses,
     settings: store.settings,
     offerTimers,
     hasOfferTimers: allHydratedTimers.length > 0,
@@ -358,13 +244,46 @@ export async function getPublicPortalData() {
 }
 
 export async function getCourseBySlug(slug: string): Promise<Course | null> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetCourseBySlug(slug);
+  }
+
   const store = await loadStore();
   const cleanSlug = slug.trim();
-  const found = store.courses.find((c) => c.slug === cleanSlug);
+  const found = store.courses.find(
+    (c) => c.slug === cleanSlug && (c.status === 'active' || c.status === 'closed')
+  );
   return found || null;
 }
 
+export async function getCourseById(id: number): Promise<Course | null> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetCourseById(id);
+  }
+
+  const store = await loadStore(true);
+  return store.courses.find((c) => c.id === id) || null;
+}
+
+export async function countCoursesUsingImageUrl(
+  imageUrl: string,
+  excludeCourseId?: number
+): Promise<number> {
+  if (isSupabaseDatabaseReady()) {
+    return sbCountCoursesUsingImageUrl(imageUrl, excludeCourseId);
+  }
+
+  const store = await loadStore(true);
+  return store.courses.filter(
+    (c) => c.imageUrl === imageUrl && (excludeCourseId === undefined || c.id !== excludeCourseId)
+  ).length;
+}
+
 export async function getPortalSettings(): Promise<SiteSettings> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetPortalSettings();
+  }
+
   const store = await loadStore();
   return store.settings;
 }
@@ -374,8 +293,13 @@ export async function recordCourseClick(
   referrer?: string | null,
   userAgent?: string | null
 ) {
+  if (isSupabaseDatabaseReady()) {
+    return sbRecordCourseClick(slug, referrer, userAgent);
+  }
+
   const store = await loadStore(true);
-  const course = store.courses.find((c) => c.slug === slug);
+  const cleanSlug = slug.trim();
+  const course = store.courses.find((c) => c.slug === cleanSlug && c.status === 'active');
   if (!course) {
     return null;
   }
@@ -395,7 +319,10 @@ export async function recordCourseClick(
   if (store.clicks.length > 200) {
     store.clicks = store.clicks.slice(0, 200);
   }
-  await persistStore(store);
+
+  if (process.env.VERCEL !== '1') {
+    await persistStore(store);
+  }
 
   return {
     affiliateUrl: course.affiliateUrl,
@@ -406,6 +333,10 @@ export async function recordCourseClick(
 }
 
 export async function getAdminOverviewData() {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetAdminOverviewData();
+  }
+
   const store = await loadStore(true);
 
   const allCategories = [...store.categories].sort(
@@ -417,19 +348,26 @@ export async function getAdminOverviewData() {
 
   const totalCourses = allCourses.length;
   const activeCourses = allCourses.filter((c) => c.status === 'active').length;
+  const closedCourses = allCourses.filter((c) => c.status === 'closed').length;
+  const hiddenCourses = allCourses.filter((c) => c.status === 'inactive').length;
   const inactiveCourses = totalCourses - activeCourses;
   const popularCourses = allCourses.filter((c) => c.isPopular).length;
-  const totalClicks = allCourses.reduce((sum, c) => sum + (c.clickCount || 0), 0);
+  const courseClickSum = allCourses.reduce((sum, c) => sum + (c.clickCount || 0), 0);
+  const totalClicks = Math.max(courseClickSum, recentClicks.length);
+  const newInquiries = store.inquiries.filter((i) => i.status === 'new').length;
 
   return {
     stats: {
       totalCourses,
       activeCourses,
+      closedCourses,
+      hiddenCourses,
       inactiveCourses,
       popularCourses,
       totalClicks,
       totalCategories: allCategories.length,
       totalInquiries: store.inquiries.length,
+      newInquiries,
     },
     categories: allCategories,
     courses: allCourses,
@@ -442,6 +380,10 @@ export async function getAdminOverviewData() {
 }
 
 export async function createNewCourse(input: Record<string, unknown>) {
+  if (isSupabaseDatabaseReady()) {
+    return sbCreateNewCourse(input);
+  }
+
   const store = await loadStore(true);
 
   const title = String(input.title || '').trim();
@@ -532,6 +474,10 @@ export async function createNewCourse(input: Record<string, unknown>) {
 }
 
 export async function updateExistingCourse(id: number, input: Record<string, unknown>) {
+  if (isSupabaseDatabaseReady()) {
+    return sbUpdateExistingCourse(id, input);
+  }
+
   const store = await loadStore(true);
   const idx = store.courses.findIndex((c) => c.id === id);
   if (idx === -1) {
@@ -677,22 +623,36 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
   return updated;
 }
 
-export async function deleteCourseById(id: number): Promise<{ deleted: boolean; found: boolean }> {
-  const store = await loadStore(true);
-  const exists = store.courses.some((c) => c.id === id);
-  if (!exists) {
-    return { deleted: false, found: false };
+export async function deleteCourseById(
+  id: number
+): Promise<{ deleted: boolean; found: boolean; previousImageUrl: string | null }> {
+  if (isSupabaseDatabaseReady()) {
+    return sbDeleteCourseById(id);
   }
 
+  const store = await loadStore(true);
+  const target = store.courses.find((c) => c.id === id);
+  if (!target) {
+    return { deleted: false, found: false, previousImageUrl: null };
+  }
+
+  // Preserve historical click_records (append-only analytics); clean up offerTimers.
   store.courses = store.courses.filter((c) => c.id !== id);
-  store.clicks = store.clicks.filter((c) => c.courseId !== id);
   store.offerTimers = store.offerTimers.filter((t) => t.courseId !== id);
   await persistStore(store);
 
-  return { deleted: true, found: true };
+  return {
+    deleted: true,
+    found: true,
+    previousImageUrl: target.imageUrl || null,
+  };
 }
 
 export async function createNewCategory(input: Record<string, unknown>) {
+  if (isSupabaseDatabaseReady()) {
+    return sbCreateNewCategory(input);
+  }
+
   const store = await loadStore(true);
   const name = String(input.name || '').trim();
   const slug = normalizeSlug(String(input.slug || name));
@@ -730,6 +690,10 @@ export async function createNewCategory(input: Record<string, unknown>) {
 }
 
 export async function updateExistingCategory(id: number, input: Record<string, unknown>) {
+  if (isSupabaseDatabaseReady()) {
+    return sbUpdateExistingCategory(id, input);
+  }
+
   const store = await loadStore(true);
   const idx = store.categories.findIndex((c) => c.id === id);
   if (idx === -1) {
@@ -795,7 +759,13 @@ export async function updateExistingCategory(id: number, input: Record<string, u
   return updated;
 }
 
-export async function deleteCategoryById(id: number): Promise<{ deleted: boolean; found: boolean }> {
+export async function deleteCategoryById(
+  id: number
+): Promise<{ deleted: boolean; found: boolean }> {
+  if (isSupabaseDatabaseReady()) {
+    return sbDeleteCategoryById(id);
+  }
+
   const store = await loadStore(true);
   const existing = store.categories.find((c) => c.id === id);
   if (!existing) {
@@ -819,6 +789,10 @@ export async function deleteCategoryById(id: number): Promise<{ deleted: boolean
 }
 
 export async function updatePortalSettings(input: Record<string, unknown>) {
+  if (isSupabaseDatabaseReady()) {
+    return sbUpdatePortalSettings(input);
+  }
+
   const store = await loadStore(true);
   const s = store.settings;
   const updated: SiteSettings = {
@@ -871,6 +845,10 @@ export async function saveCustomerInquiry(input: {
   message: string;
   courseTitle?: string;
 }): Promise<CustomerInquiry> {
+  if (isSupabaseDatabaseReady()) {
+    return sbSaveCustomerInquiry(input);
+  }
+
   const store = await loadStore(true);
 
   const newId =
@@ -895,6 +873,10 @@ export async function saveCustomerInquiry(input: {
 }
 
 export async function getCustomerInquiries(): Promise<CustomerInquiry[]> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetCustomerInquiries();
+  }
+
   const store = await loadStore(true);
   return store.inquiries;
 }
@@ -903,6 +885,10 @@ export async function updateCustomerInquiryStatus(
   id: number,
   status: 'new' | 'resolved'
 ): Promise<CustomerInquiry | null> {
+  if (isSupabaseDatabaseReady()) {
+    return sbUpdateCustomerInquiryStatus(id, status);
+  }
+
   const store = await loadStore(true);
   const idx = store.inquiries.findIndex((i) => i.id === id);
   if (idx === -1) return null;
@@ -916,6 +902,10 @@ export async function updateCustomerInquiryStatus(
 export async function deleteCustomerInquiry(
   id: number
 ): Promise<{ deleted: boolean; found: boolean }> {
+  if (isSupabaseDatabaseReady()) {
+    return sbDeleteCustomerInquiry(id);
+  }
+
   const store = await loadStore(true);
   const exists = store.inquiries.some((i) => i.id === id);
   if (!exists) {
@@ -927,6 +917,10 @@ export async function deleteCustomerInquiry(
 }
 
 export async function getOfferTimers(): Promise<{ timers: OfferTimer[]; serverNow: string }> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetOfferTimers();
+  }
+
   const store = await loadStore(true);
   return {
     timers: hydrateOfferTimers(store),
@@ -1036,6 +1030,10 @@ export async function createOfferTimer(input: {
   | { ok: true; timer: OfferTimer; serverNow: string }
   | { ok: false; error: string; status: number }
 > {
+  if (isSupabaseDatabaseReady()) {
+    return sbCreateOfferTimer(input);
+  }
+
   const store = await loadStore(true);
 
   const validation = validateOfferTimerPayload(store, input);
@@ -1065,7 +1063,6 @@ export async function createOfferTimer(input: {
   };
 
   store.offerTimers.unshift(newTimer);
-  // Ensure the homepage countdown banner is enabled when admin explicitly adds an active timer.
   if (!validation.isPaused && store.settings.showCountdownTimer === false) {
     store.settings = {
       ...store.settings,
@@ -1091,6 +1088,10 @@ export async function updateOfferTimer(
   | { ok: true; timer: OfferTimer; serverNow: string }
   | { ok: false; error: string; status: number }
 > {
+  if (isSupabaseDatabaseReady()) {
+    return sbUpdateOfferTimer(id, input);
+  }
+
   const store = await loadStore(true);
 
   const idx = store.offerTimers.findIndex((t) => t.id === id);
@@ -1140,6 +1141,10 @@ export async function setOfferTimerPaused(
   | { ok: true; timer: OfferTimer; serverNow: string }
   | { ok: false; error: string; status: number }
 > {
+  if (isSupabaseDatabaseReady()) {
+    return sbSetOfferTimerPaused(id, isPaused);
+  }
+
   const store = await loadStore(true);
 
   const idx = store.offerTimers.findIndex((t) => t.id === id);
@@ -1192,6 +1197,10 @@ export async function setOfferTimerPaused(
 export async function deleteOfferTimer(
   id: number
 ): Promise<{ deleted: boolean; found: boolean }> {
+  if (isSupabaseDatabaseReady()) {
+    return sbDeleteOfferTimer(id);
+  }
+
   const store = await loadStore(true);
   const exists = store.offerTimers.some((t) => t.id === id);
   if (!exists) {
