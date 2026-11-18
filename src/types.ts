@@ -70,16 +70,6 @@ export interface SiteSettings {
   updatedAt?: string | null;
 }
 
-export interface CustomerInquiry {
-  id: number;
-  name: string;
-  phoneOrEmail: string;
-  message: string;
-  courseTitle?: string;
-  status: 'new' | 'resolved';
-  createdAt: string;
-}
-
 export type OfferTimerComputedStatus = 'scheduled' | 'active' | 'expired' | 'paused';
 
 export interface OfferTimer {

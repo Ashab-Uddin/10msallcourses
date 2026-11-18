@@ -7,7 +7,7 @@ let cachedConfigFingerprint = '';
 /**
  * Server-only Supabase client using the secret/service_role key.
  * Used exclusively by server-side repository logic, admin allowlist verification,
- * and server-only rate-limited RPCs (`record_active_course_click`, `submit_customer_inquiry`).
+ * and server-only rate-limited RPC (`record_active_course_click`).
  * NEVER import this module from any 'use client' component.
  */
 export function getSupabaseAdminClient(): SupabaseClient {

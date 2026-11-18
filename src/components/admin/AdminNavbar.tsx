@@ -16,7 +16,6 @@ import {
   XCircle,
   ExternalLink,
   AlarmClock,
-  MessageSquare,
   ShoppingBag,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
@@ -33,7 +32,6 @@ interface AdminNavbarProps {
     totalCourses: number;
     activeCourses: number;
     inactiveCourses: number;
-    newInquiries?: number;
     totalBooks?: number;
   };
   categoriesCount: number;
@@ -135,12 +133,6 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
       label: 'Offer Timer',
       icon: <AlarmClock className="w-4 h-4" />,
       badge: activeOfferTimersCount,
-    },
-    {
-      id: 'inquiries',
-      label: 'Inquiries',
-      icon: <MessageSquare className="w-4 h-4" />,
-      badge: stats.newInquiries,
     },
     {
       id: 'settings',
@@ -326,32 +318,6 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
 
           <button
             type="button"
-            onClick={() => handleNavClick('inquiries')}
-            className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'inquiries' ? activePillClass : inactivePillClass
-            }`}
-          >
-            <MessageSquare
-              className={`w-3.5 h-3.5 ${
-                activeTab === 'inquiries' ? 'text-[#eb1c24]' : 'text-[#6B4C4F]'
-              }`}
-            />
-            <span>Inquiries</span>
-            {(stats.newInquiries ?? 0) > 0 && (
-              <span
-                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full tabular-nums ${
-                  activeTab === 'inquiries'
-                    ? 'bg-[#eb1c24]/15 text-[#b91c1c]'
-                    : 'bg-amber-100 text-amber-800'
-                }`}
-              >
-                {toBengaliNumber(stats.newInquiries ?? 0)}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
             onClick={() => handleNavClick('settings')}
             className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'settings' ? activePillClass : inactivePillClass
@@ -377,14 +343,19 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
             <span>নতুন কোর্স</span>
           </button>
 
-          <div className="hidden xl:flex flex-col items-end pr-1 text-right">
-            <span className="text-xs font-bold text-[#2A0F12] max-w-[140px] truncate">
-              {displayAdminName}
-            </span>
-            <span className="text-[10px] font-medium text-[#6B4C4F] max-w-[140px] truncate">
-              {adminEmail || 'admin@10ms.com'}
-            </span>
-          </div>
+          <Link
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              setMobileMenuOpen(false);
+              onNavigateHome();
+            }}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-rose-200/90 bg-white/95 hover:bg-rose-50 hover:border-rose-300 text-[#b91c1c] text-xs font-bold shadow-2xs transition cursor-pointer whitespace-nowrap shrink-0"
+            title="মেইন ওয়েবসাইট দেখুন"
+          >
+            <span>মেইন সাইট</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
 
           <button
             type="button"

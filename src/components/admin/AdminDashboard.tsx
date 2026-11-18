@@ -5,7 +5,6 @@ import {
   Category,
   ClickRecord,
   Course,
-  CustomerInquiry,
   OfferTimer,
   SiteSettings,
 } from '../../types.ts';
@@ -80,9 +79,6 @@ import {
   ExternalLink,
   SlidersHorizontal,
   AlarmClock,
-  MessageSquare,
-  Phone,
-  CheckCheck,
   ShoppingBag,
 } from 'lucide-react';
 
@@ -110,7 +106,6 @@ export type AdminPageTab =
   | 'book_store'
   | 'book_categories'
   | 'offer_timers'
-  | 'inquiries'
   | 'settings'
   | 'course_editor';
 
@@ -134,7 +129,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (p.includes('/admin/books')) return 'book_store';
     if (p.includes('/admin/categories')) return 'categories';
     if (p.includes('/admin/offer-timers')) return 'offer_timers';
-    if (p.includes('/admin/inquiries')) return 'inquiries';
     if (p.includes('/admin/settings')) return 'settings';
     return 'overview';
   };
@@ -154,8 +148,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     hiddenCourses: 0,
     popularCourses: 0,
     totalClicks: 0,
-    totalInquiries: 0,
-    newInquiries: 0,
   });
   const [bookStats, setBookStats] = useState({ totalBooks: 0, activeBooks: 0 });
 
@@ -164,11 +156,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [recentClicks, setRecentClicks] = useState<ClickRecord[]>([]);
   const [, setSettings] = useState<SiteSettings | null>(null);
   const [offerTimers, setOfferTimers] = useState<OfferTimer[]>([]);
-  const [inquiries, setInquiries] = useState<CustomerInquiry[]>([]);
-  const [inquiriesLoading, setInquiriesLoading] = useState(false);
-  const [inquiriesLoaded, setInquiriesLoaded] = useState(false);
-  const [inquiryFilter, setInquiryFilter] = useState<'all' | 'new' | 'resolved'>('all');
-  const [inquiryActionId, setInquiryActionId] = useState<number | null>(null);
   const [storageInfo, setStorageInfo] = useState<{
     backend: string;
     persistentOnVercel: boolean;
@@ -276,7 +263,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       book_store: '/admin/books',
       book_categories: '/admin/book-categories',
       offer_timers: '/admin/offer-timers',
-      inquiries: '/admin/inquiries',
       settings: '/admin/settings',
     };
 
@@ -287,38 +273,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       window.history.pushState(null, '', targetPath);
     }
   };
-
-  // Fetch Customer Inquiries
-  const fetchInquiries = useCallback(
-    async (showFeedback = false) => {
-      setInquiriesLoading(true);
-      try {
-        const res = await fetch('/api/admin/messages', {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (handleUnauthorizedResponse(res)) return;
-        if (!res.ok) throw new Error('বার্তা তালিকা লোড করা যায়নি।');
-        const data = await res.json();
-        const rows: CustomerInquiry[] = Array.isArray(data) ? data : [];
-        setInquiries(rows);
-        setInquiriesLoaded(true);
-        setStats((prev) => ({
-          ...prev,
-          totalInquiries: rows.length,
-          newInquiries: rows.filter((r) => r.status === 'new').length,
-        }));
-        if (showFeedback) {
-          showToast('ইনকোয়ারি তালিকা রিফ্রেশ করা হয়েছে।', 'info');
-        }
-      } catch (err: any) {
-        showToast(err.message || 'বার্তা লোড করতে ত্রুটি হয়েছে।', 'error');
-      } finally {
-        setInquiriesLoading(false);
-      }
-    },
-    [handleUnauthorizedResponse, showToast]
-  );
 
   // Fetch Dashboard Overview & Core Data
   const fetchDashboardData = useCallback(async () => {
@@ -341,8 +295,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         hiddenCourses: data.stats?.hiddenCourses ?? 0,
         popularCourses: data.stats?.popularCourses ?? 0,
         totalClicks: data.stats?.totalClicks ?? 0,
-        totalInquiries: data.stats?.totalInquiries ?? 0,
-        newInquiries: data.stats?.newInquiries ?? 0,
       });
       setCourses(data.courses || []);
       setCategories(data.categories || []);
@@ -411,21 +363,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       cancelled = true;
     };
   }, [fetchDashboardData]);
-
-  useEffect(() => {
-    if (activeTab !== 'inquiries' || inquiriesLoaded) return;
-    let cancelled = false;
-    const loadInquiries = async () => {
-      await Promise.resolve();
-      if (!cancelled) {
-        await fetchInquiries(false);
-      }
-    };
-    void loadInquiries();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, inquiriesLoaded, fetchInquiries]);
 
   const categoryNameBySlug = useMemo(() => {
     const map = new Map<string, string>();
@@ -539,73 +476,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       showToast(err.message || 'স্ট্যাটাস পরিবর্তনে ত্রুটি হয়েছে।', 'error');
     } finally {
       setStatusTogglingId(null);
-    }
-  };
-
-  // Handle Inquiry Status Toggle & Deletion
-  const handleUpdateInquiryStatus = async (
-    inquiry: CustomerInquiry,
-    nextStatus: 'new' | 'resolved'
-  ) => {
-    setInquiryActionId(inquiry.id);
-    try {
-      const res = await fetch(`/api/admin/messages/${inquiry.id}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      if (handleUnauthorizedResponse(res)) return;
-      if (!res.ok) throw new Error('ইনকোয়ারি স্ট্যাটাস আপডেট করা যায়নি।');
-
-      setInquiries((prev) => {
-        const next = prev.map((item) =>
-          item.id === inquiry.id ? { ...item, status: nextStatus } : item
-        );
-        setStats((s) => ({
-          ...s,
-          totalInquiries: next.length,
-          newInquiries: next.filter((r) => r.status === 'new').length,
-        }));
-        return next;
-      });
-      showToast(
-        nextStatus === 'resolved'
-          ? 'বার্তাটি সমাধানকৃত (Resolved) হিসেবে চিহ্নিত হয়েছে।'
-          : 'বার্তাটি পুনরায় নতুন (New) হিসেবে চিহ্নিত হয়েছে।',
-        'success'
-      );
-    } catch (err: any) {
-      showToast(err.message || 'আপডেট করতে সমস্যা হয়েছে।', 'error');
-    } finally {
-      setInquiryActionId(null);
-    }
-  };
-
-  const handleDeleteInquiry = async (inquiry: CustomerInquiry) => {
-    setInquiryActionId(inquiry.id);
-    try {
-      const res = await fetch(`/api/admin/messages/${inquiry.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (handleUnauthorizedResponse(res)) return;
-      if (!res.ok) throw new Error('বার্তাটি মুছে ফেলা সম্ভব হয়নি।');
-
-      setInquiries((prev) => {
-        const next = prev.filter((item) => item.id !== inquiry.id);
-        setStats((s) => ({
-          ...s,
-          totalInquiries: next.length,
-          newInquiries: next.filter((r) => r.status === 'new').length,
-        }));
-        return next;
-      });
-      showToast('ইনকোয়ারি বার্তাটি মুছে ফেলা হয়েছে।', 'info');
-    } catch (err: any) {
-      showToast(err.message || 'ডিলিট করতে সমস্যা হয়েছে।', 'error');
-    } finally {
-      setInquiryActionId(null);
     }
   };
 
@@ -899,12 +769,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       label: 'Offer Timer',
       icon: <AlarmClock className="w-4 h-4 shrink-0" />,
       badge: activeOfferTimersCount,
-    },
-    {
-      id: 'inquiries' as AdminPageTab,
-      label: 'Inquiries',
-      icon: <MessageSquare className="w-4 h-4 shrink-0" />,
-      badge: stats.newInquiries,
     },
     {
       id: 'settings' as AdminPageTab,
@@ -2359,200 +2223,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }}
               onShowToast={showToast}
             />
-          ) : activeTab === 'inquiries' ? (
-            /* ===================================================== */
-            /* VIEW 7: CUSTOMER INQUIRIES & SUPPORT MESSAGES         */
-            /* ===================================================== */
-            <div className="space-y-5">
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#ff5252] to-[#b91c1c] text-white flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] shrink-0">
-                    <MessageSquare className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h1 className="text-lg sm:text-xl font-black text-[#2A0F12]">
-                      শিক্ষার্থী ইনকোয়ারি ও বার্তা (Customer Inquiries)
-                    </h1>
-                    <p className="text-xs text-[#6B4C4F] mt-0.5">
-                      ওয়েবসাইটের সাপোর্ট ফর্ম থেকে প্রাপ্ত সকল ভর্তি জিজ্ঞাসা দেখুন ও সমাধানকৃত হিসেবে চিহ্নিত করুন।
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <span className="px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold tabular-nums">
-                    নতুন: {toBengaliNumber(stats.newInquiries)}টি
-                  </span>
-                  <span className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold tabular-nums">
-                    মোট: {toBengaliNumber(stats.totalInquiries)}টি
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void fetchInquiries(true)}
-                    disabled={inquiriesLoading}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-rose-200 bg-white/80 hover:bg-white text-xs font-bold text-[#2A0F12] transition cursor-pointer disabled:opacity-60"
-                  >
-                    <RefreshCw
-                      className={`w-3.5 h-3.5 text-[#eb1c24] ${
-                        inquiriesLoading ? 'animate-spin' : ''
-                      }`}
-                    />
-                    <span>রিফ্রেশ</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rose-200/50 pb-3.5">
-                  <div className="flex items-center gap-1.5">
-                    {(
-                      [
-                        { id: 'all', label: 'সব বার্তা' },
-                        { id: 'new', label: 'নতুন (New)' },
-                        { id: 'resolved', label: 'সমাধানকৃত (Resolved)' },
-                      ] as const
-                    ).map((f) => (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() => setInquiryFilter(f.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                          inquiryFilter === f.id
-                            ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-sm'
-                            : 'bg-white/80 border border-rose-200/70 text-[#2A0F12] hover:bg-rose-50'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {inquiriesLoading && inquiries.length === 0 ? (
-                  <div className="py-12 text-center space-y-2 text-[#6B4C4F]">
-                    <RefreshCw className="w-7 h-7 text-[#eb1c24] animate-spin mx-auto" />
-                    <p className="text-xs font-bold">বার্তাগুলো লোড হচ্ছে...</p>
-                  </div>
-                ) : (
-                  (() => {
-                    const filteredInquiries = inquiries.filter((item) =>
-                      inquiryFilter === 'all' ? true : item.status === inquiryFilter
-                    );
-
-                    if (filteredInquiries.length === 0) {
-                      return (
-                        <div className="py-12 text-center space-y-2 text-[#6B4C4F]">
-                          <MessageSquare className="w-9 h-9 text-rose-300 mx-auto" />
-                          <p className="text-sm font-bold text-[#2A0F12]">
-                            কোনো ইনকোয়ারি বার্তা পাওয়া যায়নি
-                          </p>
-                          <p className="text-xs">
-                            শিক্ষার্থীরা ওয়েবসাইট থেকে নতুন বার্তা পাঠালে এখানে প্রদর্শিত হবে।
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="space-y-3">
-                        {filteredInquiries.map((inq) => {
-                          const isBusy = inquiryActionId === inq.id;
-                          return (
-                            <div
-                              key={inq.id}
-                              className="glass-card rounded-2xl p-4 border border-rose-200/60 space-y-2.5"
-                            >
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="space-y-0.5 min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-sm font-black text-[#2A0F12]">
-                                      {inq.name}
-                                    </span>
-                                    <span
-                                      className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
-                                        inq.status === 'new'
-                                          ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                          : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                      }`}
-                                    >
-                                      {inq.status === 'new' ? 'নতুন (New)' : 'সমাধানকৃত'}
-                                    </span>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6B4C4F]">
-                                    {inq.phoneOrEmail.includes('@') ? (
-                                      <a
-                                        href={`mailto:${inq.phoneOrEmail.trim()}`}
-                                        className="inline-flex items-center gap-1 font-mono font-bold text-[#b91c1c] hover:underline"
-                                      >
-                                        <Phone className="w-3 h-3" />
-                                        <span>{inq.phoneOrEmail}</span>
-                                      </a>
-                                    ) : (
-                                      <a
-                                        href={`tel:${inq.phoneOrEmail.replace(/[^+\d]/g, '')}`}
-                                        className="inline-flex items-center gap-1 font-mono font-bold text-[#b91c1c] hover:underline"
-                                      >
-                                        <Phone className="w-3 h-3" />
-                                        <span>{inq.phoneOrEmail}</span>
-                                      </a>
-                                    )}
-                                    {inq.courseTitle && (
-                                      <span className="font-semibold text-[#2A0F12]/80">
-                                        • কোর্স: {inq.courseTitle}
-                                      </span>
-                                    )}
-                                    <span className="text-[11px] font-mono">
-                                      {new Date(inq.createdAt).toLocaleString('bn-BD')}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    onClick={() =>
-                                      void handleUpdateInquiryStatus(
-                                        inq,
-                                        inq.status === 'new' ? 'resolved' : 'new'
-                                      )
-                                    }
-                                    className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
-                                      inq.status === 'new'
-                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                                        : 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
-                                    }`}
-                                  >
-                                    <CheckCheck className="w-3.5 h-3.5" />
-                                    <span>
-                                      {inq.status === 'new' ? 'সমাধানকৃত করুন' : 'পুনরায় নতুন'}
-                                    </span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    onClick={() => void handleDeleteInquiry(inq)}
-                                    className="p-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-[#eb1c24] hover:text-white transition cursor-pointer disabled:opacity-50"
-                                    title="মুছে ফেলুন"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              <p className="text-xs text-[#2A0F12] bg-white/80 rounded-xl p-3 border border-rose-100 leading-relaxed whitespace-pre-wrap break-words">
-                                {inq.message}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()
-                )}
-              </div>
-            </div>
           ) : null}
         </main>
       </div>

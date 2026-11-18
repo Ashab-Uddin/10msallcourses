@@ -5,7 +5,6 @@ import {
   Course,
   ClickRecord,
   SiteSettings,
-  CustomerInquiry,
   OfferTimer,
 } from '../types.ts';
 import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
@@ -28,19 +27,15 @@ import {
   sbCreateOfferTimer,
   sbDeleteCategoryById,
   sbDeleteCourseById,
-  sbDeleteCustomerInquiry,
   sbDeleteOfferTimer,
   sbGetAdminOverviewData,
   sbGetCourseById,
   sbGetCourseBySlug,
-  sbGetCustomerInquiries,
   sbGetOfferTimers,
   sbGetPortalSettings,
   sbGetPublicPortalData,
   sbRecordCourseClick,
-  sbSaveCustomerInquiry,
   sbSetOfferTimerPaused,
-  sbUpdateCustomerInquiryStatus,
   sbUpdateExistingCategory,
   sbUpdateExistingCourse,
   sbUpdateOfferTimer,
@@ -62,7 +57,6 @@ interface LocalStore {
   courses: Course[];
   clicks: ClickRecord[];
   settings: SiteSettings;
-  inquiries: CustomerInquiry[];
   offerTimers: OfferTimer[];
 }
 
@@ -95,7 +89,6 @@ function buildDefaultStore(): LocalStore {
     courses: [],
     clicks: [],
     settings: { ...INITIAL_SETTINGS },
-    inquiries: [],
     offerTimers: [],
   };
 }
@@ -114,7 +107,6 @@ function normalizeStoreShape(raw: Partial<LocalStore> | null | undefined): Local
     courses: Array.isArray(raw.courses) ? raw.courses : [],
     clicks: Array.isArray(raw.clicks) ? raw.clicks : [],
     settings: raw.settings ? { ...defaults.settings, ...raw.settings } : defaults.settings,
-    inquiries: Array.isArray(raw.inquiries) ? raw.inquiries : [],
     offerTimers: Array.isArray(raw.offerTimers) ? raw.offerTimers : [],
   };
 }
@@ -354,7 +346,6 @@ export async function getAdminOverviewData() {
   const popularCourses = allCourses.filter((c) => c.isPopular).length;
   const courseClickSum = allCourses.reduce((sum, c) => sum + (c.clickCount || 0), 0);
   const totalClicks = Math.max(courseClickSum, recentClicks.length);
-  const newInquiries = store.inquiries.filter((i) => i.status === 'new').length;
 
   return {
     stats: {
@@ -366,8 +357,6 @@ export async function getAdminOverviewData() {
       popularCourses,
       totalClicks,
       totalCategories: allCategories.length,
-      totalInquiries: store.inquiries.length,
-      newInquiries,
     },
     categories: allCategories,
     courses: allCourses,
@@ -837,83 +826,6 @@ export async function updatePortalSettings(input: Record<string, unknown>) {
   await persistStore(store);
 
   return updated;
-}
-
-export async function saveCustomerInquiry(input: {
-  name: string;
-  phoneOrEmail: string;
-  message: string;
-  courseTitle?: string;
-}): Promise<CustomerInquiry> {
-  if (isSupabaseDatabaseReady()) {
-    return sbSaveCustomerInquiry(input);
-  }
-
-  const store = await loadStore(true);
-
-  const newId =
-    store.inquiries.length > 0 ? Math.max(...store.inquiries.map((i) => i.id)) + 1 : 1;
-  const newInquiry: CustomerInquiry = {
-    id: newId,
-    name: (input.name?.trim() || 'Anonymous').slice(0, 100),
-    phoneOrEmail: (input.phoneOrEmail?.trim() || '').slice(0, 120),
-    message: (input.message?.trim() || '').slice(0, 2000),
-    courseTitle: input.courseTitle?.trim().slice(0, 200) || undefined,
-    status: 'new',
-    createdAt: new Date().toISOString(),
-  };
-
-  store.inquiries.unshift(newInquiry);
-  if (store.inquiries.length > 300) {
-    store.inquiries = store.inquiries.slice(0, 300);
-  }
-  await persistStore(store);
-
-  return newInquiry;
-}
-
-export async function getCustomerInquiries(): Promise<CustomerInquiry[]> {
-  if (isSupabaseDatabaseReady()) {
-    return sbGetCustomerInquiries();
-  }
-
-  const store = await loadStore(true);
-  return store.inquiries;
-}
-
-export async function updateCustomerInquiryStatus(
-  id: number,
-  status: 'new' | 'resolved'
-): Promise<CustomerInquiry | null> {
-  if (isSupabaseDatabaseReady()) {
-    return sbUpdateCustomerInquiryStatus(id, status);
-  }
-
-  const store = await loadStore(true);
-  const idx = store.inquiries.findIndex((i) => i.id === id);
-  if (idx === -1) return null;
-
-  const updated: CustomerInquiry = { ...store.inquiries[idx], status };
-  store.inquiries[idx] = updated;
-  await persistStore(store);
-  return updated;
-}
-
-export async function deleteCustomerInquiry(
-  id: number
-): Promise<{ deleted: boolean; found: boolean }> {
-  if (isSupabaseDatabaseReady()) {
-    return sbDeleteCustomerInquiry(id);
-  }
-
-  const store = await loadStore(true);
-  const exists = store.inquiries.some((i) => i.id === id);
-  if (!exists) {
-    return { deleted: false, found: false };
-  }
-  store.inquiries = store.inquiries.filter((i) => i.id !== id);
-  await persistStore(store);
-  return { deleted: true, found: true };
 }
 
 export async function getOfferTimers(): Promise<{ timers: OfferTimer[]; serverNow: string }> {

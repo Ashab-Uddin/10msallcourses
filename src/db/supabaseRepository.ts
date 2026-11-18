@@ -2,7 +2,6 @@ import {
   Category,
   ClickRecord,
   Course,
-  CustomerInquiry,
   OfferTimer,
   SiteSettings,
 } from '../types.ts';
@@ -145,21 +144,6 @@ function mapClickRow(row: Record<string, unknown>): ClickRecord {
     userAgent:
       row.user_agent === null || row.user_agent === undefined ? null : String(row.user_agent),
     clickedAt: String(row.clicked_at || new Date().toISOString()),
-  };
-}
-
-function mapInquiryRow(row: Record<string, unknown>): CustomerInquiry {
-  return {
-    id: Number(row.id),
-    name: String(row.name || 'Anonymous'),
-    phoneOrEmail: String(row.phone_or_email || ''),
-    message: String(row.message || ''),
-    courseTitle:
-      row.course_title === null || row.course_title === undefined
-        ? undefined
-        : String(row.course_title),
-    status: row.status === 'resolved' ? 'resolved' : 'new',
-    createdAt: String(row.created_at || new Date().toISOString()),
   };
 }
 
@@ -383,7 +367,7 @@ export async function sbRecordCourseClick(
 export async function sbGetAdminOverviewData() {
   const supabase = getSupabaseAdminClient();
 
-  const [catRes, courseRes, clicksRes, settingsRes, timerRes, inquiriesRes] =
+  const [catRes, courseRes, clicksRes, settingsRes, timerRes] =
     await Promise.all([
       supabase
         .from('categories')
@@ -407,7 +391,6 @@ export async function sbGetAdminOverviewData() {
         .select('*')
         .order('created_at', { ascending: false })
         .order('id', { ascending: false }),
-      supabase.from('inquiries').select('id, status', { count: 'exact' }),
     ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
@@ -415,7 +398,6 @@ export async function sbGetAdminOverviewData() {
   if (clicksRes.error) throw mapPgError(clicksRes.error, 'ক্লিক অ্যানালিটিক্স লোড ব্যর্থ হয়েছে।');
   if (settingsRes.error) throw mapPgError(settingsRes.error, 'সেটিংস লোড ব্যর্থ হয়েছে।');
   if (timerRes.error) throw mapPgError(timerRes.error, 'অফার টাইমার লোড ব্যর্থ হয়েছে।');
-  if (inquiriesRes.error) throw mapPgError(inquiriesRes.error, 'বার্তা সংখ্যা লোড ব্যর্থ হয়েছে।');
 
   const allCategories = (catRes.data || []).map((r) =>
     mapCategoryRow(r as Record<string, unknown>)
@@ -444,10 +426,6 @@ export async function sbGetAdminOverviewData() {
   const totalHistoricalClicks = clicksRes.count ?? recentClicks.length;
   const totalClicks = Math.max(courseClickSum, totalHistoricalClicks);
 
-  const inquiryRows = (inquiriesRes.data || []) as Array<{ status?: string }>;
-  const totalInquiries = inquiriesRes.count ?? inquiryRows.length;
-  const newInquiries = inquiryRows.filter((i) => i.status === 'new').length;
-
   return {
     stats: {
       totalCourses,
@@ -458,8 +436,6 @@ export async function sbGetAdminOverviewData() {
       popularCourses,
       totalClicks,
       totalCategories: allCategories.length,
-      totalInquiries,
-      newInquiries,
     },
     categories: allCategories,
     courses: allCourses,
@@ -983,78 +959,6 @@ export async function sbUpdatePortalSettings(
 
   if (error) throw mapPgError(error, 'সেটিংস সংরক্ষণ ব্যর্থ হয়েছে।');
   return mapSettingsRow(data as Record<string, unknown>);
-}
-
-export async function sbSaveCustomerInquiry(input: {
-  name: string;
-  phoneOrEmail: string;
-  message: string;
-  courseTitle?: string;
-}): Promise<CustomerInquiry> {
-  const supabase = getSupabaseAdminClient();
-
-  // Uses server-only validated RPC `submit_customer_inquiry`
-  const { data, error } = await supabase.rpc('submit_customer_inquiry', {
-    p_name: input.name?.trim() || 'Anonymous',
-    p_phone_or_email: input.phoneOrEmail?.trim() || '',
-    p_message: input.message?.trim() || '',
-    p_course_title: input.courseTitle?.trim() || null,
-  });
-
-  if (error) throw mapPgError(error, 'বার্তা সংরক্ষণ ব্যর্থ হয়েছে।');
-
-  const rows = Array.isArray(data) ? data : data ? [data] : [];
-  if (rows.length === 0) {
-    throw new RepositoryError('বার্তা সংরক্ষণ ব্যর্থ হয়েছে।', 500);
-  }
-  return mapInquiryRow(rows[0] as Record<string, unknown>);
-}
-
-export async function sbGetCustomerInquiries(): Promise<CustomerInquiry[]> {
-  const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from('inquiries')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(300);
-
-  if (error) throw mapPgError(error, 'বার্তা তালিকা লোড ব্যর্থ হয়েছে।');
-  return (data || []).map((r) => mapInquiryRow(r as Record<string, unknown>));
-}
-
-export async function sbUpdateCustomerInquiryStatus(
-  id: number,
-  status: 'new' | 'resolved'
-): Promise<CustomerInquiry | null> {
-  const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from('inquiries')
-    .update({ status })
-    .eq('id', id)
-    .select('*')
-    .maybeSingle();
-
-  if (error) throw mapPgError(error, 'বার্তার স্ট্যাটাস আপডেট ব্যর্থ হয়েছে।');
-  return data ? mapInquiryRow(data as Record<string, unknown>) : null;
-}
-
-export async function sbDeleteCustomerInquiry(
-  id: number
-): Promise<{ deleted: boolean; found: boolean }> {
-  const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from('inquiries')
-    .delete()
-    .eq('id', id)
-    .select('id')
-    .maybeSingle();
-
-  if (error) throw mapPgError(error, 'বার্তা মুছে ফেলা ব্যর্থ হয়েছে।');
-  if (!data) {
-    return { deleted: false, found: false };
-  }
-  return { deleted: true, found: true };
 }
 
 export async function sbGetOfferTimers(): Promise<{
