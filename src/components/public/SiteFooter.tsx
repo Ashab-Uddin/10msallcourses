@@ -536,10 +536,10 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                     <Mail className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
                     <div>
                       <a
-                        href="mailto:raselmahmud0755@gmail.com"
+                        href="mailto:10msallcoursess@gmail.com"
                         className="font-bold text-white text-xs hover:text-rose-200 transition inline-block break-all"
                       >
-                        raselmahmud0755@gmail.com
+                        10msallcoursess@gmail.com
                       </a>
                       <div className="text-[10.5px] text-rose-200/80">যেকোনো জিজ্ঞাসা ও সহায়তায়</div>
                     </div>
@@ -549,7 +549,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                     <MapPin className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
                     <div>
                       <div className="font-bold text-white text-xs leading-relaxed">
-                        (মহাখালী): লিফট-৭, ব্লক-১০৮, রোড-৮, মহাখালী ডিওএইচএস, ঢাকা
+                        মহাখালী: লিফট-৭, ব্লক-১০৮, রোড-৮, মহাখালী ডিওএইচএস, ঢাকা
                       </div>
                       <div className="text-[10.5px] text-rose-200/80">বাংলাদেশ</div>
                     </div>
