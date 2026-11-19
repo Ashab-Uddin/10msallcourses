@@ -9,7 +9,7 @@ import {
   updateExistingBook,
 } from '@/src/db/bookRepository';
 import { RepositoryError, parseSafePrice } from '@/src/db/repositoryShared';
-import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
+import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 import { sanitizeImageUrl, validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
 import { validateCoursePricing } from '@/src/lib/courseValidation';
 import { deleteImageKitFileByUrl, isManagedImageKitUrl } from '@/src/lib/imagekit';
@@ -57,34 +57,42 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   try {
     const { id } = await params;
     const bookId = parsePositiveId(id);
     if (!bookId) {
-      return NextResponse.json({ error: 'অবৈধ বই আইডি।' }, { status: 400 });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: 'অবৈধ বই আইডি।' }, { status: 400 })
+      );
     }
 
     const book = await getBookById(bookId);
     if (!book) {
-      return NextResponse.json({ error: 'বইটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: 'বইটি খুঁজে পাওয়া যায়নি।' }, { status: 404 })
+      );
     }
 
-    return NextResponse.json(book, {
-      headers: { 'Cache-Control': 'private, no-store' },
-    });
+    return auth.withSessionCookies(
+      NextResponse.json(book, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      })
+    );
   } catch (error) {
     if (error instanceof RepositoryError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: error.message }, { status: error.status })
+      );
     }
     console.error('[GET /api/admin/books/[id]] Failed:', error);
-    return NextResponse.json({ error: 'বইয়ের তথ্য লোড করতে সমস্যা হয়েছে।' }, { status: 500 });
+    return auth.withSessionCookies(
+      NextResponse.json({ error: 'বইয়ের তথ্য লোড করতে সমস্যা হয়েছে।' }, { status: 500 })
+    );
   }
 }
 
@@ -92,23 +100,25 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   try {
     const { id } = await params;
     const bookId = parsePositiveId(id);
     if (!bookId) {
-      return NextResponse.json({ error: 'অবৈধ বই আইডি।' }, { status: 400 });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: 'অবৈধ বই আইডি।' }, { status: 400 })
+      );
     }
 
     const existing = await getBookById(bookId);
     if (!existing) {
-      return NextResponse.json({ error: 'বইটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: 'বইটি খুঁজে পাওয়া যায়নি।' }, { status: 404 })
+      );
     }
 
     const body = await req.json().catch(() => ({}));
@@ -118,9 +128,11 @@ export async function PUT(
         body.coverImageUrl !== undefined ? body.coverImageUrl : body.cover_image;
       const coverCheck = sanitizeImageUrl(rawCover);
       if (!coverCheck.valid) {
-        return NextResponse.json(
-          { error: coverCheck.error || 'অবৈধ বুক কভার ইমেজ লিংক।' },
-          { status: 400 }
+        return auth.withSessionCookies(
+          NextResponse.json(
+            { error: coverCheck.error || 'অবৈধ বুক কভার ইমেজ লিংক।' },
+            { status: 400 }
+          )
         );
       }
       body.coverImageUrl = coverCheck.value;
@@ -140,9 +152,11 @@ export async function PUT(
       if (typeof rawAff === 'string' && rawAff.trim()) {
         const urlCheck = validateExternalHttpUrl(rawAff);
         if (!urlCheck.valid) {
-          return NextResponse.json(
-            { error: urlCheck.error || 'অবৈধ অ্যাফিলিয়েট লিংক (https://...)।' },
-            { status: 400 }
+          return auth.withSessionCookies(
+            NextResponse.json(
+              { error: urlCheck.error || 'অবৈধ অ্যাফিলিয়েট লিংক (https://...)।' },
+              { status: 400 }
+            )
           );
         }
         body.affiliateUrl = urlCheck.normalized || '';
@@ -163,9 +177,11 @@ export async function PUT(
       body.price !== undefined ? parseSafePrice(body.price) : null;
 
     if ((origCheck && !origCheck.valid) || (priceCheck && !priceCheck.valid)) {
-      return NextResponse.json(
-        { error: 'বইয়ের মূল্য অবশ্যই ০ বা তার বেশি বৈধ সংখ্যা হতে হবে।' },
-        { status: 400 }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'বইয়ের মূল্য অবশ্যই ০ বা তার বেশি বৈধ সংখ্যা হতে হবে।' },
+          { status: 400 }
+        )
       );
     }
 
@@ -174,13 +190,15 @@ export async function PUT(
       const effectivePrice = priceCheck ? priceCheck.value : existing.price;
       const pricingCheck = validateCoursePricing(effectiveOriginal, effectivePrice);
       if (!pricingCheck.valid) {
-        return NextResponse.json(
-          {
-            error:
-              pricingCheck.error ||
-              'বিক্রয় মূল্য পূর্বের মূল মূল্যের চেয়ে বেশি হতে পারবে না।',
-          },
-          { status: 400 }
+        return auth.withSessionCookies(
+          NextResponse.json(
+            {
+              error:
+                pricingCheck.error ||
+                'বিক্রয় মূল্য পূর্বের মূল মূল্যের চেয়ে বেশি হতে পারবে না।',
+            },
+            { status: 400 }
+          )
         );
       }
     }
@@ -194,7 +212,9 @@ export async function PUT(
 
     const updated = await updateExistingBook(bookId, sanitizedBody);
     if (!updated) {
-      return NextResponse.json({ error: 'বইটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: 'বইটি খুঁজে পাওয়া যায়নি।' }, { status: 404 })
+      );
     }
 
     if (
@@ -205,15 +225,21 @@ export async function PUT(
       await cleanupOrphanedBookCover(existing.coverImageUrl, bookId);
     }
 
-    return NextResponse.json(updated, {
-      headers: { 'Cache-Control': 'private, no-store' },
-    });
+    return auth.withSessionCookies(
+      NextResponse.json(updated, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      })
+    );
   } catch (error) {
     if (error instanceof RepositoryError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: error.message }, { status: error.status })
+      );
     }
     console.error('[PUT /api/admin/books/[id]] Failed:', error);
-    return NextResponse.json({ error: 'বইয়ের তথ্য আপডেট করতে সমস্যা হয়েছে।' }, { status: 500 });
+    return auth.withSessionCookies(
+      NextResponse.json({ error: 'বইয়ের তথ্য আপডেট করতে সমস্যা হয়েছে।' }, { status: 500 })
+    );
   }
 }
 
@@ -221,38 +247,46 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   try {
     const { id } = await params;
     const bookId = parsePositiveId(id);
     if (!bookId) {
-      return NextResponse.json({ error: 'অবৈধ বই আইডি।' }, { status: 400 });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: 'অবৈধ বই আইডি।' }, { status: 400 })
+      );
     }
 
     const result = await deleteBookById(bookId);
     if (!result.found) {
-      return NextResponse.json({ error: 'বইটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: 'বইটি খুঁজে পাওয়া যায়নি।' }, { status: 404 })
+      );
     }
 
     if (result.previousCoverUrl) {
       await cleanupOrphanedBookCover(result.previousCoverUrl, bookId);
     }
 
-    return NextResponse.json(
-      { deleted: result.deleted, found: result.found },
-      { headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { deleted: result.deleted, found: result.found },
+        { headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   } catch (error) {
     if (error instanceof RepositoryError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: error.message }, { status: error.status })
+      );
     }
     console.error('[DELETE /api/admin/books/[id]] Failed:', error);
-    return NextResponse.json({ error: 'বইটি মুছে ফেলতে সমস্যা হয়েছে।' }, { status: 500 });
+    return auth.withSessionCookies(
+      NextResponse.json({ error: 'বইটি মুছে ফেলতে সমস্যা হয়েছে।' }, { status: 500 })
+    );
   }
 }

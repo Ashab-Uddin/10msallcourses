@@ -5,8 +5,7 @@ import {
   updatePortalSettings,
 } from '@/src/db/repository';
 import {
-  getAuthenticatedAdmin,
-  isAuthorizedAdminRequest,
+  authorizeAdminRequest,
   updateAdminDisplayName,
 } from '@/src/lib/adminAuth';
 import { validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
@@ -14,31 +13,31 @@ import { validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
   try {
     const data = await getAdminOverviewData();
-    return NextResponse.json(data.settings || null, {
-      headers: { 'Cache-Control': 'private, no-store' },
-    });
+    return auth.withSessionCookies(
+      NextResponse.json(data.settings || null, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      })
+    );
   } catch (error) {
     console.error('Admin settings failed:', error);
-    return NextResponse.json({ error: 'Failed to load settings' }, { status: 500 });
+    return auth.withSessionCookies(
+      NextResponse.json({ error: 'Failed to load settings' }, { status: 500 })
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
-  const admin = await getAuthenticatedAdmin(req);
-  if (!admin) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
+  const { admin } = auth;
   try {
     const body = await req.json().catch(() => ({}));
 
@@ -46,9 +45,11 @@ export async function POST(req: NextRequest) {
       if (body.whatsappLink.trim()) {
         const check = validateExternalHttpUrl(body.whatsappLink);
         if (!check.valid) {
-          return NextResponse.json(
-            { error: 'বৈধ হোয়াটসঅ্যাপ লিংক (https://wa.me/...) প্রদান করুন।' },
-            { status: 400 }
+          return auth.withSessionCookies(
+            NextResponse.json(
+              { error: 'বৈধ হোয়াটসঅ্যাপ লিংক (https://wa.me/...) প্রদান করুন।' },
+              { status: 400 }
+            )
           );
         }
         body.whatsappLink = check.normalized;
@@ -61,9 +62,11 @@ export async function POST(req: NextRequest) {
       if (body.messengerLink.trim()) {
         const check = validateExternalHttpUrl(body.messengerLink);
         if (!check.valid) {
-          return NextResponse.json(
-            { error: 'বৈধ ফেসবুক মেসেঞ্জার লিংক (https://m.me/...) প্রদান করুন।' },
-            { status: 400 }
+          return auth.withSessionCookies(
+            NextResponse.json(
+              { error: 'বৈধ ফেসবুক মেসেঞ্জার লিংক (https://m.me/...) প্রদান করুন।' },
+              { status: 400 }
+            )
           );
         }
         body.messengerLink = check.normalized;
@@ -77,16 +80,20 @@ export async function POST(req: NextRequest) {
 
     if (body?.adminName !== undefined) {
       if (typeof body.adminName !== 'string') {
-        return NextResponse.json(
-          { error: 'অ্যাডমিনের নাম সঠিক ফরম্যাটে প্রদান করুন।' },
-          { status: 400 }
+        return auth.withSessionCookies(
+          NextResponse.json(
+            { error: 'অ্যাডমিনের নাম সঠিক ফরম্যাটে প্রদান করুন।' },
+            { status: 400 }
+          )
         );
       }
       const nameUpdateResult = await updateAdminDisplayName(req, admin, body.adminName);
       if (nameUpdateResult.ok === false) {
-        return NextResponse.json(
-          { error: nameUpdateResult.error },
-          { status: nameUpdateResult.status }
+        return auth.withSessionCookies(
+          NextResponse.json(
+            { error: nameUpdateResult.error },
+            { status: nameUpdateResult.status }
+          )
         );
       }
       updatedAdminName = nameUpdateResult.name;
@@ -103,14 +110,19 @@ export async function POST(req: NextRequest) {
         headers: { 'Cache-Control': 'private, no-store' },
       }
     );
+    auth.withSessionCookies(res);
     applySessionCookies?.(res);
     return res;
   } catch (error) {
     if (error instanceof RepositoryError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: error.message }, { status: error.status })
+      );
     }
     console.error('Save settings failed:', error);
-    return NextResponse.json({ error: 'সেটিংস সংরক্ষণ ব্যর্থ হয়েছে।' }, { status: 500 });
+    return auth.withSessionCookies(
+      NextResponse.json({ error: 'সেটিংস সংরক্ষণ ব্যর্থ হয়েছে।' }, { status: 500 })
+    );
   }
 }
 

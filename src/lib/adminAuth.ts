@@ -1,17 +1,108 @@
 import crypto from 'crypto';
-import type { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { isSameOriginMutation } from './csrf.ts';
 import { isSupabaseAuthReady } from './supabase/config.ts';
 import { getSupabaseAdminClient } from './supabase/admin.ts';
 import {
   applyPendingSupabaseCookies,
-  createSupabaseRouteClient,
+  buildClearSupabaseAuthCookies,
+  buildSupabaseSessionCookies,
+  createSupabaseStatelessAuthClient,
+  readSupabaseCookieSession,
   type PendingCookie,
 } from './supabase/server.ts';
 
 export { isSameOriginMutation };
 export const ADMIN_SESSION_COOKIE = '10ms_admin_session';
 const SESSION_TTL_SECONDS = 12 * 60 * 60; // 12 hours
+const ACCESS_TOKEN_REFRESH_MARGIN_MS = 90 * 1000; // Refresh within 90s of expiry
+const REFRESH_DEDUP_TTL_MS = 25 * 1000; // Reuse rotated session across concurrent requests for 25s
+
+interface RefreshSessionOutcome {
+  ok: boolean;
+  userId?: string;
+  session?: {
+    access_token: string;
+    refresh_token: string;
+    expires_at?: number;
+    expires_in?: number;
+    token_type?: string;
+    user?: unknown;
+  };
+}
+
+const inFlightRefreshes = new Map<string, Promise<RefreshSessionOutcome>>();
+const recentRefreshOutcomes = new Map<
+  string,
+  { outcome: RefreshSessionOutcome; cachedAt: number }
+>();
+
+function hashRefreshToken(refreshToken: string): string {
+  return crypto.createHash('sha256').update(refreshToken).digest('hex');
+}
+
+async function singleFlightRefreshSession(
+  refreshToken: string
+): Promise<RefreshSessionOutcome> {
+  const tokenKey = hashRefreshToken(refreshToken);
+  const now = Date.now();
+
+  const recent = recentRefreshOutcomes.get(tokenKey);
+  if (recent && now - recent.cachedAt < REFRESH_DEDUP_TTL_MS) {
+    return recent.outcome;
+  }
+
+  const existingInFlight = inFlightRefreshes.get(tokenKey);
+  if (existingInFlight) {
+    return existingInFlight;
+  }
+
+  const refreshPromise = (async (): Promise<RefreshSessionOutcome> => {
+    try {
+      const supabase = createSupabaseStatelessAuthClient();
+      const { data, error } = await supabase.auth.refreshSession({
+        refresh_token: refreshToken,
+      });
+
+      if (error || !data.session || !data.user) {
+        const failed: RefreshSessionOutcome = { ok: false };
+        recentRefreshOutcomes.set(tokenKey, { outcome: failed, cachedAt: Date.now() });
+        return failed;
+      }
+
+      const succeeded: RefreshSessionOutcome = {
+        ok: true,
+        userId: data.user.id,
+        session: {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          expires_at: data.session.expires_at,
+          expires_in: data.session.expires_in,
+          token_type: data.session.token_type,
+          user: data.user,
+        },
+      };
+
+      // Cache briefly so parallel AdminDashboard API requests using the same incoming
+      // cookie don't race against the single-use rotated refresh token.
+      if (recentRefreshOutcomes.size > 100) {
+        const cutoff = Date.now() - REFRESH_DEDUP_TTL_MS;
+        for (const [k, v] of recentRefreshOutcomes) {
+          if (v.cachedAt < cutoff) recentRefreshOutcomes.delete(k);
+        }
+      }
+      recentRefreshOutcomes.set(tokenKey, { outcome: succeeded, cachedAt: Date.now() });
+      return succeeded;
+    } catch {
+      return { ok: false };
+    } finally {
+      inFlightRefreshes.delete(tokenKey);
+    }
+  })();
+
+  inFlightRefreshes.set(tokenKey, refreshPromise);
+  return refreshPromise;
+}
 
 export function isProductionAuthStrict(): boolean {
   return process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
@@ -296,13 +387,13 @@ export async function authenticateAdminLogin(
 
   // 1. Primary Production Mode: Supabase Auth + public.admin_users allowlist
   if (isSupabaseAuthReady()) {
-    const { supabase, pendingCookies } = createSupabaseRouteClient(req);
+    const supabase = createSupabaseStatelessAuthClient();
     const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
       password: cleanPass,
     });
 
-    if (error || !data.user) {
+    if (error || !data.user || !data.session) {
       return {
         ok: false,
         error: 'ভুল ইমেইল অথবা পাসওয়ার্ড। অনুগ্রহ করে সঠিক অ্যাডমিন ক্রেডেনশিয়াল দিন।',
@@ -312,7 +403,9 @@ export async function authenticateAdminLogin(
 
     const adminRecord = await lookupActiveAdminAllowlist(data.user.id);
     if (!adminRecord) {
-      await supabase.auth.signOut().catch(() => {});
+      await getSupabaseAdminClient()
+        .auth.admin.signOut(data.session.access_token)
+        .catch(() => {});
       return {
         ok: false,
         error:
@@ -321,8 +414,9 @@ export async function authenticateAdminLogin(
       };
     }
 
+    const pendingCookies = buildSupabaseSessionCookies(req, data.session);
     const nowSec = Math.floor(Date.now() / 1000);
-    const sessionExp = data.session?.expires_at ?? nowSec + SESSION_TTL_SECONDS;
+    const sessionExp = data.session.expires_at ?? nowSec + SESSION_TTL_SECONDS;
     const adminPayload: AdminSessionPayload = {
       userId: adminRecord.userId,
       email: adminRecord.email,
@@ -424,19 +518,70 @@ export async function getAuthenticatedAdminWithCookies(req: NextRequest): Promis
     return { admin: null, pendingCookies: [] };
   }
 
-  // 1. Supabase Auth SSR cookie verification (server-verified getUser() + active admin_users check)
+  // 1. Supabase Auth cookie verification (explicit JWT verification + single-flight refresh)
   if (isSupabaseAuthReady()) {
     try {
-      const { supabase, pendingCookies } = createSupabaseRouteClient(req);
-      const { data, error } = await supabase.auth.getUser();
-
-      if (error || !data.user) {
-        return { admin: null, pendingCookies };
+      const { hasCookie, session } = readSupabaseCookieSession(req);
+      if (!hasCookie) {
+        return { admin: null, pendingCookies: [] };
       }
 
-      const adminRecord = await lookupActiveAdminAllowlist(data.user.id);
+      if (!session || !session.access_token) {
+        return {
+          admin: null,
+          pendingCookies: buildClearSupabaseAuthCookies(req),
+        };
+      }
+
+      const stateless = createSupabaseStatelessAuthClient();
+      const expiresAtMs =
+        typeof session.expires_at === 'number' ? session.expires_at * 1000 : 0;
+      const needsRefresh =
+        expiresAtMs > 0 && expiresAtMs - Date.now() <= ACCESS_TOKEN_REFRESH_MARGIN_MS;
+
+      let verifiedUserId: string | null = null;
+      let verifiedExp =
+        typeof session.expires_at === 'number'
+          ? session.expires_at
+          : Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
+      let pendingCookies: PendingCookie[] = [];
+
+      if (!needsRefresh) {
+        const { data, error } = await stateless.auth.getUser(session.access_token);
+        if (!error && data.user) {
+          verifiedUserId = data.user.id;
+        }
+      }
+
+      if (!verifiedUserId) {
+        if (!session.refresh_token) {
+          return {
+            admin: null,
+            pendingCookies: buildClearSupabaseAuthCookies(req),
+          };
+        }
+
+        const refreshed = await singleFlightRefreshSession(session.refresh_token);
+        if (!refreshed.ok || !refreshed.userId || !refreshed.session) {
+          return {
+            admin: null,
+            pendingCookies: buildClearSupabaseAuthCookies(req),
+          };
+        }
+
+        verifiedUserId = refreshed.userId;
+        verifiedExp =
+          refreshed.session.expires_at ??
+          Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
+        pendingCookies = buildSupabaseSessionCookies(req, refreshed.session);
+      }
+
+      const adminRecord = await lookupActiveAdminAllowlist(verifiedUserId);
       if (!adminRecord) {
-        return { admin: null, pendingCookies };
+        return {
+          admin: null,
+          pendingCookies: buildClearSupabaseAuthCookies(req),
+        };
       }
 
       const nowSec = Math.floor(Date.now() / 1000);
@@ -448,13 +593,16 @@ export async function getAuthenticatedAdminWithCookies(req: NextRequest): Promis
           role: adminRecord.role,
           provider: 'supabase',
           iat: nowSec,
-          exp: nowSec + SESSION_TTL_SECONDS,
+          exp: verifiedExp,
         },
         pendingCookies,
       };
     } catch (err) {
       console.error('[adminAuth] Supabase session verification failed:', err);
-      return { admin: null, pendingCookies: [] };
+      return {
+        admin: null,
+        pendingCookies: buildClearSupabaseAuthCookies(req),
+      };
     }
   }
 
@@ -484,6 +632,35 @@ export async function isAuthorizedAdminRequest(req: NextRequest): Promise<boolea
   return Boolean(admin);
 }
 
+export async function authorizeAdminRequest(req: NextRequest): Promise<
+  | {
+      ok: true;
+      admin: AdminSessionPayload;
+      withSessionCookies: (res: NextResponse) => NextResponse;
+    }
+  | {
+      ok: false;
+      response: NextResponse;
+    }
+> {
+  const { admin, pendingCookies } = await getAuthenticatedAdminWithCookies(req);
+  const withSessionCookies = (res: NextResponse): NextResponse => {
+    applyPendingSupabaseCookies(res, pendingCookies, req);
+    return res;
+  };
+
+  if (!admin) {
+    const response = NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
+    );
+    applyPendingSupabaseCookies(response, pendingCookies, req);
+    return { ok: false, response };
+  }
+
+  return { ok: true, admin, withSessionCookies };
+}
+
 export async function signOutAdminSession(
   req: NextRequest,
   res: NextResponse
@@ -491,11 +668,16 @@ export async function signOutAdminSession(
   clearAdminSessionCookie(res, req);
   if (isSupabaseAuthReady()) {
     try {
-      const { supabase, pendingCookies } = createSupabaseRouteClient(req);
-      await supabase.auth.signOut();
-      applyPendingSupabaseCookies(res, pendingCookies, req);
+      const { session } = readSupabaseCookieSession(req);
+      if (session?.access_token) {
+        await getSupabaseAdminClient()
+          .auth.admin.signOut(session.access_token)
+          .catch(() => {});
+      }
+      applyPendingSupabaseCookies(res, buildClearSupabaseAuthCookies(req), req);
     } catch (err) {
       console.warn('[adminAuth] Supabase signOut warning:', err);
+      applyPendingSupabaseCookies(res, buildClearSupabaseAuthCookies(req), req);
     }
   }
 }

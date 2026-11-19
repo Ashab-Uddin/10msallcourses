@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { countCoursesUsingImageUrl } from '@/src/db/repository';
-import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
+import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 import {
   deleteImageKitFileById,
   deleteImageKitFileByUrl,
@@ -59,34 +59,36 @@ function detectImageTypeFromMagicBytes(buf: Buffer): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   const rate = await checkRateLimit(req, 'admin_upload', 30, 10 * 60 * 1000);
   if (!rate.allowed) {
-    return NextResponse.json(
-      { error: 'অতিরিক্ত আপলোড অনুরোধ করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।' },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(rate.retryAfterSeconds),
-          'Cache-Control': 'private, no-store',
-        },
-      }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { error: 'অতিরিক্ত আপলোড অনুরোধ করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rate.retryAfterSeconds),
+            'Cache-Control': 'private, no-store',
+          },
+        }
+      )
     );
   }
 
   if (!isImageKitConfigured()) {
-    return NextResponse.json(
-      {
-        error:
-          'ImageKit ক্লাউড স্টোরেজ কনফিগার করা হয়নি। সার্ভার এনভায়রনমেন্ট ভ্যারিয়েবলে IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY এবং IMAGEKIT_URL_ENDPOINT সেট করুন অথবা সরাসরি বৈধ HTTPS ইমেজ URL ব্যবহার করুন।',
-      },
-      { status: 503, headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        {
+          error:
+            'ImageKit ক্লাউড স্টোরেজ কনফিগার করা হয়নি। সার্ভার এনভায়রনমেন্ট ভ্যারিয়েবলে IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY এবং IMAGEKIT_URL_ENDPOINT সেট করুন অথবা সরাসরি বৈধ HTTPS ইমেজ URL ব্যবহার করুন।',
+        },
+        { status: 503, headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   }
 
@@ -98,23 +100,29 @@ export async function POST(req: NextRequest) {
       typeof previousFileIdRaw === 'string' ? previousFileIdRaw.trim() : '';
 
     if (!(file instanceof File)) {
-      return NextResponse.json(
-        { error: 'কোনো ইমেজ ফাইল পাওয়া যায়নি।' },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'কোনো ইমেজ ফাইল পাওয়া যায়নি।' },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
     if (file.size === 0) {
-      return NextResponse.json(
-        { error: 'খালি ফাইল আপলোড করা যাবে না।' },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'খালি ফাইল আপলোড করা যাবে না।' },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json(
-        { error: 'ছবির আকার সর্বোচ্চ ৪ মেগাবাইট হতে পারবে।' },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'ছবির আকার সর্বোচ্চ ৪ মেগাবাইট হতে পারবে।' },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
@@ -123,12 +131,14 @@ export async function POST(req: NextRequest) {
     const detectedMime = detectImageTypeFromMagicBytes(buffer);
 
     if (!detectedMime || !ALLOWED_MIME_EXT[detectedMime]) {
-      return NextResponse.json(
-        {
-          error:
-            'অবৈধ ইমেজ ফরম্যাট। শুধুমাত্র JPG, PNG, WebP অথবা AVIF ছবি আপলোড করা যাবে।',
-        },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          {
+            error:
+              'অবৈধ ইমেজ ফরম্যাট। শুধুমাত্র JPG, PNG, WebP অথবা AVIF ছবি আপলোড করা যাবে।',
+          },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
@@ -142,40 +152,44 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      {
-        url: uploaded.url,
-        fileId: uploaded.fileId,
-        filePath: uploaded.filePath,
-        width: uploaded.width,
-        height: uploaded.height,
-        size: uploaded.size ?? buffer.length,
-        mimeType: detectedMime,
-        storage: 'imagekit',
-      },
-      { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        {
+          url: uploaded.url,
+          fileId: uploaded.fileId,
+          filePath: uploaded.filePath,
+          width: uploaded.width,
+          height: uploaded.height,
+          size: uploaded.size ?? buffer.length,
+          mimeType: detectedMime,
+          storage: 'imagekit',
+        },
+        { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   } catch (err) {
     console.error('ImageKit upload failed:', err);
-    return NextResponse.json(
-      { error: 'ImageKit-এ ছবি আপলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' },
-      { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { error: 'ImageKit-এ ছবি আপলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' },
+        { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   if (!isImageKitConfigured()) {
-    return NextResponse.json(
-      { deleted: false, skipped: true },
-      { status: 200, headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { deleted: false, skipped: true },
+        { status: 200, headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   }
 
@@ -185,45 +199,57 @@ export async function DELETE(req: NextRequest) {
     const url = typeof body?.url === 'string' ? body.url.trim() : '';
 
     if (!fileId && !url) {
-      return NextResponse.json(
-        { error: 'মুছে ফেলার জন্য fileId অথবা url প্রদান করুন।' },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'মুছে ফেলার জন্য fileId অথবা url প্রদান করুন।' },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
     if (url) {
       const refCount = await countCoursesUsingImageUrl(url);
       if (refCount > 0) {
-        return NextResponse.json(
-          { deleted: false, inUse: true },
-          { status: 200, headers: { 'Cache-Control': 'private, no-store' } }
+        return auth.withSessionCookies(
+          NextResponse.json(
+            { deleted: false, inUse: true },
+            { status: 200, headers: { 'Cache-Control': 'private, no-store' } }
+          )
         );
       }
     }
 
     if (fileId) {
       const result = await deleteImageKitFileById(fileId);
-      return NextResponse.json(result, {
-        headers: { 'Cache-Control': 'private, no-store' },
-      });
+      return auth.withSessionCookies(
+        NextResponse.json(result, {
+          headers: { 'Cache-Control': 'private, no-store' },
+        })
+      );
     }
 
     if (!isManagedImageKitUrl(url)) {
-      return NextResponse.json(
-        { deleted: false, unmanaged: true },
-        { headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { deleted: false, unmanaged: true },
+          { headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
     const result = await deleteImageKitFileByUrl(url);
-    return NextResponse.json(result, {
-      headers: { 'Cache-Control': 'private, no-store' },
-    });
+    return auth.withSessionCookies(
+      NextResponse.json(result, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      })
+    );
   } catch (err) {
     console.error('ImageKit delete failed:', err);
-    return NextResponse.json(
-      { error: 'ImageKit থেকে ছবি মুছে ফেলতে সমস্যা হয়েছে।' },
-      { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { error: 'ImageKit থেকে ছবি মুছে ফেলতে সমস্যা হয়েছে।' },
+        { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   }
 }

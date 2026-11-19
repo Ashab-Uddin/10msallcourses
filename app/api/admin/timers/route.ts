@@ -1,38 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RepositoryError, createOfferTimer, getOfferTimers } from '@/src/db/repository';
-import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
+import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
   try {
     const data = await getOfferTimers();
-    return NextResponse.json(data, {
-      headers: {
-        'Cache-Control': 'private, no-store',
-      },
-    });
+    return auth.withSessionCookies(
+      NextResponse.json(data, {
+        headers: {
+          'Cache-Control': 'private, no-store',
+        },
+      })
+    );
   } catch (error) {
     console.error('Failed to load offer timers:', error);
-    return NextResponse.json(
-      { error: 'অফার টাইমার তালিকা লোড করতে ব্যর্থ হয়েছে।' },
-      { status: 500 }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { error: 'অফার টাইমার তালিকা লোড করতে ব্যর্থ হয়েছে।' },
+        { status: 500 }
+      )
     );
   }
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
   try {
     const body = await req.json();
@@ -45,24 +45,32 @@ export async function POST(req: NextRequest) {
     });
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: result.status });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: result.error }, { status: result.status })
+      );
     }
 
-    return NextResponse.json(
-      { timer: result.timer, serverNow: result.serverNow },
-      {
-        status: 201,
-        headers: { 'Cache-Control': 'private, no-store' },
-      }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { timer: result.timer, serverNow: result.serverNow },
+        {
+          status: 201,
+          headers: { 'Cache-Control': 'private, no-store' },
+        }
+      )
     );
   } catch (error) {
     if (error instanceof RepositoryError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return auth.withSessionCookies(
+        NextResponse.json({ error: error.message }, { status: error.status })
+      );
     }
     console.error('Failed to create offer timer:', error);
-    return NextResponse.json(
-      { error: 'অফার টাইমার তৈরি করতে ব্যর্থ হয়েছে।' },
-      { status: 500 }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { error: 'অফার টাইমার তৈরি করতে ব্যর্থ হয়েছে।' },
+        { status: 500 }
+      )
     );
   }
 }

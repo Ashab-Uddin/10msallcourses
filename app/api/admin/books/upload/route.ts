@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { countBooksUsingImageUrl } from '@/src/db/bookRepository';
-import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
+import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 import {
   deleteImageKitFileById,
   deleteImageKitFileByUrl,
@@ -79,24 +79,24 @@ async function safeDeleteLocalBookFile(relativeUrl: string): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   const rate = await checkRateLimit(req, 'admin_book_upload', 30, 10 * 60 * 1000);
   if (!rate.allowed) {
-    return NextResponse.json(
-      { error: 'অতিরিক্ত আপলোড অনুরোধ করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।' },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(rate.retryAfterSeconds),
-          'Cache-Control': 'private, no-store',
-        },
-      }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { error: 'অতিরিক্ত আপলোড অনুরোধ করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rate.retryAfterSeconds),
+            'Cache-Control': 'private, no-store',
+          },
+        }
+      )
     );
   }
 
@@ -110,23 +110,29 @@ export async function POST(req: NextRequest) {
     const previousUrl = typeof previousUrlRaw === 'string' ? previousUrlRaw.trim() : '';
 
     if (!(file instanceof File)) {
-      return NextResponse.json(
-        { error: 'কোনো বুক কভার ইমেজ ফাইল পাওয়া যায়নি।' },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'কোনো বুক কভার ইমেজ ফাইল পাওয়া যায়নি।' },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
     if (file.size === 0) {
-      return NextResponse.json(
-        { error: 'খালি ফাইল আপলোড করা যাবে না।' },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'খালি ফাইল আপলোড করা যাবে না।' },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json(
-        { error: 'বইয়ের কভার ছবির আকার সর্বোচ্চ ৪ মেগাবাইট হতে পারবে।' },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'বইয়ের কভার ছবির আকার সর্বোচ্চ ৪ মেগাবাইট হতে পারবে।' },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
@@ -135,12 +141,14 @@ export async function POST(req: NextRequest) {
     const detectedMime = detectImageTypeFromMagicBytes(buffer);
 
     if (!detectedMime || !ALLOWED_MIME_EXT[detectedMime]) {
-      return NextResponse.json(
-        {
-          error:
-            'অবৈধ ইমেজ ফরম্যাট। শুধুমাত্র JPG, PNG, WebP অথবা AVIF ছবি আপলোড করা যাবে।',
-        },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          {
+            error:
+              'অবৈধ ইমেজ ফরম্যাট। শুধুমাত্র JPG, PNG, WebP অথবা AVIF ছবি আপলোড করা যাবে।',
+          },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
@@ -163,29 +171,33 @@ export async function POST(req: NextRequest) {
         await deleteImageKitFileById(previousFileId).catch(() => {});
       }
 
-      return NextResponse.json(
-        {
-          url: uploaded.url,
-          fileId: uploaded.fileId,
-          filePath: uploaded.filePath,
-          width: uploaded.width,
-          height: uploaded.height,
-          size: uploaded.size ?? buffer.length,
-          mimeType: detectedMime,
-          storage: 'imagekit',
-        },
-        { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          {
+            url: uploaded.url,
+            fileId: uploaded.fileId,
+            filePath: uploaded.filePath,
+            width: uploaded.width,
+            height: uploaded.height,
+            size: uploaded.size ?? buffer.length,
+            mimeType: detectedMime,
+            storage: 'imagekit',
+          },
+          { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
     // On Vercel serverless without ImageKit, never write to ephemeral FS
     if (process.env.VERCEL === '1') {
-      return NextResponse.json(
-        {
-          error:
-            'ImageKit ক্লাউড স্টোরেজ কনফিগার করা হয়নি। Vercel Environment Variables-এ IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY এবং IMAGEKIT_URL_ENDPOINT সেট করুন অথবা সরাসরি বৈধ HTTPS কভার ইমেজ URL দিন।',
-        },
-        { status: 503, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          {
+            error:
+              'ImageKit ক্লাউড স্টোরেজ কনফিগার করা হয়নি। Vercel Environment Variables-এ IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY এবং IMAGEKIT_URL_ENDPOINT সেট করুন অথবা সরাসরি বৈধ HTTPS কভার ইমেজ URL দিন।',
+          },
+          { status: 503, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
@@ -213,32 +225,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json(
-      {
-        url: publicUrl,
-        fileId: null,
-        filePath: publicUrl,
-        size: buffer.length,
-        mimeType: detectedMime,
-        storage: 'local',
-      },
-      { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        {
+          url: publicUrl,
+          fileId: null,
+          filePath: publicUrl,
+          size: buffer.length,
+          mimeType: detectedMime,
+          storage: 'local',
+        },
+        { status: 201, headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   } catch (err) {
     console.error('[POST /api/admin/books/upload] Failed:', err);
-    return NextResponse.json(
-      { error: 'বইয়ের কভার ছবি আপলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' },
-      { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { error: 'বইয়ের কভার ছবি আপলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।' },
+        { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!(await isAuthorizedAdminRequest(req))) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
-    );
+  const auth = await authorizeAdminRequest(req);
+  if (!auth.ok) {
+    return auth.response;
   }
 
   try {
@@ -247,53 +261,67 @@ export async function DELETE(req: NextRequest) {
     const url = typeof body?.url === 'string' ? body.url.trim() : '';
 
     if (!fileId && !url) {
-      return NextResponse.json(
-        { error: 'মুছে ফেলার জন্য fileId অথবা url প্রদান করুন।' },
-        { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: 'মুছে ফেলার জন্য fileId অথবা url প্রদান করুন।' },
+          { status: 400, headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
     if (url) {
       const refs = await countBooksUsingImageUrl(url);
       if (refs > 0) {
-        return NextResponse.json(
-          { deleted: false, inUse: true },
-          { headers: { 'Cache-Control': 'private, no-store' } }
+        return auth.withSessionCookies(
+          NextResponse.json(
+            { deleted: false, inUse: true },
+            { headers: { 'Cache-Control': 'private, no-store' } }
+          )
         );
       }
     }
 
     if (fileId && isImageKitConfigured()) {
       const result = await deleteImageKitFileById(fileId);
-      return NextResponse.json(result, {
-        headers: { 'Cache-Control': 'private, no-store' },
-      });
+      return auth.withSessionCookies(
+        NextResponse.json(result, {
+          headers: { 'Cache-Control': 'private, no-store' },
+        })
+      );
     }
 
     if (url && isManagedImageKitUrl(url)) {
       const result = await deleteImageKitFileByUrl(url);
-      return NextResponse.json(result, {
-        headers: { 'Cache-Control': 'private, no-store' },
-      });
+      return auth.withSessionCookies(
+        NextResponse.json(result, {
+          headers: { 'Cache-Control': 'private, no-store' },
+        })
+      );
     }
 
     if (url && url.startsWith('/images/books/')) {
       const deleted = await safeDeleteLocalBookFile(url);
-      return NextResponse.json(
-        { deleted },
-        { headers: { 'Cache-Control': 'private, no-store' } }
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { deleted },
+          { headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
 
-    return NextResponse.json(
-      { deleted: false, unmanaged: true },
-      { headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { deleted: false, unmanaged: true },
+        { headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   } catch (err) {
     console.error('[DELETE /api/admin/books/upload] Failed:', err);
-    return NextResponse.json(
-      { error: 'বইয়ের কভার ছবি মুছে ফেলতে সমস্যা হয়েছে।' },
-      { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+    return auth.withSessionCookies(
+      NextResponse.json(
+        { error: 'বইয়ের কভার ছবি মুছে ফেলতে সমস্যা হয়েছে।' },
+        { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
+      )
     );
   }
 }
