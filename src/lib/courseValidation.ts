@@ -1,4 +1,5 @@
 import { CourseGroupKey } from '../types.ts';
+import { toBengaliNumber } from '../utils/format.ts';
 
 export interface BatchKeywordOption {
   id: string;
@@ -393,3 +394,254 @@ export function validateCoursePricing(
     discountPercent: computeDiscountPercent(originalPrice, discountPrice),
   };
 }
+
+const BENGALI_TO_ASCII_DIGIT_MAP: Record<string, string> = {
+  '০': '0',
+  '১': '1',
+  '২': '2',
+  '৩': '3',
+  '৪': '4',
+  '৫': '5',
+  '৬': '6',
+  '৭': '7',
+  '৮': '8',
+  '৯': '9',
+};
+
+const ASCII_TO_BENGALI_DIGIT_LIST = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+
+export function toAsciiDigits(input: string): string {
+  return String(input || '').replace(/[০-৯]/g, (d) => BENGALI_TO_ASCII_DIGIT_MAP[d] ?? d);
+}
+
+function toBengaliDigitsDirect(input: string): string {
+  return String(input || '').replace(/\d/g, (d) => ASCII_TO_BENGALI_DIGIT_LIST[Number(d)] ?? d);
+}
+
+export function validateCourseDuration(raw: unknown): {
+  valid: boolean;
+  value: string;
+  error?: string;
+} {
+  if (raw === null || raw === undefined) {
+    return { valid: true, value: '' };
+  }
+  const cleaned = String(raw)
+    .trim()
+    .replace(/^(?:মেয়াদ|মেয়াদ)\s*[:ঃ-]\s*/i, '')
+    .trim();
+
+  if (!cleaned) {
+    return { valid: true, value: '' };
+  }
+
+  if (cleaned.length > 60) {
+    return {
+      valid: false,
+      value: cleaned.slice(0, 60),
+      error: 'কোর্সের মেয়াদ সর্বোচ্চ ৬০ অক্ষরের মধ্যে হতে হবে।',
+    };
+  }
+
+  return { valid: true, value: cleaned };
+}
+
+export function formatCourseDurationDisplay(raw: unknown): string {
+  const check = validateCourseDuration(raw);
+  return check.value;
+}
+
+export function extractStudentCountInputValue(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw <= 0) return '';
+    return String(Math.round(raw));
+  }
+
+  const text = toAsciiDigits(String(raw)).trim();
+  if (!text) return '';
+
+  // Support legacy shorthand like "10k+ শিক্ষার্থী" or "12.5k"
+  const kMatch = text.match(/(\d+(?:\.\d+)?)\s*k\b/i);
+  if (kMatch) {
+    const num = Math.round(Number(kMatch[1]) * 1000);
+    return Number.isFinite(num) && num > 0 ? String(num) : '';
+  }
+
+  // Extract formatted integer like "12,500+ শিক্ষার্থী" or "12500"
+  const numMatch = text.match(/(\d[\d,]*)/);
+  if (!numMatch) return '';
+
+  const parsed = Number(numMatch[1].replace(/,/g, ''));
+  if (!Number.isFinite(parsed) || parsed <= 0) return '';
+  return String(Math.round(parsed));
+}
+
+export function validateCourseStudentCount(raw: unknown): {
+  valid: boolean;
+  numeric: number | null;
+  storageValue: string;
+  error?: string;
+} {
+  if (raw === null || raw === undefined || String(raw).trim() === '') {
+    return { valid: true, numeric: null, storageValue: '' };
+  }
+
+  const ascii = toAsciiDigits(String(raw)).trim();
+
+  // Reject negative numbers explicitly
+  if (/^-\s*\d/.test(ascii)) {
+    return {
+      valid: false,
+      numeric: null,
+      storageValue: '',
+      error: 'শিক্ষার্থীর সংখ্যা ঋণাত্মক হতে পারবে না। ১ বা তার বেশি পূর্ণসংখ্যা লিখুন।',
+    };
+  }
+
+  // Check shorthand k notation (e.g. legacy "10k+ শিক্ষার্থী")
+  const kMatch = ascii.match(/^(\d+(?:\.\d+)?)\s*k\+?(\s*শিক্ষার্থী)?$/i);
+  if (kMatch) {
+    const val = Math.round(Number(kMatch[1]) * 1000);
+    if (!Number.isFinite(val) || val < 1 || val > 100_000_000) {
+      return {
+        valid: false,
+        numeric: null,
+        storageValue: '',
+        error: 'শিক্ষার্থীর সংখ্যা অবশ্যই ১ থেকে ১০ কোটির মধ্যে বৈধ সংখ্যা হতে হবে।',
+      };
+    }
+    return { valid: true, numeric: val, storageValue: String(val) };
+  }
+
+  // Strip optional commas, plus sign, and trailing "শিক্ষার্থী" label (for legacy compatibility)
+  const stripped = ascii
+    .replace(/\s*শিক্ষার্থী\s*$/i, '')
+    .replace(/\+\s*$/, '')
+    .replace(/,/g, '')
+    .trim();
+
+  if (!/^\d+$/.test(stripped)) {
+    return {
+      valid: false,
+      numeric: null,
+      storageValue: '',
+      error: 'শিক্ষার্থীর সংখ্যা অবশ্যই বৈধ পূর্ণসংখ্যা হতে হবে (যেমন: 12500)।',
+    };
+  }
+
+  const num = Number(stripped);
+  if (!Number.isSafeInteger(num) || num < 1 || num > 100_000_000) {
+    return {
+      valid: false,
+      numeric: null,
+      storageValue: '',
+      error: 'শিক্ষার্থীর সংখ্যা অবশ্যই ১ বা তার বেশি বৈধ পূর্ণসংখ্যা হতে হবে (অথবা খালি রাখুন)।',
+    };
+  }
+
+  return {
+    valid: true,
+    numeric: num,
+    storageValue: String(num),
+  };
+}
+
+export function formatCourseStudentCountDisplay(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  const trimmed = String(raw).trim();
+  if (!trimmed) return '';
+
+  const extracted = extractStudentCountInputValue(trimmed);
+  if (extracted) {
+    const num = Number(extracted);
+    if (Number.isFinite(num) && num > 0) {
+      return `${toBengaliNumber(num)}+ শিক্ষার্থী`;
+    }
+  }
+
+  return trimmed;
+}
+
+export function extractRatingInputValue(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw) || raw < 0 || raw > 5) return '';
+    return Number.isInteger(raw) ? raw.toFixed(1) : String(Number(raw.toFixed(2)));
+  }
+
+  const ascii = toAsciiDigits(String(raw))
+    .replace(/\s*(?:রেটিং|rating)\s*$/i, '')
+    .trim();
+  if (!ascii) return '';
+
+  const match = ascii.match(/^(\d+(?:\.\d+)?)/);
+  if (!match) return '';
+
+  const num = Number(match[1]);
+  if (!Number.isFinite(num) || num < 0 || num > 5) return '';
+  return Number.isInteger(num) ? num.toFixed(1) : String(Number(num.toFixed(2)));
+}
+
+export function validateCourseRating(raw: unknown): {
+  valid: boolean;
+  numeric: number | null;
+  storageValue: string;
+  error?: string;
+} {
+  if (raw === null || raw === undefined || String(raw).trim() === '') {
+    return { valid: true, numeric: null, storageValue: '' };
+  }
+
+  const ascii = toAsciiDigits(String(raw))
+    .replace(/\s*(?:রেটিং|rating)\s*$/i, '')
+    .trim();
+
+  if (!/^\d+(?:\.\d{1,2})?$/.test(ascii)) {
+    return {
+      valid: false,
+      numeric: null,
+      storageValue: '',
+      error: 'কোর্সের রেটিং অবশ্যই ০ থেকে ৫-এর মধ্যে বৈধ সংখ্যা হতে হবে (সর্বোচ্চ ২ দশমিক, যেমন: 4.9)।',
+    };
+  }
+
+  const num = Number(ascii);
+  if (!Number.isFinite(num) || num < 0 || num > 5) {
+    return {
+      valid: false,
+      numeric: null,
+      storageValue: '',
+      error: 'কোর্সের রেটিং অবশ্যই ০ থেকে ৫-এর মধ্যে হতে হবে (যেমন: 4.9)।',
+    };
+  }
+
+  const normalized = Number.isInteger(num)
+    ? num.toFixed(1)
+    : String(Number(num.toFixed(2)));
+
+  return {
+    valid: true,
+    numeric: num,
+    storageValue: normalized,
+  };
+}
+
+export function formatCourseRatingDisplay(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  const trimmed = String(raw).trim();
+  if (!trimmed) return '';
+
+  const check = validateCourseRating(trimmed);
+  if (check.valid && check.storageValue) {
+    return toBengaliDigitsDirect(check.storageValue);
+  }
+
+  const extracted = extractRatingInputValue(trimmed);
+  if (extracted) {
+    return toBengaliDigitsDirect(extracted);
+  }
+
+  return '';
+}
+

@@ -17,10 +17,18 @@ import {
   DEPARTMENT_KEYWORD_OPTIONS,
   BatchKeywordOption,
   extractMatchedBatchKeywords,
+  extractRatingInputValue,
+  extractStudentCountInputValue,
+  formatCourseDurationDisplay,
+  formatCourseRatingDisplay,
+  formatCourseStudentCountDisplay,
   normalizeValidationText,
   syncTargetStudentsMetadata,
-  validateSingleBatchKeyword,
+  validateCourseDuration,
   validateCoursePricing,
+  validateCourseRating,
+  validateCourseStudentCount,
+  validateSingleBatchKeyword,
 } from '../../lib/courseValidation.ts';
 import { CourseCard } from '../public/CourseCard.tsx';
 import { CourseFeaturesManager } from './CourseFeaturesManager.tsx';
@@ -40,6 +48,9 @@ import {
   Link as LinkIcon,
   Zap,
   GraduationCap,
+  Clock,
+  Users,
+  Star,
 } from 'lucide-react';
 
 import { validateExternalHttpUrl } from '../../lib/affiliateUrl.ts';
@@ -143,9 +154,15 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     course?.affiliateUrl || ''
   );
   const [description, setDescription] = useState(course?.description || '');
-  const duration = course?.duration || '৬ মাস';
-  const studentCount = course?.studentCount || '১২,৫০০+ শিক্ষার্থী';
-  const rating = course?.rating || '৪.৯';
+  const [duration, setDuration] = useState<string>(() =>
+    course ? formatCourseDurationDisplay(course.duration) : ''
+  );
+  const [studentCountInput, setStudentCountInput] = useState<string>(() =>
+    course ? extractStudentCountInputValue(course.studentCount) : ''
+  );
+  const [ratingInput, setRatingInput] = useState<string>(() =>
+    course ? extractRatingInputValue(course.rating) : ''
+  );
   const [targetStudents, setTargetStudents] = useState(() => {
     if (!course) return '';
     const synced = syncTargetStudentsMetadata({
@@ -214,6 +231,24 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       ? Math.max(0, originalPrice - discountPrice)
       : 0;
   const computedDiscountPercent = pricingValidation.valid ? pricingValidation.discountPercent : 0;
+
+  // Dynamic Course Meta (Duration, Total Students, Rating) validation & live display
+  const durationValidation = useMemo(() => validateCourseDuration(duration), [duration]);
+  const studentCountValidation = useMemo(
+    () => validateCourseStudentCount(studentCountInput),
+    [studentCountInput]
+  );
+  const ratingValidation = useMemo(() => validateCourseRating(ratingInput), [ratingInput]);
+
+  const previewFormattedDuration = durationValidation.valid ? durationValidation.value : '';
+  const previewFormattedStudents =
+    studentCountValidation.valid && studentCountValidation.storageValue
+      ? formatCourseStudentCountDisplay(studentCountValidation.storageValue)
+      : '';
+  const previewFormattedRating =
+    ratingValidation.valid && ratingValidation.storageValue
+      ? formatCourseRatingDisplay(ratingValidation.storageValue)
+      : '';
 
   // Target Students input & Batch Keyword Chip Handlers
   const handleTargetStudentsChange = (val: string) => {
@@ -484,9 +519,9 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       originalPrice: Number(originalPrice) || 0,
       discountPrice: Number(discountPrice) || 0,
       discountPercent: computedDiscountPercent,
-      rating: rating.trim() || '৪.৯',
-      studentCount: studentCount.trim() || '১২,৫০০+ শিক্ষার্থী',
-      duration: duration.trim() || '৬ মাস',
+      rating: ratingValidation.valid ? ratingValidation.storageValue : '',
+      studentCount: studentCountValidation.valid ? studentCountValidation.storageValue : '',
+      duration: durationValidation.valid ? durationValidation.value : '',
       targetStudents: targetMetadataSync.valid
         ? targetMetadataSync.targetStudents
         : targetStudents.trim(),
@@ -510,7 +545,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     course,
     description,
     discountPrice,
-    duration,
+    durationValidation,
     courseFeatures,
     fullDescription,
     gradientTheme,
@@ -520,11 +555,11 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     imageUrl,
     isPopular,
     originalPrice,
-    rating,
+    ratingValidation,
     shortBadge,
     slug,
     status,
-    studentCount,
+    studentCountValidation,
     targetMetadataSync,
     targetStudents,
     title,
@@ -562,6 +597,18 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     }
     if (!pricingValidation.valid) {
       setError(pricingValidation.error || 'অবৈধ মূল্য প্রদান করা হয়েছে।');
+      return;
+    }
+    if (!durationValidation.valid) {
+      setError(durationValidation.error || 'অবৈধ কোর্স মেয়াদ প্রদান করা হয়েছে।');
+      return;
+    }
+    if (!studentCountValidation.valid) {
+      setError(studentCountValidation.error || 'অবৈধ শিক্ষার্থীর সংখ্যা প্রদান করা হয়েছে।');
+      return;
+    }
+    if (!ratingValidation.valid) {
+      setError(ratingValidation.error || 'কোর্সের রেটিং অবশ্যই ০ থেকে ৫-এর মধ্যে হতে হবে।');
       return;
     }
     const urlCheck = validateExternalHttpUrl(affiliateUrl);
@@ -607,9 +654,9 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       originalPrice: normalizedOriginalPrice,
       discountPrice: normalizedDiscountPrice,
       discountPercent: computedDiscountPercent,
-      rating: rating.trim() || '৪.৯',
-      studentCount: studentCount.trim() || '১২,৫০০+ শিক্ষার্থী',
-      duration: duration.trim() || '৬ মাস',
+      rating: ratingValidation.storageValue,
+      studentCount: studentCountValidation.storageValue,
+      duration: durationValidation.value,
       targetStudents: targetMetadataSync.valid
         ? targetMetadataSync.targetStudents
         : dedupeCommaKeywords(targetStudents),
@@ -1006,7 +1053,190 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
             </div>
           </div>
 
-          {/* Card 2: Pricing & Affiliate Links */}
+          {/* Card 2: Dynamic Course Info & Stats (Duration, Total Students, Course Rating) */}
+          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rose-200/50 pb-3">
+              <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#eb1c24]" />
+                <span>কোর্স তথ্য ও পরিসংখ্যান (Course Meta Info)</span>
+              </h3>
+              <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200/80 text-[#991b1b]">
+                Show More ডিটেইলসে প্রদর্শিত হবে
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* 1. Course Duration */}
+              <div>
+                <label
+                  htmlFor="course-duration-input"
+                  className="block text-xs font-bold text-slate-700 mb-1"
+                >
+                  কোর্সের মেয়াদ (Course Duration)
+                </label>
+                <div className="flex items-center relative">
+                  <span className="px-2.5 py-2.5 rounded-l-xl bg-rose-50 border border-r-0 border-slate-200 text-[#b91c1c]">
+                    <Clock className="w-4 h-4" />
+                  </span>
+                  <input
+                    id="course-duration-input"
+                    type="text"
+                    maxLength={60}
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    placeholder="যেমন: ৬ মাস, ১ বছর"
+                    className={`w-full px-3 py-2.5 pr-8 rounded-r-xl border text-xs sm:text-sm text-slate-800 bg-white outline-none shadow-2xs font-medium transition ${
+                      !durationValidation.valid
+                        ? 'border-rose-400 focus:border-rose-500 ring-2 ring-rose-100'
+                        : 'border-slate-200/90 focus:border-[#eb1c24]'
+                    }`}
+                  />
+                  {duration.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDuration('')}
+                      title="মেয়াদ মুছুন"
+                      className="absolute right-2 p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {!durationValidation.valid ? (
+                  <p className="text-[11px] font-bold text-rose-600 mt-1">
+                    {durationValidation.error}
+                  </p>
+                ) : (
+                  <p className="text-[10.5px] text-[#6B4C4F] mt-1">
+                    উদাহরণ: ৬ মাস, ১ বছর, ৩ মাস
+                  </p>
+                )}
+              </div>
+
+              {/* 2. Total Students */}
+              <div>
+                <label
+                  htmlFor="course-students-input"
+                  className="block text-xs font-bold text-slate-700 mb-1"
+                >
+                  শিক্ষার্থীর সংখ্যা (Total Students)
+                </label>
+                <div className="flex items-center relative">
+                  <span className="px-2.5 py-2.5 rounded-l-xl bg-rose-50 border border-r-0 border-slate-200 text-[#b91c1c]">
+                    <Users className="w-4 h-4" />
+                  </span>
+                  <input
+                    id="course-students-input"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={100000000}
+                    step={1}
+                    value={studentCountInput}
+                    onChange={(e) => setStudentCountInput(e.target.value)}
+                    placeholder="যেমন: 12500"
+                    className={`w-full px-3 py-2.5 rounded-r-xl border text-xs sm:text-sm text-slate-800 bg-white outline-none shadow-2xs font-mono font-bold transition ${
+                      !studentCountValidation.valid
+                        ? 'border-rose-400 text-rose-700 focus:border-rose-500 ring-2 ring-rose-100'
+                        : 'border-slate-200/90 focus:border-[#eb1c24]'
+                    }`}
+                  />
+                </div>
+                {!studentCountValidation.valid ? (
+                  <p className="text-[11px] font-bold text-rose-600 mt-1">
+                    {studentCountValidation.error}
+                  </p>
+                ) : previewFormattedStudents ? (
+                  <p className="text-[10.5px] font-bold text-emerald-700 mt-1 tabular-nums">
+                    দেখাবে: {previewFormattedStudents}
+                  </p>
+                ) : (
+                  <p className="text-[10.5px] text-[#6B4C4F] mt-1">
+                    শুধু সংখ্যা লিখুন (যেমন: 12500)
+                  </p>
+                )}
+              </div>
+
+              {/* 3. Course Rating */}
+              <div>
+                <label
+                  htmlFor="course-rating-input"
+                  className="block text-xs font-bold text-slate-700 mb-1"
+                >
+                  কোর্সের রেটিং (Rating: 0 – 5)
+                </label>
+                <div className="flex items-center relative">
+                  <span className="px-2.5 py-2.5 rounded-l-xl bg-amber-50 border border-r-0 border-slate-200 text-amber-500">
+                    <Star className="w-4 h-4 fill-amber-400" />
+                  </span>
+                  <input
+                    id="course-rating-input"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={5}
+                    step={0.1}
+                    value={ratingInput}
+                    onChange={(e) => setRatingInput(e.target.value)}
+                    placeholder="যেমন: 4.9"
+                    className={`w-full px-3 py-2.5 rounded-r-xl border text-xs sm:text-sm text-slate-800 bg-white outline-none shadow-2xs font-mono font-bold transition ${
+                      !ratingValidation.valid
+                        ? 'border-rose-400 text-rose-700 focus:border-rose-500 ring-2 ring-rose-100'
+                        : 'border-slate-200/90 focus:border-[#eb1c24]'
+                    }`}
+                  />
+                </div>
+                {!ratingValidation.valid ? (
+                  <p className="text-[11px] font-bold text-rose-600 mt-1">
+                    {ratingValidation.error}
+                  </p>
+                ) : previewFormattedRating ? (
+                  <p className="text-[10.5px] font-bold text-amber-800 mt-1 tabular-nums">
+                    দেখাবে: ★ {previewFormattedRating} রেটিং
+                  </p>
+                ) : (
+                  <p className="text-[10.5px] text-[#6B4C4F] mt-1">
+                    ০ থেকে ৫-এর মধ্যে (যেমন: 4.9)
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Live Formatted Pill Preview matching Show More Modal */}
+            <div className="rounded-2xl bg-rose-50/55 border border-rose-200/60 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-[#6B4C4F]">
+                ডিটেইলস সেকশন প্রিভিউ:
+              </span>
+              {previewFormattedDuration || previewFormattedStudents || previewFormattedRating ? (
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-[#4A2C2F] tabular-nums">
+                  {previewFormattedDuration && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white border border-rose-200/80">
+                      <Clock className="w-3 h-3 text-[#b91c1c]" />
+                      <span>মেয়াদ: {previewFormattedDuration}</span>
+                    </span>
+                  )}
+                  {previewFormattedStudents && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white border border-rose-200/80">
+                      <Users className="w-3 h-3 text-[#b91c1c]" />
+                      <span>{previewFormattedStudents}</span>
+                    </span>
+                  )}
+                  {previewFormattedRating && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200/90 text-amber-900">
+                      <Star className="w-3 h-3 text-amber-500 fill-amber-400" />
+                      <span>{previewFormattedRating} রেটিং</span>
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-[11px] text-[#6B4C4F] italic">
+                  কোনো তথ্য দেওয়া হয়নি — খালি ফিল্ডগুলো ওয়েবসাইটে প্রদর্শিত হবে না।
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Card 3: Pricing & Affiliate Links */}
           <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
             <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <DollarSign className="w-4 h-4 text-emerald-600" />

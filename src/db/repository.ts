@@ -557,7 +557,7 @@ export async function createNewCourse(input: Record<string, unknown>) {
             typeof input.features === 'string'
               ? input.features
               : JSON.stringify(Array.isArray(input.features) ? input.features : []),
-          duration: String(input.duration || '৬ মাস'),
+          duration: typeof input.duration === 'string' ? input.duration.trim() : '',
           instructorInfo: String(
             input.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল'
           ),
@@ -588,9 +588,18 @@ export async function createNewCourse(input: Record<string, unknown>) {
     originalPrice,
     discountPrice,
     discountPercent,
-    rating: String(input.rating || '৪.৯').trim().slice(0, 10),
-    studentCount: String(input.studentCount || '১০k+ শিক্ষার্থী').trim().slice(0, 60),
-    duration: String(input.duration || '৬ মাস').trim().slice(0, 60),
+    rating:
+      input.rating === null || input.rating === undefined
+        ? ''
+        : String(input.rating).trim().slice(0, 10),
+    studentCount:
+      input.studentCount === null || input.studentCount === undefined
+        ? ''
+        : String(input.studentCount).trim().slice(0, 60),
+    duration:
+      input.duration === null || input.duration === undefined
+        ? ''
+        : String(input.duration).trim().slice(0, 60),
     targetStudents: syncedTargets.targetStudents,
     targetBatch: syncedTargets.targetBatch,
     targetGroups: syncedTargets.targetGroups,
@@ -737,12 +746,17 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
       ? { affiliateUrl: String(input.affiliateUrl).trim() }
       : {}),
     ...(input.isPopular !== undefined ? { isPopular: Boolean(input.isPopular) } : {}),
-    ...(input.rating !== undefined ? { rating: String(input.rating).trim().slice(0, 10) } : {}),
+    ...(input.rating !== undefined
+      ? { rating: input.rating === null ? '' : String(input.rating).trim().slice(0, 10) }
+      : {}),
     ...(input.studentCount !== undefined
-      ? { studentCount: String(input.studentCount).trim().slice(0, 60) }
+      ? {
+          studentCount:
+            input.studentCount === null ? '' : String(input.studentCount).trim().slice(0, 60),
+        }
       : {}),
     ...(input.duration !== undefined
-      ? { duration: String(input.duration).trim().slice(0, 60) }
+      ? { duration: input.duration === null ? '' : String(input.duration).trim().slice(0, 60) }
       : {}),
     ...(input.instructorInfo !== undefined
       ? { instructorInfo: String(input.instructorInfo).trim().slice(0, 200) }

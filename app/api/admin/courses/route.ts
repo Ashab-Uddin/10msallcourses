@@ -11,7 +11,10 @@ import { sanitizeImageUrl, validateExternalHttpUrl } from '@/src/lib/affiliateUr
 import {
   normalizeTargetGroups,
   syncTargetStudentsMetadata,
+  validateCourseDuration,
   validateCoursePricing,
+  validateCourseRating,
+  validateCourseStudentCount,
 } from '@/src/lib/courseValidation';
 import {
   courseMatchesAcademicBatch,
@@ -208,6 +211,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const durationCheck = validateCourseDuration(body.duration);
+    if (!durationCheck.valid) {
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: durationCheck.error || 'অবৈধ কোর্স মেয়াদ প্রদান করা হয়েছে।' },
+          { status: 400 }
+        )
+      );
+    }
+
+    const studentCountCheck = validateCourseStudentCount(body.studentCount);
+    if (!studentCountCheck.valid) {
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: studentCountCheck.error || 'অবৈধ শিক্ষার্থীর সংখ্যা প্রদান করা হয়েছে।' },
+          { status: 400 }
+        )
+      );
+    }
+
+    const ratingCheck = validateCourseRating(body.rating);
+    if (!ratingCheck.valid) {
+      return auth.withSessionCookies(
+        NextResponse.json(
+          { error: ratingCheck.error || 'কোর্সের রেটিং অবশ্যই ০ থেকে ৫-এর মধ্যে হতে হবে।' },
+          { status: 400 }
+        )
+      );
+    }
+
     const data = await createNewCourse({
       ...body,
       targetStudents: targetSync.targetStudents,
@@ -218,6 +251,9 @@ export async function POST(req: NextRequest) {
       originalPrice: origCheck.value,
       discountPrice: discCheck.value,
       discountPercent: pricingCheck.discountPercent,
+      duration: durationCheck.value,
+      studentCount: studentCountCheck.storageValue,
+      rating: ratingCheck.storageValue,
       shortBadge: typeof body.shortBadge === 'string' ? body.shortBadge.trim() : '',
       status: normalizeCourseStatus(body.status, 'active'),
     });

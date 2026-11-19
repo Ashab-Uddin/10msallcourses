@@ -123,7 +123,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     fallbackIfEmpty: !Array.isArray(course.courseFeatures),
   });
   const visibleFeatures = activeFeatures.slice(0, CARD_VISIBLE_COURSE_FEATURES);
-  const extraFeaturesCount = Math.max(0, activeFeatures.length - CARD_VISIBLE_COURSE_FEATURES);
 
   const resolvedBatch = resolveCourseTargetBatch(course);
 
@@ -525,11 +524,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                 }`}
               >
                 <span>{isDetailsOpen ? 'Show Less' : 'Show More'}</span>
-                {extraFeaturesCount > 0 && !isDetailsOpen && (
-                  <span className="text-[10px] font-semibold text-[#6B4C4F] tabular-nums">
-                    (+আরও {toBengaliNumber(extraFeaturesCount)}টি)
-                  </span>
-                )}
                 {isDetailsOpen ? (
                   <ChevronUp
                     className={

@@ -14,7 +14,12 @@ import {
 } from 'lucide-react';
 import type { Course, CourseFeatureItem } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
-import { computeDiscountPercent } from '../../lib/courseValidation.ts';
+import {
+  computeDiscountPercent,
+  formatCourseDurationDisplay,
+  formatCourseRatingDisplay,
+  formatCourseStudentCountDisplay,
+} from '../../lib/courseValidation.ts';
 import { buildWhatsAppCourseInquiryUrl } from '../../lib/courseFeatures.ts';
 import { CourseFeatureIcon } from './CourseFeatureIcon.tsx';
 import { useSiteContact } from './SiteContactContext.tsx';
@@ -85,6 +90,13 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
     (course.description && course.description.trim()) ||
     '';
 
+  const formattedDuration = formatCourseDurationDisplay(course.duration);
+  const formattedStudentCount = formatCourseStudentCountDisplay(course.studentCount);
+  const formattedRating = formatCourseRatingDisplay(course.rating);
+  const hasAnyCourseMeta = Boolean(
+    formattedDuration || formattedStudentCount || formattedRating
+  );
+
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#1c090b]/65 backdrop-blur-md animate-in fade-in duration-200"
@@ -138,9 +150,9 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
         </div>
 
         {/* Scrollable Modal Content */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3.5 sm:py-4 space-y-3.5 sm:space-y-4">
           {/* Thumbnail & Quick Meta */}
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-center">
             {displayImageUrl && (
               <div className="sm:col-span-5 rounded-2xl overflow-hidden border border-rose-100 bg-white aspect-video shadow-2xs">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -153,9 +165,9 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
               </div>
             )}
 
-            <div className={`${displayImageUrl ? 'sm:col-span-7' : 'sm:col-span-12'} space-y-3`}>
+            <div className={`${displayImageUrl ? 'sm:col-span-7' : 'sm:col-span-12'} space-y-2.5`}>
               {/* Pricing Summary Box */}
-              <div className="rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-rose-50/60 border border-emerald-200/70 p-3.5 flex flex-wrap items-center justify-between gap-2 tabular-nums">
+              <div className="rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-rose-50/60 border border-emerald-200/70 p-3 flex flex-wrap items-center justify-between gap-2 tabular-nums">
                 <div>
                   <div className="text-[11px] font-bold text-[#6B4C4F]">
                     কোর্স ফি (অফার মূল্য)
@@ -175,40 +187,42 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
                 </div>
 
                 {savingsAmount > 0 && (
-                  <span className="px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-extrabold shadow-2xs">
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white text-xs font-extrabold shadow-2xs">
                     ৳{toBengaliNumber(savingsAmount)} সাশ্রয়
                   </span>
                 )}
               </div>
 
-              {/* Meta Pills */}
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#4A2C2F]">
-                {course.duration && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50/80 border border-rose-200/70">
-                    <Clock className="w-3.5 h-3.5 text-[#b91c1c]" />
-                    <span>মেয়াদ: {course.duration}</span>
-                  </span>
-                )}
-                {course.studentCount && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50/80 border border-rose-200/70">
-                    <Users className="w-3.5 h-3.5 text-[#b91c1c]" />
-                    <span>{course.studentCount}</span>
-                  </span>
-                )}
-                {course.rating && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50/90 border border-amber-200/80 text-amber-900">
-                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-                    <span>{course.rating} রেটিং</span>
-                  </span>
-                )}
-              </div>
+              {/* Dynamic Meta Pills — Only render populated fields, zero fake placeholders */}
+              {hasAnyCourseMeta && (
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-[#4A2C2F] tabular-nums">
+                  {formattedDuration && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50/85 border border-rose-200/70">
+                      <Clock className="w-3.5 h-3.5 text-[#b91c1c] shrink-0" />
+                      <span>মেয়াদ: {formattedDuration}</span>
+                    </span>
+                  )}
+                  {formattedStudentCount && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50/85 border border-rose-200/70">
+                      <Users className="w-3.5 h-3.5 text-[#b91c1c] shrink-0" />
+                      <span>{formattedStudentCount}</span>
+                    </span>
+                  )}
+                  {formattedRating && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50/90 border border-amber-200/80 text-amber-900">
+                      <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0" />
+                      <span>{formattedRating} রেটিং</span>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Complete "এই কোর্সে যা যা থাকছে" Feature List */}
-          <div className="rounded-2xl border border-rose-200/70 bg-rose-50/35 p-4 space-y-3">
+          {/* Complete "এই কোর্সে যা যা থাকছে" Compact Feature List */}
+          <div className="rounded-2xl border border-rose-200/70 bg-rose-50/35 p-3 sm:p-3.5 space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <h4 className="text-sm sm:text-base font-black text-[#2A0F12]">
+              <h4 className="inline-flex items-center rounded-full bg-gradient-to-r from-[#ff6b6b] to-[#f24c4c] text-white text-[11px] font-bold tracking-tight leading-[1.2] px-2.5 py-[3.5px] shadow-[0_2px_6px_-2px_rgba(242,76,76,0.32)]">
                 এই কোর্সে যা যা থাকছে
               </h4>
               <span className="text-[11px] font-bold text-[#6B4C4F] tabular-nums">
@@ -217,14 +231,14 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
             </div>
 
             {features.length > 0 ? (
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {features.map((feat, idx) => (
                   <li
                     key={`${feat.id}-${idx}`}
-                    className="flex items-start gap-2.5 rounded-xl bg-white/90 border border-rose-100/90 px-3 py-2.5 text-xs sm:text-[13px] text-[#2A0F12] font-semibold leading-snug shadow-2xs"
+                    className="flex items-start gap-2 rounded-lg bg-white/90 border border-rose-100/80 px-2.5 py-1.5 text-[11.5px] sm:text-xs text-[#2A0F12] font-medium leading-[1.35] shadow-2xs"
                   >
-                    <span className="mt-0.5 text-[#6B4C4F] shrink-0">
-                      <CourseFeatureIcon icon={feat.icon} className="w-4 h-4" />
+                    <span className="mt-[1px] w-4 h-4 rounded-full bg-rose-50 border border-rose-200/70 text-[#d92d2d] flex items-center justify-center shrink-0">
+                      <CourseFeatureIcon icon={feat.icon} className="w-2.5 h-2.5" />
                     </span>
                     <span className="break-words">{feat.title}</span>
                   </li>
@@ -239,11 +253,11 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
 
           {/* Full Course Overview / Details */}
           {overviewText && (
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 space-y-1.5">
-              <h4 className="text-xs font-extrabold uppercase tracking-wide text-[#6B4C4F]">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 space-y-1">
+              <h4 className="text-[11px] font-extrabold uppercase tracking-wide text-[#6B4C4F]">
                 কোর্স সম্পর্কে বিস্তারিত
               </h4>
-              <p className="text-xs sm:text-sm text-[#3E2225] leading-relaxed whitespace-pre-line">
+              <p className="text-xs sm:text-[13px] text-[#3E2225] leading-relaxed whitespace-pre-line">
                 {overviewText}
               </p>
             </div>

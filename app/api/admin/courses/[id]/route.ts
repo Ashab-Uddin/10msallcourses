@@ -10,7 +10,13 @@ import {
 } from '@/src/db/repository';
 import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 import { sanitizeImageUrl, validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
-import { syncTargetStudentsMetadata, validateCoursePricing } from '@/src/lib/courseValidation';
+import {
+  syncTargetStudentsMetadata,
+  validateCourseDuration,
+  validateCoursePricing,
+  validateCourseRating,
+  validateCourseStudentCount,
+} from '@/src/lib/courseValidation';
 import { deleteImageKitFileByUrl, isManagedImageKitUrl } from '@/src/lib/imagekit';
 
 export const dynamic = 'force-dynamic';
@@ -165,6 +171,42 @@ export async function PUT(
     }
     if (origCheck) sanitizedBody.originalPrice = origCheck.value;
     if (discCheck) sanitizedBody.discountPrice = discCheck.value;
+    if (body.duration !== undefined) {
+      const durationCheck = validateCourseDuration(body.duration);
+      if (!durationCheck.valid) {
+        return auth.withSessionCookies(
+          NextResponse.json(
+            { error: durationCheck.error || 'অবৈধ কোর্স মেয়াদ প্রদান করা হয়েছে।' },
+            { status: 400 }
+          )
+        );
+      }
+      sanitizedBody.duration = durationCheck.value;
+    }
+    if (body.studentCount !== undefined) {
+      const studentCountCheck = validateCourseStudentCount(body.studentCount);
+      if (!studentCountCheck.valid) {
+        return auth.withSessionCookies(
+          NextResponse.json(
+            { error: studentCountCheck.error || 'অবৈধ শিক্ষার্থীর সংখ্যা প্রদান করা হয়েছে।' },
+            { status: 400 }
+          )
+        );
+      }
+      sanitizedBody.studentCount = studentCountCheck.storageValue;
+    }
+    if (body.rating !== undefined) {
+      const ratingCheck = validateCourseRating(body.rating);
+      if (!ratingCheck.valid) {
+        return auth.withSessionCookies(
+          NextResponse.json(
+            { error: ratingCheck.error || 'কোর্সের রেটিং অবশ্যই ০ থেকে ৫-এর মধ্যে হতে হবে।' },
+            { status: 400 }
+          )
+        );
+      }
+      sanitizedBody.rating = ratingCheck.storageValue;
+    }
     if (sanitizedBody.shortBadge !== undefined && typeof sanitizedBody.shortBadge === 'string') {
       sanitizedBody.shortBadge = sanitizedBody.shortBadge.trim();
     }

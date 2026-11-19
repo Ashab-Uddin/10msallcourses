@@ -690,9 +690,9 @@ function mapCourseRow(row: Record<string, unknown>): Course {
     originalPrice: Number(row.original_price ?? 0),
     discountPrice: Number(row.discount_price ?? 0),
     discountPercent: Number(row.discount_percent ?? 0),
-    rating: String(row.rating || '৪.৯'),
-    studentCount: String(row.student_count || '১০k+ শিক্ষার্থী'),
-    duration: String(row.duration || '৬ মাস'),
+    rating: typeof row.rating === 'string' ? row.rating.trim() : '',
+    studentCount: typeof row.student_count === 'string' ? row.student_count.trim() : '',
+    duration: typeof row.duration === 'string' ? row.duration.trim() : '',
     targetStudents: targetStudentsStr,
     targetBatch: resolvedTargetBatch,
     targetGroups: resolvedTargetGroups,
@@ -1179,9 +1179,18 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     original_price: originalPrice,
     discount_price: discountPrice,
     discount_percent: discountPercent,
-    rating: String(input.rating || '৪.৯').trim().slice(0, 10),
-    student_count: String(input.studentCount || '১০k+ শিক্ষার্থী').trim().slice(0, 60),
-    duration: String(input.duration || '৬ মাস').trim().slice(0, 60),
+    rating:
+      input.rating === null || input.rating === undefined
+        ? ''
+        : String(input.rating).trim().slice(0, 10),
+    student_count:
+      input.studentCount === null || input.studentCount === undefined
+        ? ''
+        : String(input.studentCount).trim().slice(0, 60),
+    duration:
+      input.duration === null || input.duration === undefined
+        ? ''
+        : String(input.duration).trim().slice(0, 60),
     target_students: syncedTargets.targetStudents,
     target_batch: syncedTargets.targetBatch,
     target_groups: syncedTargets.targetGroups,
@@ -1374,13 +1383,16 @@ export async function sbUpdateExistingCourse(
     updatePayload.is_popular = Boolean(input.isPopular);
   }
   if (input.rating !== undefined) {
-    updatePayload.rating = String(input.rating).trim().slice(0, 10);
+    updatePayload.rating =
+      input.rating === null ? '' : String(input.rating).trim().slice(0, 10);
   }
   if (input.studentCount !== undefined) {
-    updatePayload.student_count = String(input.studentCount).trim().slice(0, 60);
+    updatePayload.student_count =
+      input.studentCount === null ? '' : String(input.studentCount).trim().slice(0, 60);
   }
   if (input.duration !== undefined) {
-    updatePayload.duration = String(input.duration).trim().slice(0, 60);
+    updatePayload.duration =
+      input.duration === null ? '' : String(input.duration).trim().slice(0, 60);
   }
   if (input.instructorInfo !== undefined) {
     updatePayload.instructor_info = String(input.instructorInfo).trim().slice(0, 200);
