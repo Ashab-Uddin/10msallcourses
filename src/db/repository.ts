@@ -4,6 +4,7 @@ import { cache } from 'react';
 import {
   Category,
   Course,
+  CourseFeatureItem,
   ClickRecord,
   SiteSettings,
   OfferTimer,
@@ -11,6 +12,14 @@ import {
 import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
 import { computeDiscountPercent, syncTargetStudentsMetadata } from '../lib/courseValidation.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
+import {
+  MAX_COURSE_FEATURES_PER_COURSE,
+  MAX_COURSE_FEATURE_TITLE_LENGTH,
+  extractActiveFeatureTitles,
+  getCourseFeatureItems,
+  normalizeCourseFeatureIcon,
+  normalizeCourseFeatureItems,
+} from '../lib/courseFeatures.ts';
 import { toBengaliNumber } from '../utils/format.ts';
 import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
 import { invalidatePublicPortalCache } from '../lib/cacheInvalidation.ts';
@@ -40,27 +49,33 @@ import {
 import {
   getSupabaseStorageInfo,
   sbCountCoursesUsingImageUrl,
+  sbCreateCourseFeature,
   sbCreateNewCategory,
   sbCreateNewCourse,
   sbCreateOfferTimer,
   sbDeleteCategoryById,
   sbDeleteCourseById,
+  sbDeleteCourseFeature,
   sbDeleteOfferTimer,
   sbGetAdminOverviewData,
   sbGetCourseById,
   sbGetCourseBySlug,
+  sbGetCourseFeatures,
   sbGetOfferTimers,
   sbGetPortalSettings,
   sbGetPublicPortalData,
   sbGetSelectorIconConfig,
   sbGetSelectorIconOrder,
   sbRecordCourseClick,
+  sbReorderCourseFeatures,
   sbReorderCoursePosition,
+  sbReplaceCourseFeatures,
   sbSaveSelectorIconConfig,
   sbSaveSelectorIconOrder,
   sbSetOfferTimerPaused,
   sbSwapCategoryOrder,
   sbSwapCourseOrder,
+  sbUpdateCourseFeature,
   sbUpdateExistingCategory,
   sbUpdateExistingCourse,
   sbUpdateOfferTimer,
@@ -160,13 +175,21 @@ function normalizeStoreShape(raw: Partial<LocalStore> | null | undefined): Local
 
   const normalizedCourses = Array.isArray(raw.courses)
     ? normalizeContiguousCourseOrder(
-        raw.courses.map((c) => ({
-          ...c,
-          displayOrder:
-            typeof c.displayOrder === 'number' && Number.isFinite(c.displayOrder) && c.displayOrder >= 1
-              ? Math.round(c.displayOrder)
-              : 0,
-        }))
+        raw.courses.map((c) => {
+          const base = {
+            ...c,
+            displayOrder:
+              typeof c.displayOrder === 'number' && Number.isFinite(c.displayOrder) && c.displayOrder >= 1
+                ? Math.round(c.displayOrder)
+                : 0,
+          };
+          return {
+            ...base,
+            courseFeatures: Array.isArray(c.courseFeatures)
+              ? normalizeCourseFeatureItems(c.courseFeatures, c.id)
+              : getCourseFeatureItems(base, { includeInactive: true }),
+          };
+        })
       )
     : [];
 
@@ -281,7 +304,10 @@ export const getPublicPortalData = cache(async () => {
   // Approved Option 2 visibility: Public visitors see `active` and `closed` courses only; `inactive` is hidden.
   const publicCourses = sortCoursesByOrder(
     store.courses.filter((c) => c.status === 'active' || c.status === 'closed')
-  );
+  ).map((c) => ({
+    ...c,
+    courseFeatures: getCourseFeatureItems(c, { includeInactive: false }),
+  }));
 
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
@@ -317,7 +343,11 @@ export async function getCourseBySlug(slug: string): Promise<Course | null> {
   const found = store.courses.find(
     (c) => c.slug === cleanSlug && (c.status === 'active' || c.status === 'closed')
   );
-  return found || null;
+  if (!found) return null;
+  return {
+    ...found,
+    courseFeatures: getCourseFeatureItems(found, { includeInactive: false }),
+  };
 }
 
 export async function getCourseById(id: number): Promise<Course | null> {
@@ -326,7 +356,12 @@ export async function getCourseById(id: number): Promise<Course | null> {
   }
 
   const store = await loadStore(true);
-  return store.courses.find((c) => c.id === id) || null;
+  const found = store.courses.find((c) => c.id === id);
+  if (!found) return null;
+  return {
+    ...found,
+    courseFeatures: getCourseFeatureItems(found, { includeInactive: true }),
+  };
 }
 
 export async function countCoursesUsingImageUrl(
@@ -513,6 +548,25 @@ export async function createNewCourse(input: Record<string, unknown>) {
   }
 
   const nowIso = new Date().toISOString();
+  const normalizedFeatures = Array.isArray(input.courseFeatures)
+    ? normalizeCourseFeatureItems(input.courseFeatures, newId)
+    : getCourseFeatureItems(
+        {
+          id: newId,
+          features:
+            typeof input.features === 'string'
+              ? input.features
+              : JSON.stringify(Array.isArray(input.features) ? input.features : []),
+          duration: String(input.duration || '৬ মাস'),
+          instructorInfo: String(
+            input.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল'
+          ),
+          categorySlug: matchedCategory.slug,
+        },
+        { includeInactive: true }
+      );
+  const syncedFeaturesJson = JSON.stringify(extractActiveFeatureTitles(normalizedFeatures));
+
   const newCourse: Course = {
     id: newId,
     title: title.slice(0, 220),
@@ -544,10 +598,8 @@ export async function createNewCourse(input: Record<string, unknown>) {
       input.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল'
     ).trim().slice(0, 200),
     instructorIcon: String(input.instructorIcon || 'school').trim().slice(0, 50),
-    features:
-      typeof input.features === 'string'
-        ? input.features
-        : JSON.stringify(Array.isArray(input.features) ? input.features : []),
+    features: syncedFeaturesJson,
+    courseFeatures: normalizedFeatures,
     affiliateUrl: typeof input.affiliateUrl === 'string' ? input.affiliateUrl.trim() : '',
     displayOrder: requestedDisplayOrder ?? 1,
     isPopular: Boolean(input.isPopular ?? true),
@@ -737,12 +789,31 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
       input.status !== undefined
         ? normalizeCourseStatus(input.status, existingFallback)
         : existingFallback,
-    features:
-      typeof input.features === 'string'
-        ? input.features
-        : input.features !== undefined
-        ? JSON.stringify(input.features)
-        : existing.features,
+    features: (() => {
+      if (Array.isArray(input.courseFeatures)) {
+        const normalized = normalizeCourseFeatureItems(input.courseFeatures, id);
+        return JSON.stringify(extractActiveFeatureTitles(normalized));
+      }
+      if (typeof input.features === 'string') return input.features;
+      if (input.features !== undefined) return JSON.stringify(input.features);
+      return existing.features;
+    })(),
+    courseFeatures: (() => {
+      if (Array.isArray(input.courseFeatures)) {
+        return normalizeCourseFeatureItems(input.courseFeatures, id);
+      }
+      if (input.features !== undefined) {
+        const legacyStr =
+          typeof input.features === 'string'
+            ? input.features
+            : JSON.stringify(input.features);
+        return getCourseFeatureItems(
+          { ...existing, features: legacyStr, courseFeatures: undefined },
+          { includeInactive: true }
+        );
+      }
+      return existing.courseFeatures;
+    })(),
     updatedAt: new Date().toISOString(),
   };
 
@@ -767,6 +838,244 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
   invalidatePublicPortalCache();
 
   return store.courses.find((c) => c.id === id) || updated;
+}
+
+export async function getCourseFeatures(courseId: number): Promise<CourseFeatureItem[]> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetCourseFeatures(courseId);
+  }
+  const store = await loadStore(true);
+  const course = store.courses.find((c) => c.id === courseId);
+  if (!course) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+  return getCourseFeatureItems(course, { includeInactive: true });
+}
+
+export async function replaceCourseFeatures(
+  courseId: number,
+  rawFeatures: Array<{
+    id?: unknown;
+    title?: unknown;
+    icon?: unknown;
+    sortOrder?: unknown;
+    isActive?: unknown;
+  }>
+): Promise<CourseFeatureItem[]> {
+  if (isSupabaseDatabaseReady()) {
+    const saved = await sbReplaceCourseFeatures(courseId, rawFeatures);
+    invalidatePublicPortalCache();
+    return saved;
+  }
+  const store = await loadStore(true);
+  const idx = store.courses.findIndex((c) => c.id === courseId);
+  if (idx === -1) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+  const normalized = normalizeCourseFeatureItems(rawFeatures, courseId);
+  store.courses[idx] = {
+    ...store.courses[idx],
+    courseFeatures: normalized,
+    features: JSON.stringify(extractActiveFeatureTitles(normalized)),
+    updatedAt: new Date().toISOString(),
+  };
+  await persistStore(store);
+  invalidatePublicPortalCache();
+  return normalized;
+}
+
+export async function createCourseFeature(
+  courseId: number,
+  input: { title: unknown; icon?: unknown; isActive?: unknown; sortOrder?: unknown }
+): Promise<{ feature: CourseFeatureItem; features: CourseFeatureItem[] }> {
+  if (isSupabaseDatabaseReady()) {
+    const result = await sbCreateCourseFeature(courseId, input);
+    invalidatePublicPortalCache();
+    return result;
+  }
+  const title = String(input.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH);
+  if (!title) {
+    throw new RepositoryError('ফিচারের শিরোনাম পূরণ করা আবশ্যক।', 400);
+  }
+  const store = await loadStore(true);
+  const idx = store.courses.findIndex((c) => c.id === courseId);
+  if (idx === -1) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+  const current = getCourseFeatureItems(store.courses[idx], { includeInactive: true });
+  if (current.length >= MAX_COURSE_FEATURES_PER_COURSE) {
+    throw new RepositoryError(
+      `একটি কোর্সে সর্বোচ্চ ${toBengaliNumber(MAX_COURSE_FEATURES_PER_COURSE)}টি ফিচার যুক্ত করা যাবে।`,
+      400
+    );
+  }
+  const maxId = current.reduce((m, item) => Math.max(m, item.id), 0);
+  const nowIso = new Date().toISOString();
+  const desiredOrder =
+    Number.isFinite(Number(input.sortOrder)) && Number(input.sortOrder) >= 1
+      ? Math.min(current.length + 1, Math.round(Number(input.sortOrder)))
+      : current.length + 1;
+  const created: CourseFeatureItem = {
+    id: maxId + 1,
+    courseId,
+    title,
+    icon: normalizeCourseFeatureIcon(input.icon, title, current.length),
+    sortOrder: desiredOrder,
+    isActive: input.isActive === undefined ? true : Boolean(input.isActive),
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+  const nextList = [...current];
+  nextList.splice(desiredOrder - 1, 0, created);
+  const normalized = nextList.map((item, i) => ({ ...item, sortOrder: i + 1 }));
+  store.courses[idx] = {
+    ...store.courses[idx],
+    courseFeatures: normalized,
+    features: JSON.stringify(extractActiveFeatureTitles(normalized)),
+    updatedAt: nowIso,
+  };
+  await persistStore(store);
+  invalidatePublicPortalCache();
+  return {
+    feature: normalized.find((item) => item.id === created.id) || created,
+    features: normalized,
+  };
+}
+
+export async function updateCourseFeature(
+  courseId: number,
+  featureId: number,
+  input: Partial<{ title: unknown; icon: unknown; isActive: unknown; sortOrder: unknown }>
+): Promise<{ feature: CourseFeatureItem; features: CourseFeatureItem[] } | null> {
+  if (isSupabaseDatabaseReady()) {
+    const result = await sbUpdateCourseFeature(courseId, featureId, input);
+    if (result) invalidatePublicPortalCache();
+    return result;
+  }
+  const store = await loadStore(true);
+  const idx = store.courses.findIndex((c) => c.id === courseId);
+  if (idx === -1) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+  const current = getCourseFeatureItems(store.courses[idx], { includeInactive: true });
+  const target = current.find((item) => item.id === featureId);
+  if (!target) return null;
+
+  const nextTitle =
+    input.title !== undefined
+      ? String(input.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH)
+      : target.title;
+  if (!nextTitle) {
+    throw new RepositoryError('ফিচারের শিরোনাম খালি রাখা যাবে না।', 400);
+  }
+  const nowIso = new Date().toISOString();
+  let updatedList = current.map((item) =>
+    item.id === featureId
+      ? {
+          ...item,
+          title: nextTitle,
+          icon:
+            input.icon !== undefined
+              ? normalizeCourseFeatureIcon(input.icon, nextTitle, item.sortOrder - 1)
+              : item.icon,
+          isActive: input.isActive !== undefined ? Boolean(input.isActive) : item.isActive,
+          updatedAt: nowIso,
+        }
+      : item
+  );
+  if (input.sortOrder !== undefined && Number.isFinite(Number(input.sortOrder))) {
+    const targetPos = Math.min(updatedList.length, Math.max(1, Math.round(Number(input.sortOrder))));
+    const moving = updatedList.find((f) => f.id === featureId)!;
+    const others = updatedList.filter((f) => f.id !== featureId);
+    others.splice(targetPos - 1, 0, moving);
+    updatedList = others.map((f, i) => ({ ...f, sortOrder: i + 1 }));
+  }
+
+  store.courses[idx] = {
+    ...store.courses[idx],
+    courseFeatures: updatedList,
+    features: JSON.stringify(extractActiveFeatureTitles(updatedList)),
+    updatedAt: nowIso,
+  };
+  await persistStore(store);
+  invalidatePublicPortalCache();
+  return {
+    feature: updatedList.find((f) => f.id === featureId)!,
+    features: updatedList,
+  };
+}
+
+export async function deleteCourseFeature(
+  courseId: number,
+  featureId: number
+): Promise<{ deleted: boolean; features: CourseFeatureItem[] }> {
+  if (isSupabaseDatabaseReady()) {
+    const result = await sbDeleteCourseFeature(courseId, featureId);
+    if (result.deleted) invalidatePublicPortalCache();
+    return result;
+  }
+  const store = await loadStore(true);
+  const idx = store.courses.findIndex((c) => c.id === courseId);
+  if (idx === -1) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+  const current = getCourseFeatureItems(store.courses[idx], { includeInactive: true });
+  if (!current.some((f) => f.id === featureId)) {
+    return { deleted: false, features: current };
+  }
+  const nextList = current
+    .filter((f) => f.id !== featureId)
+    .map((f, i) => ({ ...f, sortOrder: i + 1 }));
+  store.courses[idx] = {
+    ...store.courses[idx],
+    courseFeatures: nextList,
+    features: JSON.stringify(extractActiveFeatureTitles(nextList)),
+    updatedAt: new Date().toISOString(),
+  };
+  await persistStore(store);
+  invalidatePublicPortalCache();
+  return { deleted: true, features: nextList };
+}
+
+export async function reorderCourseFeatures(
+  courseId: number,
+  orderedIds: number[]
+): Promise<CourseFeatureItem[]> {
+  if (isSupabaseDatabaseReady()) {
+    const reordered = await sbReorderCourseFeatures(courseId, orderedIds);
+    invalidatePublicPortalCache();
+    return reordered;
+  }
+  const store = await loadStore(true);
+  const idx = store.courses.findIndex((c) => c.id === courseId);
+  if (idx === -1) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+  const current = getCourseFeatureItems(store.courses[idx], { includeInactive: true });
+  const byId = new Map(current.map((f) => [f.id, f]));
+  const ordered: CourseFeatureItem[] = [];
+  const seen = new Set<number>();
+  for (const rawId of orderedIds) {
+    const fid = Number(rawId);
+    const match = byId.get(fid);
+    if (match && !seen.has(fid)) {
+      seen.add(fid);
+      ordered.push(match);
+    }
+  }
+  for (const f of current) {
+    if (!seen.has(f.id)) ordered.push(f);
+  }
+  const normalized = ordered.map((f, i) => ({ ...f, sortOrder: i + 1 }));
+  store.courses[idx] = {
+    ...store.courses[idx],
+    courseFeatures: normalized,
+    features: JSON.stringify(extractActiveFeatureTitles(normalized)),
+    updatedAt: new Date().toISOString(),
+  };
+  await persistStore(store);
+  invalidatePublicPortalCache();
+  return normalized;
 }
 
 export async function reorderCoursePosition(

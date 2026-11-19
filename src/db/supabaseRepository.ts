@@ -5,6 +5,8 @@ import {
   Category,
   ClickRecord,
   Course,
+  CourseFeatureIconKey,
+  CourseFeatureItem,
   OfferTimer,
   SiteSettings,
 } from '../types.ts';
@@ -21,6 +23,14 @@ import {
   type SelectorIconLabelsMap,
   type SelectorIconText,
 } from '../lib/selectorIconOrder.ts';
+import {
+  MAX_COURSE_FEATURES_PER_COURSE,
+  MAX_COURSE_FEATURE_TITLE_LENGTH,
+  extractActiveFeatureTitles,
+  getCourseFeatureItems,
+  normalizeCourseFeatureIcon,
+  sortCourseFeatures,
+} from '../lib/courseFeatures.ts';
 import {
   computeDiscountPercent,
   extractExplicitTargetGroupsFromText,
@@ -54,6 +64,186 @@ interface PgErrorLike {
 const FALLBACK_COURSE_ORDER_FILE = path.resolve(process.cwd(), 'data', 'course-order.json');
 const SELECTOR_ICON_CONFIG_BUCKET = 'portal-config';
 const SELECTOR_ICON_CONFIG_OBJECT = 'selector-icon-order.json';
+const COURSE_FEATURES_CONFIG_OBJECT = 'course-features.json';
+
+function isMissingCourseFeaturesTableError(err: unknown): boolean {
+  const pg = (err || {}) as PgErrorLike;
+  const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
+  return (
+    (pg.code === '42P01' ||
+      pg.code === 'PGRST204' ||
+      pg.code === 'PGRST205' ||
+      msg.includes('schema cache') ||
+      msg.includes('does not exist')) &&
+    msg.includes('course_features')
+  );
+}
+
+function mapCourseFeatureRow(row: Record<string, unknown>): CourseFeatureItem {
+  const title = String(row.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH);
+  const sortOrder = Math.max(1, Math.round(Number(row.sort_order ?? 1) || 1));
+  return {
+    id: Number(row.id),
+    courseId: Number(row.course_id),
+    title,
+    icon: normalizeCourseFeatureIcon(row.icon, title, sortOrder - 1),
+    sortOrder,
+    isActive: row.is_active === undefined ? true : Boolean(row.is_active),
+    createdAt: row.created_at ? String(row.created_at) : null,
+    updatedAt: row.updated_at ? String(row.updated_at) : null,
+  };
+}
+
+async function readCourseFeaturesMapFromStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>
+): Promise<Record<string, CourseFeatureItem[]>> {
+  try {
+    const { data, error } = await supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .download(COURSE_FEATURES_CONFIG_OBJECT);
+    if (error || !data) return {};
+    const text = await data.text();
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const result: Record<string, CourseFeatureItem[]> = {};
+    for (const [key, val] of Object.entries(parsed)) {
+      const courseId = Number(key);
+      if (!Number.isInteger(courseId) || courseId <= 0 || !Array.isArray(val)) continue;
+      result[String(courseId)] = sortCourseFeatures(
+        val.map((entry, idx) => {
+          const obj = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
+          const title = String(obj.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH);
+          return {
+            id: Number(obj.id) > 0 ? Number(obj.id) : idx + 1,
+            courseId,
+            title,
+            icon: normalizeCourseFeatureIcon(obj.icon, title, idx),
+            sortOrder: Number(obj.sortOrder) >= 1 ? Math.round(Number(obj.sortOrder)) : idx + 1,
+            isActive: obj.isActive === undefined ? true : Boolean(obj.isActive),
+            createdAt: typeof obj.createdAt === 'string' ? obj.createdAt : null,
+            updatedAt: typeof obj.updatedAt === 'string' ? obj.updatedAt : null,
+          };
+        }).filter((f) => f.title.length > 0)
+      );
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+async function writeCourseFeaturesMapToStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  map: Record<string, CourseFeatureItem[]>
+): Promise<void> {
+  const payload = Buffer.from(JSON.stringify(map, null, 2), 'utf-8');
+  const attemptUpload = async () =>
+    supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .upload(COURSE_FEATURES_CONFIG_OBJECT, payload, {
+        upsert: true,
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: '0',
+      });
+
+  const first = await attemptUpload();
+  if (!first.error) return;
+
+  const errMsg = String(first.error.message || '').toLowerCase();
+  if (errMsg.includes('not found') || errMsg.includes('bucket')) {
+    const { error: createErr } = await supabase.storage.createBucket(
+      SELECTOR_ICON_CONFIG_BUCKET,
+      { public: false }
+    );
+    if (createErr && !String(createErr.message || '').toLowerCase().includes('already exists')) {
+      throw new RepositoryError('কোর্স ফিচার স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
+    }
+    const retry = await attemptUpload();
+    if (!retry.error) return;
+  }
+  throw new RepositoryError('কোর্স ফিচার সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
+}
+
+async function sbFetchCourseFeaturesMap(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  courseIds?: number[]
+): Promise<Map<number, CourseFeatureItem[]>> {
+  let query = supabase
+    .from('course_features')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (courseIds && courseIds.length > 0) {
+    query = query.in('course_id', courseIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    if (isMissingCourseFeaturesTableError(error)) {
+      const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+      const map = new Map<number, CourseFeatureItem[]>();
+      for (const [key, items] of Object.entries(storageMap)) {
+        const cid = Number(key);
+        if (!courseIds || courseIds.includes(cid)) {
+          map.set(cid, sortCourseFeatures(items));
+        }
+      }
+      return map;
+    }
+    throw mapPgError(error, 'কোর্স ফিচার লোড করতে সমস্যা হয়েছে।');
+  }
+
+  const grouped = new Map<number, CourseFeatureItem[]>();
+  for (const row of data || []) {
+    const mapped = mapCourseFeatureRow(row as Record<string, unknown>);
+    if (!mapped.title) continue;
+    const list = grouped.get(mapped.courseId) || [];
+    list.push(mapped);
+    grouped.set(mapped.courseId, list);
+  }
+  for (const [cid, list] of grouped.entries()) {
+    grouped.set(cid, sortCourseFeatures(list));
+  }
+  return grouped;
+}
+
+function attachFeaturesToCourses(
+  courses: Course[],
+  featuresMap: Map<number, CourseFeatureItem[]>,
+  options: { activeOnly: boolean }
+): Course[] {
+  return courses.map((course) => {
+    const stored = featuresMap.get(course.id);
+    if (stored && stored.length > 0) {
+      const list = options.activeOnly ? stored.filter((f) => f.isActive) : stored;
+      return {
+        ...course,
+        courseFeatures: sortCourseFeatures(list),
+      };
+    }
+
+    const legacyItems = getCourseFeatureItems(course, {
+      includeInactive: !options.activeOnly,
+    });
+    return {
+      ...course,
+      courseFeatures: legacyItems,
+    };
+  });
+}
+
+async function sbSyncLegacyCourseFeaturesColumn(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  courseId: number,
+  items: CourseFeatureItem[]
+): Promise<void> {
+  const activeTitles = extractActiveFeatureTitles(items).slice(0, MAX_COURSE_FEATURES_PER_COURSE);
+  await supabase
+    .from('courses')
+    .update({ features: activeTitles })
+    .eq('id', courseId);
+}
 
 function isMissingSelectorIconsError(err: unknown): boolean {
   const pg = (err || {}) as PgErrorLike;
@@ -635,7 +825,12 @@ async function sbFetchPublicPortalBase() {
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
-  const courses = applyCourseOrdering(rawCourseRows, mappedCourses);
+  const orderedCourses = applyCourseOrdering(rawCourseRows, mappedCourses);
+  const featuresMap = await sbFetchCourseFeaturesMap(
+    supabase,
+    orderedCourses.map((c) => c.id)
+  );
+  const courses = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: true });
   const settings = mapSettingsRow((settingsRes.data as Record<string, unknown> | null) || null);
   const allHydratedTimers = hydrateTimerRows(
     (timerRes.data || []) as Array<Record<string, unknown>>,
@@ -654,7 +849,7 @@ async function sbFetchPublicPortalBase() {
 
 const getCachedSupabasePortalBase = unstable_cache(
   async () => sbFetchPublicPortalBase(),
-  ['sb-public-portal-base-v2'],
+  ['sb-public-portal-base-v3'],
   {
     tags: [CACHE_TAG_PUBLIC_PORTAL],
     revalidate: 60,
@@ -707,7 +902,10 @@ export async function sbGetCourseBySlug(slug: string): Promise<Course | null> {
     .maybeSingle();
 
   if (error) throw mapPgError(error, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
-  return data ? mapCourseRow(data as Record<string, unknown>) : null;
+  if (!data) return null;
+  const mapped = mapCourseRow(data as Record<string, unknown>);
+  const featuresMap = await sbFetchCourseFeaturesMap(supabase, [mapped.id]);
+  return attachFeaturesToCourses([mapped], featuresMap, { activeOnly: true })[0] || mapped;
 }
 
 export async function sbGetCourseById(id: number): Promise<Course | null> {
@@ -729,7 +927,8 @@ export async function sbGetCourseById(id: number): Promise<Course | null> {
       mapped.displayOrder = rank + 1;
     }
   }
-  return mapped;
+  const featuresMap = await sbFetchCourseFeaturesMap(supabase, [mapped.id]);
+  return attachFeaturesToCourses([mapped], featuresMap, { activeOnly: false })[0] || mapped;
 }
 
 export async function sbCountCoursesUsingImageUrl(
@@ -837,9 +1036,14 @@ export async function sbGetAdminOverviewData() {
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
-  const allCourses = normalizeContiguousCourseOrder(
+  const orderedCourses = normalizeContiguousCourseOrder(
     applyCourseOrdering(rawCourseRows, mappedCourses)
   );
+  const featuresMap = await sbFetchCourseFeaturesMap(
+    supabase,
+    orderedCourses.map((c) => c.id)
+  );
+  const allCourses = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: false });
   const recentClicks = (clicksRes.data || []).map((r) =>
     mapClickRow(r as Record<string, unknown>)
   );
@@ -1022,9 +1226,32 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
   }
 
   const created = mapCourseRow(data as Record<string, unknown>);
+  if (Array.isArray(input.courseFeatures)) {
+    created.courseFeatures = await sbReplaceCourseFeatures(created.id, input.courseFeatures);
+  } else {
+    const legacyList = serializeFeaturesForJsonb(input.features);
+    if (legacyList.length > 0) {
+      created.courseFeatures = await sbReplaceCourseFeatures(
+        created.id,
+        legacyList.map((t, idx) => ({
+          title: t,
+          sortOrder: idx + 1,
+          isActive: true,
+        }))
+      );
+    }
+  }
+
   const targetPos = requestedDisplayOrder ?? 1;
   const reordered = await sbReorderCoursePosition(created.id, targetPos);
-  return reordered.find((c) => c.id === created.id) || { ...created, displayOrder: targetPos };
+  const finalCourse = reordered.find((c) => c.id === created.id) || {
+    ...created,
+    displayOrder: targetPos,
+  };
+  return {
+    ...finalCourse,
+    courseFeatures: created.courseFeatures ?? finalCourse.courseFeatures,
+  };
 }
 
 export async function sbUpdateExistingCourse(
@@ -1229,11 +1456,40 @@ export async function sbUpdateExistingCourse(
   }
 
   if (!data) return null;
-  const updated = mapCourseRow(data as Record<string, unknown>);
+  let updated = mapCourseRow(data as Record<string, unknown>);
+
+  if (Array.isArray(input.courseFeatures)) {
+    const savedFeatures = await sbReplaceCourseFeatures(id, input.courseFeatures);
+    updated = {
+      ...updated,
+      courseFeatures: savedFeatures,
+      features: JSON.stringify(extractActiveFeatureTitles(savedFeatures)),
+    };
+  } else if (input.features !== undefined) {
+    const legacyList = serializeFeaturesForJsonb(input.features);
+    const savedFeatures = await sbReplaceCourseFeatures(
+      id,
+      legacyList.map((t, idx) => ({
+        title: t,
+        sortOrder: idx + 1,
+        isActive: true,
+      }))
+    );
+    updated = {
+      ...updated,
+      courseFeatures: savedFeatures,
+    };
+  } else {
+    updated.courseFeatures = existing.courseFeatures;
+  }
 
   if (requestedDisplayOrder !== null && requestedDisplayOrder !== existing.displayOrder) {
     const reordered = await sbReorderCoursePosition(id, requestedDisplayOrder);
-    return reordered.find((c) => c.id === id) || updated;
+    const matched = reordered.find((c) => c.id === id) || updated;
+    return {
+      ...matched,
+      courseFeatures: updated.courseFeatures ?? matched.courseFeatures,
+    };
   }
 
   return updated;
@@ -1420,11 +1676,410 @@ export async function sbDeleteCourseById(
     console.warn('[supabaseRepository] Failed to rebalance course order after delete:', cleanupErr);
   }
 
+  try {
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    if (storageMap[String(id)]) {
+      delete storageMap[String(id)];
+      await writeCourseFeaturesMapToStorage(supabase, storageMap);
+    }
+  } catch {
+    // Ignore optional storage cleanup failure
+  }
+
   return {
     deleted: true,
     found: true,
     previousImageUrl: existing.imageUrl || null,
   };
+}
+
+export async function sbGetCourseFeatures(courseId: number): Promise<CourseFeatureItem[]> {
+  const supabase = getSupabaseAdminClient();
+  const course = await sbGetCourseById(courseId);
+  if (!course) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+  const map = await sbFetchCourseFeaturesMap(supabase, [courseId]);
+  const stored = map.get(courseId);
+  if (stored && stored.length > 0) {
+    return stored;
+  }
+  return getCourseFeatureItems(course, { includeInactive: true });
+}
+
+export async function sbReplaceCourseFeatures(
+  courseId: number,
+  rawFeatures: Array<{
+    id?: unknown;
+    title?: unknown;
+    icon?: unknown;
+    sortOrder?: unknown;
+    isActive?: unknown;
+  }>
+): Promise<CourseFeatureItem[]> {
+  const supabase = getSupabaseAdminClient();
+  const cleanItems = rawFeatures
+    .map((entry, idx) => {
+      const title = String(entry?.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH);
+      if (!title) return null;
+      const rawOrder = Number(entry?.sortOrder);
+      return {
+        title,
+        icon: normalizeCourseFeatureIcon(entry?.icon, title, idx),
+        sortOrder: Number.isFinite(rawOrder) && rawOrder >= 1 ? Math.round(rawOrder) : idx + 1,
+        isActive: entry?.isActive === undefined ? true : Boolean(entry.isActive),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .slice(0, MAX_COURSE_FEATURES_PER_COURSE)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((item, idx) => ({ ...item, sortOrder: idx + 1 }));
+
+  const { error: delErr } = await supabase
+    .from('course_features')
+    .delete()
+    .eq('course_id', courseId);
+
+  if (delErr) {
+    if (isMissingCourseFeaturesTableError(delErr)) {
+      const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+      const nowIso = new Date().toISOString();
+      const storedItems: CourseFeatureItem[] = cleanItems.map((item, idx) => ({
+        id: idx + 1,
+        courseId,
+        title: item.title,
+        icon: item.icon,
+        sortOrder: idx + 1,
+        isActive: item.isActive,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      }));
+      storageMap[String(courseId)] = storedItems;
+      await writeCourseFeaturesMapToStorage(supabase, storageMap);
+      await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, storedItems);
+      return storedItems;
+    }
+    throw mapPgError(delErr, 'কোর্স ফিচার সংরক্ষণ করতে সমস্যা হয়েছে।');
+  }
+
+  let savedRows: CourseFeatureItem[] = [];
+  if (cleanItems.length > 0) {
+    const insertRows = cleanItems.map((item) => ({
+      course_id: courseId,
+      title: item.title,
+      icon: item.icon,
+      sort_order: item.sortOrder,
+      is_active: item.isActive,
+    }));
+    const { data: inserted, error: insErr } = await supabase
+      .from('course_features')
+      .insert(insertRows)
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (insErr) throw mapPgError(insErr, 'কোর্স ফিচার সংরক্ষণ করতে সমস্যা হয়েছে।');
+    savedRows = sortCourseFeatures(
+      (inserted || []).map((r) => mapCourseFeatureRow(r as Record<string, unknown>))
+    );
+  }
+
+  await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, savedRows);
+  return savedRows;
+}
+
+export async function sbCreateCourseFeature(
+  courseId: number,
+  input: { title: unknown; icon?: unknown; isActive?: unknown; sortOrder?: unknown }
+): Promise<{ feature: CourseFeatureItem; features: CourseFeatureItem[] }> {
+  const supabase = getSupabaseAdminClient();
+  const title = String(input.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH);
+  if (!title) {
+    throw new RepositoryError('ফিচারের শিরোনাম পূরণ করা আবশ্যক।', 400);
+  }
+
+  const existing = await sbGetCourseFeatures(courseId);
+  if (existing.length >= MAX_COURSE_FEATURES_PER_COURSE) {
+    throw new RepositoryError(
+      `একটি কোর্সে সর্বোচ্চ ${toBengaliNumber(MAX_COURSE_FEATURES_PER_COURSE)}টি ফিচার যুক্ত করা যাবে।`,
+      400
+    );
+  }
+
+  const icon = normalizeCourseFeatureIcon(input.icon, title, existing.length);
+  const isActive = input.isActive === undefined ? true : Boolean(input.isActive);
+  const desiredOrder =
+    Number.isFinite(Number(input.sortOrder)) && Number(input.sortOrder) >= 1
+      ? Math.min(existing.length + 1, Math.round(Number(input.sortOrder)))
+      : existing.length + 1;
+
+  const { data: tableCheck, error: tableErr } = await supabase
+    .from('course_features')
+    .select('id')
+    .eq('course_id', courseId)
+    .limit(1);
+
+  if (tableErr && isMissingCourseFeaturesTableError(tableErr)) {
+    const nowIso = new Date().toISOString();
+    const maxId = existing.reduce((m, f) => Math.max(m, f.id), 0);
+    const created: CourseFeatureItem = {
+      id: maxId + 1,
+      courseId,
+      title,
+      icon,
+      sortOrder: desiredOrder,
+      isActive,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    const nextList = [...existing];
+    nextList.splice(desiredOrder - 1, 0, created);
+    const normalized = nextList.map((item, idx) => ({ ...item, sortOrder: idx + 1 }));
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    storageMap[String(courseId)] = normalized;
+    await writeCourseFeaturesMapToStorage(supabase, storageMap);
+    await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, normalized);
+    return {
+      feature: normalized.find((f) => f.id === created.id) || created,
+      features: normalized,
+    };
+  }
+
+  // If course previously only had legacy JSONB features, seed them into table first so order & IDs remain stable
+  if (!tableErr && (!tableCheck || tableCheck.length === 0) && existing.length > 0) {
+    await sbReplaceCourseFeatures(courseId, existing);
+  }
+
+  const { data: inserted, error: insErr } = await supabase
+    .from('course_features')
+    .insert({
+      course_id: courseId,
+      title,
+      icon,
+      sort_order: existing.length + 1,
+      is_active: isActive,
+    })
+    .select('*')
+    .single();
+
+  if (insErr) throw mapPgError(insErr, 'ফিচার যোগ করতে সমস্যা হয়েছে।');
+  const createdRow = mapCourseFeatureRow(inserted as Record<string, unknown>);
+
+  let allFeatures = await sbGetCourseFeatures(courseId);
+  if (desiredOrder < allFeatures.length) {
+    const reorderedIds = allFeatures.filter((f) => f.id !== createdRow.id).map((f) => f.id);
+    reorderedIds.splice(desiredOrder - 1, 0, createdRow.id);
+    allFeatures = await sbReorderCourseFeatures(courseId, reorderedIds);
+  } else {
+    await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, allFeatures);
+  }
+
+  return {
+    feature: allFeatures.find((f) => f.id === createdRow.id) || createdRow,
+    features: allFeatures,
+  };
+}
+
+export async function sbUpdateCourseFeature(
+  courseId: number,
+  featureId: number,
+  input: Partial<{ title: unknown; icon: unknown; isActive: unknown; sortOrder: unknown }>
+): Promise<{ feature: CourseFeatureItem; features: CourseFeatureItem[] } | null> {
+  const supabase = getSupabaseAdminClient();
+  const currentList = await sbGetCourseFeatures(courseId);
+  const target = currentList.find((f) => f.id === featureId);
+  if (!target) return null;
+
+  const nextTitle =
+    input.title !== undefined
+      ? String(input.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH)
+      : target.title;
+  if (!nextTitle) {
+    throw new RepositoryError('ফিচারের শিরোনাম খালি রাখা যাবে না।', 400);
+  }
+  const nextIcon =
+    input.icon !== undefined
+      ? normalizeCourseFeatureIcon(input.icon, nextTitle, target.sortOrder - 1)
+      : target.icon;
+  const nextActive = input.isActive !== undefined ? Boolean(input.isActive) : target.isActive;
+
+  const { data: tableCheck, error: tableErr } = await supabase
+    .from('course_features')
+    .select('id')
+    .eq('course_id', courseId)
+    .limit(1);
+
+  if (tableErr && isMissingCourseFeaturesTableError(tableErr)) {
+    const nowIso = new Date().toISOString();
+    let updatedList = currentList.map((f) =>
+      f.id === featureId
+        ? { ...f, title: nextTitle, icon: nextIcon, isActive: nextActive, updatedAt: nowIso }
+        : f
+    );
+    if (input.sortOrder !== undefined && Number.isFinite(Number(input.sortOrder))) {
+      const targetPos = Math.min(updatedList.length, Math.max(1, Math.round(Number(input.sortOrder))));
+      const moving = updatedList.find((f) => f.id === featureId)!;
+      const others = updatedList.filter((f) => f.id !== featureId);
+      others.splice(targetPos - 1, 0, moving);
+      updatedList = others.map((f, idx) => ({ ...f, sortOrder: idx + 1 }));
+    }
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    storageMap[String(courseId)] = updatedList;
+    await writeCourseFeaturesMapToStorage(supabase, storageMap);
+    await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, updatedList);
+    return {
+      feature: updatedList.find((f) => f.id === featureId)!,
+      features: updatedList,
+    };
+  }
+
+  // Ensure legacy rows are materialized in DB if updating a course not yet in course_features table
+  let effectiveFeatureId = featureId;
+  if (!tableErr && (!tableCheck || tableCheck.length === 0)) {
+    const seeded = await sbReplaceCourseFeatures(courseId, currentList);
+    const matched = seeded[target.sortOrder - 1];
+    if (matched) effectiveFeatureId = matched.id;
+  }
+
+  const { error: updErr } = await supabase
+    .from('course_features')
+    .update({
+      title: nextTitle,
+      icon: nextIcon,
+      is_active: nextActive,
+    })
+    .eq('id', effectiveFeatureId)
+    .eq('course_id', courseId);
+
+  if (updErr) throw mapPgError(updErr, 'ফিচার আপডেট করতে সমস্যা হয়েছে।');
+
+  let allFeatures = await sbGetCourseFeatures(courseId);
+  if (input.sortOrder !== undefined && Number.isFinite(Number(input.sortOrder))) {
+    const targetPos = Math.min(allFeatures.length, Math.max(1, Math.round(Number(input.sortOrder))));
+    const others = allFeatures.filter((f) => f.id !== effectiveFeatureId).map((f) => f.id);
+    others.splice(targetPos - 1, 0, effectiveFeatureId);
+    allFeatures = await sbReorderCourseFeatures(courseId, others);
+  } else {
+    await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, allFeatures);
+  }
+
+  return {
+    feature: allFeatures.find((f) => f.id === effectiveFeatureId) || target,
+    features: allFeatures,
+  };
+}
+
+export async function sbDeleteCourseFeature(
+  courseId: number,
+  featureId: number
+): Promise<{ deleted: boolean; features: CourseFeatureItem[] }> {
+  const supabase = getSupabaseAdminClient();
+  const currentList = await sbGetCourseFeatures(courseId);
+  const exists = currentList.some((f) => f.id === featureId);
+  if (!exists) {
+    return { deleted: false, features: currentList };
+  }
+
+  const { data: tableCheck, error: tableErr } = await supabase
+    .from('course_features')
+    .select('id')
+    .eq('course_id', courseId)
+    .limit(1);
+
+  if (tableErr && isMissingCourseFeaturesTableError(tableErr)) {
+    const nextList = currentList
+      .filter((f) => f.id !== featureId)
+      .map((f, idx) => ({ ...f, sortOrder: idx + 1 }));
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    storageMap[String(courseId)] = nextList;
+    await writeCourseFeaturesMapToStorage(supabase, storageMap);
+    await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, nextList);
+    return { deleted: true, features: nextList };
+  }
+
+  if (!tableErr && (!tableCheck || tableCheck.length === 0)) {
+    const remaining = currentList.filter((f) => f.id !== featureId);
+    const saved = await sbReplaceCourseFeatures(courseId, remaining);
+    return { deleted: true, features: saved };
+  }
+
+  const { error: delErr } = await supabase
+    .from('course_features')
+    .delete()
+    .eq('id', featureId)
+    .eq('course_id', courseId);
+
+  if (delErr) throw mapPgError(delErr, 'ফিচার মুছে ফেলতে সমস্যা হয়েছে।');
+
+  const remaining = await sbGetCourseFeatures(courseId);
+  if (remaining.length > 0) {
+    const normalized = await sbReorderCourseFeatures(
+      courseId,
+      remaining.map((f) => f.id)
+    );
+    return { deleted: true, features: normalized };
+  }
+  await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, []);
+  return { deleted: true, features: [] };
+}
+
+export async function sbReorderCourseFeatures(
+  courseId: number,
+  orderedIds: number[]
+): Promise<CourseFeatureItem[]> {
+  const supabase = getSupabaseAdminClient();
+  const current = await sbGetCourseFeatures(courseId);
+  if (current.length === 0) return [];
+
+  const byId = new Map(current.map((item) => [item.id, item]));
+  const ordered: CourseFeatureItem[] = [];
+  const seen = new Set<number>();
+
+  for (const rawId of orderedIds) {
+    const id = Number(rawId);
+    const item = byId.get(id);
+    if (item && !seen.has(id)) {
+      seen.add(id);
+      ordered.push(item);
+    }
+  }
+  for (const item of current) {
+    if (!seen.has(item.id)) {
+      ordered.push(item);
+    }
+  }
+
+  const normalized = ordered.map((item, idx) => ({ ...item, sortOrder: idx + 1 }));
+
+  const { data: tableCheck, error: tableErr } = await supabase
+    .from('course_features')
+    .select('id')
+    .eq('course_id', courseId)
+    .limit(1);
+
+  if (tableErr && isMissingCourseFeaturesTableError(tableErr)) {
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    storageMap[String(courseId)] = normalized;
+    await writeCourseFeaturesMapToStorage(supabase, storageMap);
+    await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, normalized);
+    return normalized;
+  }
+
+  if (!tableErr && (!tableCheck || tableCheck.length === 0)) {
+    return sbReplaceCourseFeatures(courseId, normalized);
+  }
+
+  for (const item of normalized) {
+    const { error: updErr } = await supabase
+      .from('course_features')
+      .update({ sort_order: item.sortOrder })
+      .eq('id', item.id)
+      .eq('course_id', courseId);
+    if (updErr) throw mapPgError(updErr, 'ফিচারের ক্রম সংরক্ষণ করতে সমস্যা হয়েছে।');
+  }
+
+  await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, normalized);
+  return normalized;
 }
 
 export async function sbCreateNewCategory(input: Record<string, unknown>): Promise<Category> {

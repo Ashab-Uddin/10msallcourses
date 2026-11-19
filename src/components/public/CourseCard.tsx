@@ -5,7 +5,13 @@ import { Course } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { computeDiscountPercent } from '../../lib/courseValidation.ts';
 import { resolveCourseTargetBatch } from '../../lib/categoryMatching.ts';
-import { X, ArrowRight } from 'lucide-react';
+import {
+  CARD_VISIBLE_COURSE_FEATURES,
+  getCourseFeatureItems,
+} from '../../lib/courseFeatures.ts';
+import { CourseFeatureIcon } from './CourseFeatureIcon.tsx';
+import { CourseDetailsModal } from './CourseDetailsModal.tsx';
+import { X, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 
 export interface CourseCardProps {
   course: Course;
@@ -13,6 +19,8 @@ export interface CourseCardProps {
   onEnrollClick: (course: Course, referrer: string) => void;
   headingLevel?: 'h3' | 'h4';
   compactMobile?: boolean;
+  whatsappNumber?: string;
+  whatsappLink?: string;
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({
@@ -20,9 +28,12 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   onEnrollClick,
   headingLevel = 'h4',
   compactMobile = false,
+  whatsappNumber,
+  whatsappLink,
 }) => {
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [imageRatioMap, setImageRatioMap] = useState<Record<string, number>>({});
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   // Strip downscaling thumbnail query parameters from 10MS CDN to preserve full HD original quality
   const displayImageUrl = course.imageUrl
@@ -107,11 +118,12 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     onEnrollClick(course, referrer);
   };
 
-  const displayDescription =
-    course.description ||
-    (course.categorySlug === 'school'
-      ? '২০২৭ সালে SSC 2027 বোর্ড পরীক্ষায় সেরা রেজাল্ট করার জন্য সঠিক গাইডলাইন ও ফুল রিভিশন প্রোগ্রাম...'
-      : 'প্রথম থেকেই বিষয়ভিত্তিক পূর্ণাঙ্গ A+ প্রস্তুতির গোছানো একাডেমিক প্রোগ্রাম এবং লাইভ গাইডলাইন...');
+  const activeFeatures = getCourseFeatureItems(course, {
+    includeInactive: false,
+    fallbackIfEmpty: !Array.isArray(course.courseFeatures),
+  });
+  const visibleFeatures = activeFeatures.slice(0, CARD_VISIBLE_COURSE_FEATURES);
+  const extraFeaturesCount = Math.max(0, activeFeatures.length - CARD_VISIBLE_COURSE_FEATURES);
 
   const resolvedBatch = resolveCourseTargetBatch(course);
 
@@ -435,16 +447,106 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               </h4>
             )}
 
-            {/* Course Description (2-line clamped) */}
-            <p
-              className={`text-[#6B4C4F] line-clamp-2 ${
-                compactMobile
-                  ? 'text-[10px] sm:text-xs leading-[1.4] sm:leading-relaxed h-[1.85rem] sm:h-[2.1rem] mt-1 sm:mt-1.5 mb-2 sm:mb-3'
-                  : 'text-xs leading-relaxed h-[2.1rem] mt-1.5 mb-3'
+            {/* Structured "এই কোর্সে যা যা থাকছে" Feature List (First 4 Active Features) */}
+            <div
+              className={`${
+                compactMobile ? 'mt-2 sm:mt-2.5 mb-1.5 sm:mb-2' : 'mt-2.5 mb-2'
               }`}
             >
-              {displayDescription}
-            </p>
+              <div
+                className={`font-extrabold text-[#2A0F12] tracking-tight ${
+                  compactMobile
+                    ? 'text-[10.5px] sm:text-xs mb-1 sm:mb-1.5'
+                    : 'text-xs mb-1.5'
+                }`}
+              >
+                এই কোর্সে যা যা থাকছে
+              </div>
+
+              <ul
+                className={`${
+                  compactMobile
+                    ? 'space-y-1 sm:space-y-1.5 min-h-[70px] sm:min-h-[86px]'
+                    : 'space-y-1.5 min-h-[86px]'
+                }`}
+              >
+                {visibleFeatures.length > 0 ? (
+                  visibleFeatures.map((feat, idx) => (
+                    <li
+                      key={`${feat.id}-${idx}`}
+                      title={feat.title}
+                      className={`flex items-start text-[#4A2C2F] ${
+                        compactMobile ? 'gap-1.5 sm:gap-2' : 'gap-2'
+                      }`}
+                    >
+                      <span className="text-[#6B4C4F] shrink-0 mt-0.5">
+                        <CourseFeatureIcon
+                          icon={feat.icon}
+                          className={
+                            compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
+                          }
+                        />
+                      </span>
+                      <span
+                        className={`font-medium line-clamp-1 ${
+                          compactMobile
+                            ? 'text-[10px] sm:text-[11.5px] leading-snug'
+                            : 'text-[11.5px] leading-snug'
+                        }`}
+                      >
+                        {feat.title}
+                      </span>
+                    </li>
+                  ))
+                ) : (
+                  <li
+                    className={`text-[#6B4C4F] italic ${
+                      compactMobile ? 'text-[10px] sm:text-xs' : 'text-xs'
+                    }`}
+                  >
+                    বিস্তারিত জানতে নিচের Show More বাটনে ক্লিক করুন।
+                  </li>
+                )}
+              </ul>
+
+              {/* Dashed Divider & Show More / Show Less Toggle */}
+              <div
+                className={`border-t border-dashed border-rose-200/90 ${
+                  compactMobile ? 'mt-1.5 sm:mt-2 pt-1 sm:pt-1.5' : 'mt-2 pt-1.5'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsDetailsOpen((prev) => !prev)}
+                  aria-expanded={isDetailsOpen}
+                  className={`w-full inline-flex items-center justify-center gap-1 rounded-lg font-bold text-[#b91c1c] hover:text-[#eb1c24] hover:bg-rose-50/80 transition-colors cursor-pointer ${
+                    compactMobile
+                      ? 'text-[10px] sm:text-xs py-1 px-1.5'
+                      : 'text-xs py-1 px-2'
+                  }`}
+                >
+                  <span>{isDetailsOpen ? 'Show Less' : 'Show More'}</span>
+                  {extraFeaturesCount > 0 && !isDetailsOpen && (
+                    <span className="text-[10px] font-semibold text-[#6B4C4F] tabular-nums">
+                      (+আরও {toBengaliNumber(extraFeaturesCount)}টি)
+                    </span>
+                  )}
+                  {isDetailsOpen ? (
+                    <ChevronUp
+                      className={
+                        compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0' : 'w-3.5 h-3.5 shrink-0'
+                      }
+                    />
+                  ) : (
+                    <ChevronDown
+                      className={
+                        compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0' : 'w-3.5 h-3.5 shrink-0'
+                      }
+                    />
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -525,6 +627,17 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             )}
           </div>
         </div>
+
+        {/* Portaled Full Course Details & Discount WhatsApp Modal */}
+        <CourseDetailsModal
+          course={course}
+          features={activeFeatures}
+          isOpen={isDetailsOpen}
+          onClose={() => setIsDetailsOpen(false)}
+          onEnrollClick={onEnrollClick}
+          whatsappNumber={whatsappNumber}
+          whatsappLink={whatsappLink}
+        />
       </div>
   );
 };

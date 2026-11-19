@@ -11,6 +11,27 @@ export interface Category {
 
 export type CourseGroupKey = 'science' | 'business' | 'humanities';
 
+export type CourseFeatureIconKey =
+  | 'tag'
+  | 'laptop'
+  | 'help'
+  | 'file'
+  | 'clock'
+  | 'book'
+  | 'award'
+  | 'check';
+
+export interface CourseFeatureItem {
+  id: number;
+  courseId: number;
+  title: string;
+  icon: CourseFeatureIconKey;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
 export interface Course {
   id: number;
   title: string;
@@ -37,7 +58,8 @@ export interface Course {
   targetGroups?: CourseGroupKey[];
   instructorInfo: string;
   instructorIcon: string;
-  features: string; // JSON string array
+  features: string; // JSON string array (legacy fallback & search index)
+  courseFeatures?: CourseFeatureItem[];
   affiliateUrl: string;
   displayOrder: number;
   isPopular: boolean;

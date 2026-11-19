@@ -1,8 +1,16 @@
 'use client';
 
 import React, { useState, useRef, useMemo } from 'react';
-import { Category, Course } from '../../types.ts';
-import { toBengaliNumber, parseFeatures } from '../../utils/format.ts';
+import { Category, Course, CourseFeatureItem } from '../../types.ts';
+import { toBengaliNumber } from '../../utils/format.ts';
+import {
+  buildDefaultCourseFeatureDrafts,
+  deriveCourseSummaryDescription,
+  extractActiveFeatureTitles,
+  getCourseFeatureItems,
+  MIN_ACTIVE_COURSE_FEATURES,
+  sortCourseFeatures,
+} from '../../lib/courseFeatures.ts';
 import {
   BATCH_KEYWORD_OPTIONS,
   CANONICAL_GROUP_OPTIONS,
@@ -15,6 +23,7 @@ import {
   validateCoursePricing,
 } from '../../lib/courseValidation.ts';
 import { CourseCard } from '../public/CourseCard.tsx';
+import { CourseFeaturesManager } from './CourseFeaturesManager.tsx';
 import {
   ArrowLeft,
   Save,
@@ -41,6 +50,8 @@ interface CourseEditorPageProps {
   categories: Category[];
   onBackToList: () => void;
   onSave: (courseData: any, id?: number) => Promise<void>;
+  whatsappNumber?: string;
+  whatsappLink?: string;
 }
 
 function sanitizePriceInput(raw: string): string {
@@ -102,6 +113,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   categories,
   onBackToList,
   onSave,
+  whatsappNumber,
+  whatsappLink,
 }) => {
   const isEditing = Boolean(course);
 
@@ -119,7 +132,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     (course?.imageFit as any) || 'contain'
   );
   const gradientTheme = course?.gradientTheme || 'red';
-  const fullDescription = course?.fullDescription || '';
+  const [fullDescription, setFullDescription] = useState(course?.fullDescription || '');
   const [originalPriceInput, setOriginalPriceInput] = useState<string>(() =>
     course ? normalizeInitialPrice(course.originalPrice, 0) : ''
   );
@@ -143,13 +156,16 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     return synced.valid ? synced.targetStudents : course.targetStudents || '';
   });
   const [batchError, setBatchError] = useState<string | null>(null);
-  const [featuresList, setFeaturesList] = useState<string[]>(() =>
-    parseFeatures(
-      course?.features ||
-        JSON.stringify(['লাইভ ক্লাস', 'লেকচার শিট', 'মডেল টেস্ট', 'ডেইলি সলভিং'])
-    )
-  );
-  const [newFeatureInput, setNewFeatureInput] = useState('');
+  const [courseFeatures, setCourseFeatures] = useState<CourseFeatureItem[]>(() => {
+    if (course) {
+      const existing = getCourseFeatureItems(course, {
+        includeInactive: true,
+        fallbackIfEmpty: false,
+      });
+      return existing.length > 0 ? existing : buildDefaultCourseFeatureDrafts(course);
+    }
+    return buildDefaultCourseFeatureDrafts();
+  });
   const [isPopular, setIsPopular] = useState<boolean>(course?.isPopular ?? true);
   const [status, setStatus] = useState<'active' | 'closed' | 'inactive'>(() => {
     if (
@@ -439,6 +455,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   // Live Constructed Course object for real-time CourseCard preview
   const previewCourse: Course = useMemo(() => {
     const matchedCategory = categories.find((c) => c.slug === categorySlug);
+    const normalizedFeatures = sortCourseFeatures(courseFeatures);
+    const activeTitles = extractActiveFeatureTitles(normalizedFeatures);
     return {
       id: course?.id || 99999,
       title: title.trim() || 'কোর্স শিরোনাম এখানে প্রদর্শিত হবে',
@@ -455,9 +473,11 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
           ? `${toBengaliNumber(computedDiscountPercent)}% ছাড়`
           : '',
       gradientTheme,
-      description:
-        description.trim() ||
-        'দেশসেরা শিক্ষকদের সাথে লাইভ ক্লাসের মাধ্যমে ঘরে বসেই নাও সেরা প্রস্তুতি...',
+      description: deriveCourseSummaryDescription(
+        description || fullDescription,
+        normalizedFeatures,
+        title
+      ),
       fullDescription: fullDescription.trim() || null,
       imageUrl: imageUrl.trim() || null,
       imageFit,
@@ -474,7 +494,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       targetGroups: targetMetadataSync.valid ? targetMetadataSync.targetGroups : [],
       instructorInfo: course?.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল',
       instructorIcon: course?.instructorIcon || 'school',
-      features: JSON.stringify(featuresList),
+      features: JSON.stringify(activeTitles),
+      courseFeatures: normalizedFeatures,
       affiliateUrl: affiliateUrl.trim(),
       displayOrder: course?.displayOrder || 1,
       isPopular,
@@ -490,7 +511,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     description,
     discountPrice,
     duration,
-    featuresList,
+    courseFeatures,
     fullDescription,
     gradientTheme,
     headerSubtitle,
@@ -520,8 +541,12 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       setError('কোর্সের স্লাগ (Slug) পূরণ করা আবশ্যক।');
       return;
     }
-    if (!description.trim()) {
-      setError('কোর্সের সংক্ষিপ্ত বিবরণ (Short Description) পূরণ করা আবশ্যক।');
+    const normalizedFeatures = sortCourseFeatures(courseFeatures);
+    const activeFeatureTitles = extractActiveFeatureTitles(normalizedFeatures);
+    if (activeFeatureTitles.length < MIN_ACTIVE_COURSE_FEATURES) {
+      setError(
+        `কোর্স কার্ডে প্রদর্শনের জন্য ন্যূনতম ${toBengaliNumber(MIN_ACTIVE_COURSE_FEATURES)}টি সক্রিয় (Published) ফিচার যুক্ত করতে হবে।`
+      );
       return;
     }
     if (!batchValidation.valid) {
@@ -554,6 +579,12 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     const normalizedOriginalPrice = Math.round(originalPrice);
     const normalizedDiscountPrice = Math.round(discountPrice);
     const matchedCat = categories.find((c) => c.slug === categorySlug);
+    const resolvedSummaryDescription = deriveCourseSummaryDescription(
+      description || fullDescription,
+      normalizedFeatures,
+      title
+    );
+
     const payload = {
       title: title.trim(),
       slug: slug.trim(),
@@ -569,7 +600,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
           ? `${toBengaliNumber(computedDiscountPercent)}% ছাড়`
           : '',
       gradientTheme,
-      description: description.trim(),
+      description: resolvedSummaryDescription,
       fullDescription: fullDescription.trim() || null,
       imageUrl: imageUrl.trim() || null,
       imageFit,
@@ -584,7 +615,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
         : dedupeCommaKeywords(targetStudents),
       targetBatch: targetMetadataSync.valid ? targetMetadataSync.targetBatch : null,
       targetGroups: targetMetadataSync.valid ? targetMetadataSync.targetGroups : [],
-      features: featuresList,
+      features: activeFeatureTitles,
+      courseFeatures: normalizedFeatures,
       affiliateUrl: affiliateUrl.trim(),
       isPopular,
       status,
@@ -1223,81 +1255,48 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
             </div>
           </div>
 
-          {/* Card 4: Description & Features */}
-          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
+          {/* Card 4: Dynamic Course Features & Details */}
+          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-5">
             <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <Tag className="w-4 h-4 text-rose-600" />
-              <span>বিবরণ ও মূল ফিচারসমূহ (Description & Features)</span>
+              <span>কোর্স ফিচার ও বিস্তারিত ম্যানেজমেন্ট (Course Features &amp; Details)</span>
             </h3>
 
-            {/* Short Description */}
-            <div>
+            {/* Structured Dynamic Course Features Manager */}
+            <CourseFeaturesManager
+              mode="controlled"
+              items={courseFeatures}
+              onChange={setCourseFeatures}
+              courseId={course?.id}
+              courseTitle={title}
+            />
+
+            {/* Full Course Description (Displayed inside Show More Modal) */}
+            <div className="pt-3 border-t border-rose-100">
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                সংক্ষিপ্ত বিবরণ (Short Description for Card) <span className="text-red-500">*</span>
+                কোর্স সম্পর্কে বিস্তারিত (Show More Modal-এ প্রদর্শিত হবে)
               </label>
               <textarea
-                rows={2}
-                required
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="দেশসেরা অভিজ্ঞ শিক্ষকদের পরিচালিত লাইভ ক্লাস ও পূর্ণাঙ্গ পরীক্ষার প্রস্তুতি নিয়ে এগিয়ে থাকুন..."
+                rows={3}
+                value={fullDescription}
+                onChange={(e) => setFullDescription(e.target.value)}
+                placeholder="কোর্সের সম্পূর্ণ বিবরণ, কারিকুলাম, ক্লাসের সময়সূচি বা বিশেষ নির্দেশনা এখানে লিখুন..."
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
               />
             </div>
 
-            {/* Feature Bullets */}
+            {/* Optional SEO / Search Summary Description */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                কোর্সের মূল সুবিধাসমূহ (Key Features):
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                অতিরিক্ত সংক্ষিপ্ত নোট / SEO সারাংশ (ঐচ্ছিক)
               </label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={newFeatureInput}
-                  onChange={(e) => setNewFeatureInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (newFeatureInput.trim() && !featuresList.includes(newFeatureInput.trim())) {
-                        setFeaturesList([...featuresList, newFeatureInput.trim()]);
-                        setNewFeatureInput('');
-                      }
-                    }
-                  }}
-                  placeholder="যেমন: ১৫০+ লাইভ ক্লাস (লিখে এন্টার চাপুন)"
-                  className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200/90 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (newFeatureInput.trim() && !featuresList.includes(newFeatureInput.trim())) {
-                      setFeaturesList([...featuresList, newFeatureInput.trim()]);
-                      setNewFeatureInput('');
-                    }
-                  }}
-                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
-                >
-                  + যোগ করুন
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {featuresList.map((feat, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1.5 bg-rose-50/80 border border-rose-200 text-slate-800 text-xs px-3 py-1 rounded-lg font-bold shadow-2xs"
-                  >
-                    <span>{feat}</span>
-                    <button
-                      type="button"
-                      onClick={() => setFeaturesList(featuresList.filter((_, i) => i !== idx))}
-                      className="text-slate-400 hover:text-red-600 font-bold ml-1 cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-              </div>
+              <textarea
+                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="খালি রাখলে উপরের সক্রিয় ফিচারসমূহ থেকে স্বয়ংক্রিয়ভাবে তৈরি হবে..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
+              />
             </div>
 
             {/* 3-State Course Status (Option 2 Public Visibility Policy) */}
@@ -1389,6 +1388,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
               <div className="w-full max-w-[340px]">
                 <CourseCard
                   course={previewCourse}
+                  whatsappNumber={whatsappNumber}
+                  whatsappLink={whatsappLink}
                   onEnrollClick={() => {
                     const target = affiliateUrl.trim();
                     if (target) {

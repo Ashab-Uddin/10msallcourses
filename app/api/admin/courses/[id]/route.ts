@@ -171,6 +171,17 @@ export async function PUT(
     if (sanitizedBody.status !== undefined) {
       sanitizedBody.status = normalizeCourseStatus(sanitizedBody.status, 'active');
     }
+    if (
+      sanitizedBody.description !== undefined &&
+      !String(sanitizedBody.description || '').trim() &&
+      Array.isArray(sanitizedBody.courseFeatures)
+    ) {
+      sanitizedBody.description = sanitizedBody.courseFeatures
+        .filter((f: { isActive?: boolean; title?: string }) => f?.isActive !== false && f?.title)
+        .slice(0, 3)
+        .map((f: { title?: string }) => String(f.title).trim())
+        .join(' • ');
+    }
 
     const data = await updateExistingCourse(courseId, sanitizedBody);
     if (!data) {

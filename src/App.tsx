@@ -19,6 +19,7 @@ import { ClassSelectorStrip } from './components/public/ClassSelectorStrip.tsx';
 import { GlassAmbientBackdrop } from './components/public/GlassAmbientBackdrop.tsx';
 import { FloatingContactWidget } from './components/public/FloatingContactWidget.tsx';
 import { SiteFooter } from './components/public/SiteFooter.tsx';
+import { SiteContactProvider } from './components/public/SiteContactContext.tsx';
 import { toBengaliNumber } from './utils/format.ts';
 import {
   normalizeSelectorIconLabels,
@@ -799,6 +800,9 @@ export default function App({
 
   if (route.view === 'bookstore') {
     return (
+      <SiteContactProvider
+        value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
+      >
       <div className="relative min-h-screen pb-20 md:pb-0">
         <GlassAmbientBackdrop />
 
@@ -851,11 +855,15 @@ export default function App({
           messengerLink={messengerLink}
         />
       </div>
+      </SiteContactProvider>
     );
   }
 
   if (route.view === 'category') {
     return (
+      <SiteContactProvider
+        value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
+      >
       <div className="relative min-h-screen pb-20 md:pb-0">
         <GlassAmbientBackdrop />
 
@@ -910,11 +918,15 @@ export default function App({
           messengerLink={messengerLink}
         />
       </div>
+      </SiteContactProvider>
     );
   }
 
   if (route.view === 'academic') {
     return (
+      <SiteContactProvider
+        value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
+      >
       <div className="relative min-h-screen pb-20 md:pb-0">
         <GlassAmbientBackdrop />
 
@@ -969,6 +981,7 @@ export default function App({
           messengerLink={messengerLink}
         />
       </div>
+      </SiteContactProvider>
     );
   }
 
@@ -981,15 +994,24 @@ export default function App({
 
   const filteredCourses = courses.filter((c) => {
     const q = searchQuery.toLowerCase().trim();
+    const activeFeatureTitles = Array.isArray(c.courseFeatures)
+      ? c.courseFeatures
+          .filter((f) => f.isActive)
+          .map((f) => f.title)
+          .join(' ')
+          .toLowerCase()
+      : '';
     const matchesSearch =
       !q ||
       c.title.toLowerCase().includes(q) ||
       c.description.toLowerCase().includes(q) ||
+      (c.fullDescription || '').toLowerCase().includes(q) ||
       c.headerTitle.toLowerCase().includes(q) ||
       c.headerSubtitle.toLowerCase().includes(q) ||
       c.categorySlug.toLowerCase().includes(q) ||
       (c.targetStudents || '').toLowerCase().includes(q) ||
-      c.features.toLowerCase().includes(q);
+      c.features.toLowerCase().includes(q) ||
+      activeFeatureTitles.includes(q);
 
     const matchesCategory =
       selectedCategory === 'all' || courseMatchesCategorySlug(c, selectedCategory);
@@ -1012,6 +1034,9 @@ export default function App({
   // =========================================================
 
   return (
+    <SiteContactProvider
+      value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
+    >
     <div className="relative min-h-screen pb-20 md:pb-0">
       <GlassAmbientBackdrop />
 
@@ -1626,5 +1651,6 @@ export default function App({
         messengerLink={messengerLink}
       />
     </div>
+    </SiteContactProvider>
   );
 }
