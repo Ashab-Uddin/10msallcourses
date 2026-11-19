@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Book, BookCategory, BookShelfTheme } from '../../types.ts';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { Book, BookCategory, BookShelfTheme, BookStoreAdminPayload } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
-import { BookEditorPage } from './BookEditorPage.tsx';
-import { BookCard } from '../public/BookCard.tsx';
+import { BookStoreListSkeleton } from './AdminSkeletons.tsx';
 import {
   BookOpen,
   PlusCircle,
@@ -22,12 +22,40 @@ import {
   ExternalLink,
   Link2,
   MousePointerClick,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+
+const BOOKS_PER_PAGE = 12;
+
+const BookEditorPage = dynamic(
+  () => import('./BookEditorPage.tsx').then((m) => m.BookEditorPage),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-strong rounded-3xl p-8 space-y-4 animate-pulse">
+        <div className="h-5 w-48 rounded-lg bg-rose-200/75" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="h-10 rounded-xl bg-rose-100/80" />
+          <div className="h-10 rounded-xl bg-rose-100/80" />
+        </div>
+        <div className="h-28 rounded-2xl bg-rose-100/70" />
+      </div>
+    ),
+  }
+);
+
+const BookCard = dynamic(
+  () => import('../public/BookCard.tsx').then((m) => m.BookCard),
+  { ssr: false }
+);
 
 export type BookAdminSubView = 'add' | 'list' | 'categories';
 
 interface BookStoreAdminManagerProps {
   initialView?: BookAdminSubView;
+  cachedData?: BookStoreAdminPayload | null;
+  onCacheUpdated?: (payload: BookStoreAdminPayload) => void;
   onUnauthorized: () => void;
   onDataMutated: () => void;
   onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
@@ -45,31 +73,40 @@ const SHELF_THEME_OPTIONS: Array<{ value: BookShelfTheme; label: string; dotClas
 
 export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
   initialView = 'add',
+  cachedData = null,
+  onCacheUpdated,
   onUnauthorized,
   onDataMutated,
   onShowToast,
   onStatsChange,
   onOpenPublicBookStore,
 }) => {
+  const hasInitialCacheRef = useRef<boolean>(Boolean(cachedData));
   const [subView, setSubView] = useState<BookAdminSubView>(initialView);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => !cachedData);
   const [error, setError] = useState<string | null>(null);
 
-  const [books, setBooks] = useState<Book[]>([]);
-  const [bookCategories, setBookCategories] = useState<BookCategory[]>([]);
-  const [stats, setStats] = useState({
-    totalBooks: 0,
-    activeBooks: 0,
-    inactiveBooks: 0,
-    featuredBooks: 0,
-    totalCategories: 0,
-  });
+  const [books, setBooks] = useState<Book[]>(() => cachedData?.books || []);
+  const [bookCategories, setBookCategories] = useState<BookCategory[]>(
+    () => cachedData?.bookCategories || []
+  );
+  const [stats, setStats] = useState(
+    () =>
+      cachedData?.stats || {
+        totalBooks: 0,
+        activeBooks: 0,
+        inactiveBooks: 0,
+        featuredBooks: 0,
+        totalCategories: 0,
+      }
+  );
 
-  // Directory filters
+  // Directory filters & pagination
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [busyBookId, setBusyBookId] = useState<number | null>(null);
   const [previewBook, setPreviewBook] = useState<Book | null>(null);
   const [deleteTargetBook, setDeleteTargetBook] = useState<Book | null>(null);
@@ -94,50 +131,63 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
     }
   }
 
-  const fetchBookStoreAdminData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/books', {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (res.status === 401) {
-        onUnauthorized();
-        return;
+  const fetchBookStoreAdminData = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        setLoading(true);
       }
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'বুক স্টোর ডেটা লোড করতে সমস্যা হয়েছে।');
+      setError(null);
+      try {
+        const res = await fetch('/api/admin/books', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (res.status === 401) {
+          onUnauthorized();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || 'বুক স্টোর ডেটা লোড করতে সমস্যা হয়েছে।');
+        }
+
+        const nextBooks: Book[] = Array.isArray(data.books) ? data.books : [];
+        const nextCats: BookCategory[] = Array.isArray(data.bookCategories)
+          ? data.bookCategories
+          : [];
+        const nextStats = data.stats || {
+          totalBooks: nextBooks.length,
+          activeBooks: nextBooks.filter((b) => b.status === 'active').length,
+          inactiveBooks: nextBooks.filter((b) => b.status === 'inactive').length,
+          featuredBooks: nextBooks.filter((b) => b.isFeatured).length,
+          totalCategories: nextCats.length,
+        };
+
+        setBooks(nextBooks);
+        setBookCategories(nextCats);
+        setStats(nextStats);
+        onCacheUpdated?.({
+          books: nextBooks,
+          bookCategories: nextCats,
+          stats: nextStats,
+        });
+        onStatsChange?.({
+          totalBooks: nextStats.totalBooks,
+          activeBooks: nextStats.activeBooks,
+        });
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'বুক স্টোর ডেটা লোড করতে ব্যর্থ হয়েছে।');
+      } finally {
+        setLoading(false);
       }
-
-      const nextBooks: Book[] = Array.isArray(data.books) ? data.books : [];
-      const nextCats: BookCategory[] = Array.isArray(data.bookCategories)
-        ? data.bookCategories
-        : [];
-      const nextStats = data.stats || {
-        totalBooks: nextBooks.length,
-        activeBooks: nextBooks.filter((b) => b.status === 'active').length,
-        inactiveBooks: nextBooks.filter((b) => b.status === 'inactive').length,
-        featuredBooks: nextBooks.filter((b) => b.isFeatured).length,
-        totalCategories: nextCats.length,
-      };
-
-      setBooks(nextBooks);
-      setBookCategories(nextCats);
-      setStats(nextStats);
-      onStatsChange?.({
-        totalBooks: nextStats.totalBooks,
-        activeBooks: nextStats.activeBooks,
-      });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'বুক স্টোর ডেটা লোড করতে ব্যর্থ হয়েছে।');
-    } finally {
-      setLoading(false);
-    }
-  }, [onUnauthorized, onStatsChange]);
+    },
+    [onUnauthorized, onStatsChange, onCacheUpdated]
+  );
 
   useEffect(() => {
+    if (hasInitialCacheRef.current) {
+      return;
+    }
     let cancelled = false;
     const init = async () => {
       await Promise.resolve();
@@ -174,6 +224,13 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
     });
   }, [books, filterStatus, filterCategory, searchQuery]);
 
+  const totalBookPages = Math.max(1, Math.ceil(filteredBooks.length / BOOKS_PER_PAGE));
+  const safeBookPage = Math.min(currentPage, totalBookPages);
+  const paginatedBooks = useMemo(() => {
+    const start = (safeBookPage - 1) * BOOKS_PER_PAGE;
+    return filteredBooks.slice(start, start + BOOKS_PER_PAGE);
+  }, [filteredBooks, safeBookPage]);
+
   // Save (Add / Edit) Book
   const handleSaveBook = async (payload: Record<string, unknown>, id?: number) => {
     const url = id ? `/api/admin/books/${id}` : '/api/admin/books';
@@ -196,7 +253,7 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
       throw new Error(data.error || 'বইটি সংরক্ষণ করতে ব্যর্থ হয়েছে।');
     }
 
-    await fetchBookStoreAdminData();
+    await fetchBookStoreAdminData({ silent: true });
     onDataMutated();
     setEditingBook(null);
     setSubView('list');
@@ -225,7 +282,7 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
       if (!res.ok) {
         throw new Error(data.error || 'স্ট্যাটাস পরিবর্তন করা যায়নি।');
       }
-      await fetchBookStoreAdminData();
+      await fetchBookStoreAdminData({ silent: true });
       onDataMutated();
       onShowToast(
         nextStatus === 'active'
@@ -262,7 +319,7 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
         throw new Error(data.error || 'বইটি মুছে ফেলা যায়নি।');
       }
       setDeleteTargetBook(null);
-      await fetchBookStoreAdminData();
+      await fetchBookStoreAdminData({ silent: true });
       onDataMutated();
       onShowToast(`“${target.title}” সফলভাবে মুছে ফেলা হয়েছে।`, 'success');
     } catch (err: unknown) {
@@ -333,7 +390,7 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
       }
 
       resetCategoryForm();
-      await fetchBookStoreAdminData();
+      await fetchBookStoreAdminData({ silent: true });
       onDataMutated();
       onShowToast(
         editingCategory
@@ -368,7 +425,7 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
       if (editingCategory?.id === cat.id) {
         resetCategoryForm();
       }
-      await fetchBookStoreAdminData();
+      await fetchBookStoreAdminData({ silent: true });
       onDataMutated();
       onShowToast(`“${cat.name}” ক্যাটাগরি মুছে ফেলা হয়েছে।`, 'success');
     } catch (err: unknown) {
@@ -499,7 +556,10 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="বইয়ের নাম, লেখক বা স্লাগ দিয়ে খুঁজুন..."
                 className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm text-slate-800 focus:border-[#eb1c24] outline-none"
               />
@@ -508,7 +568,10 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
             <div className="sm:col-span-4">
               <select
                 value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
+                onChange={(e) => {
+                  setFilterCategory(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm text-slate-800 focus:border-[#eb1c24] outline-none cursor-pointer font-medium"
               >
                 <option value="all">সকল বুক ক্যাটাগরি</option>
@@ -523,7 +586,10 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
             <div className="sm:col-span-3 flex gap-2">
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'inactive')}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value as 'all' | 'active' | 'inactive');
+                  setCurrentPage(1);
+                }}
                 className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm text-slate-800 focus:border-[#eb1c24] outline-none cursor-pointer font-medium"
               >
                 <option value="all">সকল স্ট্যাটাস</option>
@@ -542,10 +608,7 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
           </div>
 
           {loading && books.length === 0 ? (
-            <div className="py-14 text-center space-y-2 text-[#6B4C4F]">
-              <RefreshCw className="w-7 h-7 text-[#eb1c24] animate-spin mx-auto" />
-              <p className="text-xs font-bold">বইয়ের তালিকা লোড হচ্ছে...</p>
-            </div>
+            <BookStoreListSkeleton />
           ) : filteredBooks.length === 0 ? (
             <div className="py-14 text-center space-y-3">
               <BookOpen className="w-10 h-10 text-rose-300 mx-auto" />
@@ -571,7 +634,7 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredBooks.map((book) => {
+              {paginatedBooks.map((book) => {
                 const isBusy = busyBookId === book.id;
                 return (
                   <div
@@ -707,6 +770,35 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
                   </div>
                 );
               })}
+
+              {totalBookPages > 1 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-rose-100/80 text-xs">
+                  <span className="font-semibold text-[#6B4C4F] tabular-nums">
+                    পৃষ্ঠা {toBengaliNumber(safeBookPage)} / {toBengaliNumber(totalBookPages)} · মোট{' '}
+                    {toBengaliNumber(filteredBooks.length)}টি বই
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={safeBookPage <= 1}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200/80 bg-white hover:bg-rose-50 text-[#2A0F12] font-bold transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>আগের</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={safeBookPage >= totalBookPages}
+                      onClick={() => setCurrentPage((p) => Math.min(totalBookPages, p + 1))}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200/80 bg-white hover:bg-rose-50 text-[#2A0F12] font-bold transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                    >
+                      <span>পরবর্তী</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

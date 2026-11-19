@@ -67,6 +67,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+#variable_conflict use_column
 DECLARE
   v_count     INTEGER;
   v_idx       INTEGER;

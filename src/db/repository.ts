@@ -57,6 +57,7 @@ import {
   sbDeleteCourseById,
   sbDeleteCourseFeature,
   sbDeleteOfferTimer,
+  sbGetAdminCoursesList,
   sbGetAdminOverviewData,
   sbGetCourseById,
   sbGetCourseBySlug,
@@ -81,6 +82,7 @@ import {
   sbUpdateOfferTimer,
   sbUpdatePortalSettings,
 } from './supabaseRepository.ts';
+import { getAdminBookStoreData } from './bookRepository.ts';
 
 export {
   RepositoryError,
@@ -431,16 +433,26 @@ export async function recordCourseClick(
   };
 }
 
+export async function getAdminCoursesList(): Promise<Course[]> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetAdminCoursesList();
+  }
+  const store = await loadStore(true);
+  return normalizeContiguousCourseOrder(store.courses);
+}
+
 export async function getAdminOverviewData() {
   if (isSupabaseDatabaseReady()) {
     return sbGetAdminOverviewData();
   }
 
-  const store = await loadStore(true);
+  const [store, bookData] = await Promise.all([
+    loadStore(true),
+    getAdminBookStoreData().catch(() => null),
+  ]);
 
   const allCategories = sortCategoriesByOrder(store.categories);
   const allCourses = normalizeContiguousCourseOrder(store.courses);
-  const recentClicks = store.clicks;
   const currentSettings = store.settings;
 
   const totalCourses = allCourses.length;
@@ -450,7 +462,7 @@ export async function getAdminOverviewData() {
   const inactiveCourses = totalCourses - activeCourses;
   const popularCourses = allCourses.filter((c) => c.isPopular).length;
   const courseClickSum = allCourses.reduce((sum, c) => sum + (c.clickCount || 0), 0);
-  const totalClicks = Math.max(courseClickSum, recentClicks.length);
+  const totalClicks = Math.max(courseClickSum, store.clicks.length);
 
   return {
     stats: {
@@ -463,9 +475,13 @@ export async function getAdminOverviewData() {
       totalClicks,
       totalCategories: allCategories.length,
     },
+    bookStats: {
+      totalBooks: bookData?.stats?.totalBooks ?? 0,
+      activeBooks: bookData?.stats?.activeBooks ?? 0,
+    },
     categories: allCategories,
     courses: allCourses,
-    recentClicks,
+    recentClicks: [] as ClickRecord[],
     settings: currentSettings,
     offerTimers: hydrateOfferTimers(store),
     selectorIconOrder: normalizeSelectorIconOrder(store.selectorIconOrder),

@@ -30,7 +30,7 @@ interface AdminFooterProps {
   activeOfferTimersCount?: number;
 }
 
-export const AdminFooter: React.FC<AdminFooterProps> = ({
+export const AdminFooter: React.FC<AdminFooterProps> = React.memo(({
   onSelectTab,
   onNavigateHome,
   adminName,
@@ -312,4 +312,5 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
       </div>
     </footer>
   );
-};
+});
+AdminFooter.displayName = 'AdminFooter';

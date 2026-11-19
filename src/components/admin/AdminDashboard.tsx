@@ -1,6 +1,10 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+'use client';
+
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import {
+  AdminOverviewData,
+  BookStoreAdminPayload,
   Category,
   ClickRecord,
   Course,
@@ -21,6 +25,7 @@ import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
 import { AdminFooter } from './AdminFooter.tsx';
 import { AdminMobileBottomNav } from './AdminMobileBottomNav.tsx';
+import { AdminDashboardSkeleton } from './AdminSkeletons.tsx';
 
 const CourseEditorPage = dynamic(
   () => import('./CourseEditorPage.tsx').then((m) => m.CourseEditorPage),
@@ -119,11 +124,27 @@ import {
 
 const COURSES_PER_PAGE = 12;
 
+const preloadedTabs = new Set<string>();
+function preloadTabChunk(tab: AdminPageTab): void {
+  if (typeof window === 'undefined' || preloadedTabs.has(tab)) return;
+  preloadedTabs.add(tab);
+  if (tab === 'add_course' || tab === 'course_editor') {
+    void import('./CourseEditorPage.tsx').catch(() => preloadedTabs.delete(tab));
+  } else if (tab === 'book_add' || tab === 'book_store' || tab === 'book_categories') {
+    void import('./BookStoreAdminManager.tsx').catch(() => preloadedTabs.delete(tab));
+  } else if (tab === 'offer_timers') {
+    void import('./OfferTimerManager.tsx').catch(() => preloadedTabs.delete(tab));
+  } else if (tab === 'icon_sort') {
+    void import('./IconSortManager.tsx').catch(() => preloadedTabs.delete(tab));
+  }
+}
+
 interface AdminDashboardProps {
   authToken?: string;
   adminEmail: string;
   adminName: string;
   currentPath?: string;
+  initialData?: AdminOverviewData | null;
   onNavigate?: (path: string) => void;
   onLogout: () => void;
   onDataMutated: () => void;
@@ -149,6 +170,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   adminEmail,
   adminName,
   currentPath = '/admin/overview',
+  initialData = null,
   onNavigate,
   onLogout,
   onDataMutated,
@@ -170,45 +192,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return 'overview';
   };
 
+  const hydratedFromInitialRef = useRef<boolean>(Boolean(initialData));
   const [activeTab, setActiveTab] = useState<AdminPageTab>(() => getTabFromPath(currentPath));
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => !initialData);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [cachedBookStoreData, setCachedBookStoreData] = useState<BookStoreAdminPayload | null>(null);
 
-  // Core Data States
-  const [stats, setStats] = useState({
-    totalCourses: 0,
-    activeCourses: 0,
-    inactiveCourses: 0,
-    closedCourses: 0,
-    hiddenCourses: 0,
-    popularCourses: 0,
-    totalClicks: 0,
-  });
-  const [bookStats, setBookStats] = useState({ totalBooks: 0, activeBooks: 0 });
+  // Core Data States (hydrated synchronously when SSR or login preload supplies initialData)
+  const [stats, setStats] = useState(() => ({
+    totalCourses: initialData?.stats?.totalCourses ?? 0,
+    activeCourses: initialData?.stats?.activeCourses ?? 0,
+    inactiveCourses: initialData?.stats?.inactiveCourses ?? 0,
+    closedCourses: initialData?.stats?.closedCourses ?? 0,
+    hiddenCourses: initialData?.stats?.hiddenCourses ?? 0,
+    popularCourses: initialData?.stats?.popularCourses ?? 0,
+    totalClicks: initialData?.stats?.totalClicks ?? 0,
+  }));
+  const [bookStats, setBookStats] = useState(() => ({
+    totalBooks: initialData?.bookStats?.totalBooks ?? 0,
+    activeBooks: initialData?.bookStats?.activeBooks ?? 0,
+  }));
 
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [recentClicks, setRecentClicks] = useState<ClickRecord[]>([]);
-  const [, setSettings] = useState<SiteSettings | null>(null);
-  const [offerTimers, setOfferTimers] = useState<OfferTimer[]>([]);
-  const [selectorIconOrder, setSelectorIconOrder] = useState<SelectorIconId[]>(() => [
-    ...DEFAULT_SELECTOR_ICON_IDS,
-  ]);
+  const [courses, setCourses] = useState<Course[]>(() => initialData?.courses || []);
+  const [categories, setCategories] = useState<Category[]>(() => initialData?.categories || []);
+  const [recentClicks, setRecentClicks] = useState<ClickRecord[]>(
+    () => initialData?.recentClicks || []
+  );
+  const [, setSettings] = useState<SiteSettings | null>(() => initialData?.settings ?? null);
+  const [offerTimers, setOfferTimers] = useState<OfferTimer[]>(
+    () => initialData?.offerTimers || []
+  );
+  const [selectorIconOrder, setSelectorIconOrder] = useState<SelectorIconId[]>(() =>
+    Array.isArray(initialData?.selectorIconOrder)
+      ? normalizeSelectorIconOrder(initialData.selectorIconOrder)
+      : [...DEFAULT_SELECTOR_ICON_IDS]
+  );
   const [selectorIconLabels, setSelectorIconLabels] = useState<SelectorIconLabelsMap>(() =>
-    cloneDefaultSelectorIconLabels()
+    initialData?.selectorIconLabels && typeof initialData.selectorIconLabels === 'object'
+      ? normalizeSelectorIconLabels(initialData.selectorIconLabels)
+      : cloneDefaultSelectorIconLabels()
   );
   const [storageInfo, setStorageInfo] = useState<{
     backend: string;
     persistentOnVercel: boolean;
     warning?: string;
-  } | null>(null);
-  const [serverNow, setServerNow] = useState<string>('');
-  const [overviewNowMs, setOverviewNowMs] = useState<number>(() => Date.now());
+  } | null>(() => initialData?.storageInfo || null);
+  const [serverNow, setServerNow] = useState<string>(() => initialData?.serverNow || '');
+  const [overviewNowMs, setOverviewNowMs] = useState<number>(() => {
+    if (initialData?.serverNow) {
+      const parsed = new Date(initialData.serverNow).getTime();
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return Date.now();
+  });
 
   // Settings form local state
-  const [siteTitle, setSiteTitle] = useState('');
+  const [siteTitle, setSiteTitle] = useState(() => initialData?.settings?.siteTitle || '');
   const [adminDisplayName, setAdminDisplayName] = useState(
     () => (adminName || 'Site Admin').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Site Admin'
   );
@@ -222,18 +263,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setAdminDisplayName(cleaned);
     setSavedAdminDisplayName(cleaned);
   }
-  const [callNumber, setCallNumber] = useState('');
-  const [whatsappNumber, setWhatsappNumber] = useState('');
-  const [whatsappLink, setWhatsappLink] = useState('');
-  const [messengerLink, setMessengerLink] = useState('');
-  const [heroBadge, setHeroBadge] = useState('');
-  const [heroTitle, setHeroTitle] = useState('');
-  const [heroSubtitle, setHeroSubtitle] = useState('');
-  const [showCountdownTimer, setShowCountdownTimer] = useState(true);
-  const [countdownLabel, setCountdownLabel] = useState('');
-  const [countdownTargetCourse, setCountdownTargetCourse] = useState('all');
-  const [countdownTargetDate, setCountdownTargetDate] = useState('');
-  const [defaultAffiliateRef, setDefaultAffiliateRef] = useState('');
+  const [callNumber, setCallNumber] = useState(
+    () => initialData?.settings?.callNumber || initialData?.settings?.whatsappNumber || ''
+  );
+  const [whatsappNumber, setWhatsappNumber] = useState(
+    () => initialData?.settings?.whatsappNumber || ''
+  );
+  const [whatsappLink, setWhatsappLink] = useState(
+    () => initialData?.settings?.whatsappLink || ''
+  );
+  const [messengerLink, setMessengerLink] = useState(
+    () => initialData?.settings?.messengerLink || 'https://m.me/10minuteschool'
+  );
+  const [heroBadge, setHeroBadge] = useState(() => initialData?.settings?.heroBadge || '');
+  const [heroTitle, setHeroTitle] = useState(() => initialData?.settings?.heroTitle || '');
+  const [heroSubtitle, setHeroSubtitle] = useState(
+    () => initialData?.settings?.heroSubtitle || ''
+  );
+  const [showCountdownTimer, setShowCountdownTimer] = useState(
+    () => initialData?.settings?.showCountdownTimer !== false
+  );
+  const [countdownLabel, setCountdownLabel] = useState(
+    () => initialData?.settings?.countdownLabel || ''
+  );
+  const [countdownTargetCourse, setCountdownTargetCourse] = useState(
+    () => initialData?.settings?.countdownTargetCourse || 'all'
+  );
+  const [countdownTargetDate, setCountdownTargetDate] = useState(
+    () => initialData?.settings?.countdownTargetDate || ''
+  );
+  const [defaultAffiliateRef, setDefaultAffiliateRef] = useState(
+    () => initialData?.settings?.defaultAffiliateRef || ''
+  );
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Course Management Filters & State
@@ -304,122 +365,129 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }
 
-  // Tab switcher with URL pushState
-  const handleTabSwitch = (tab: AdminPageTab) => {
-    setActiveTab(tab);
-    setCurrentPage(1);
-    setMobileSidebarOpen(false);
-    if (tab === 'add_course') setEditingCourse(null);
+  // Tab switcher with URL pushState (memoized so AdminNavbar/Footer/MobileBottomNav stay stable)
+  const handleTabSwitch = useCallback(
+    (tab: AdminPageTab) => {
+      setActiveTab(tab);
+      setCurrentPage(1);
+      setMobileSidebarOpen(false);
+      if (tab === 'add_course') setEditingCourse(null);
 
-    const pathMap: Record<string, string> = {
-      overview: '/admin/overview',
-      all_courses: '/admin/courses',
-      add_course: '/admin/courses/new',
-      active_courses: '/admin/courses/active',
-      inactive_courses: '/admin/courses/inactive',
-      categories: '/admin/categories',
-      book_add: '/admin/books/new',
-      book_store: '/admin/books',
-      book_categories: '/admin/book-categories',
-      offer_timers: '/admin/offer-timers',
-      settings: '/admin/settings',
-      icon_sort: '/admin/settings/icon-sort',
-    };
+      const pathMap: Record<string, string> = {
+        overview: '/admin/overview',
+        all_courses: '/admin/courses',
+        add_course: '/admin/courses/new',
+        active_courses: '/admin/courses/active',
+        inactive_courses: '/admin/courses/inactive',
+        categories: '/admin/categories',
+        book_add: '/admin/books/new',
+        book_store: '/admin/books',
+        book_categories: '/admin/book-categories',
+        offer_timers: '/admin/offer-timers',
+        settings: '/admin/settings',
+        icon_sort: '/admin/settings/icon-sort',
+      };
 
-    const targetPath = pathMap[tab] || '/admin/overview';
-    if (onNavigate) {
-      onNavigate(targetPath);
-    } else if (typeof window !== 'undefined') {
-      window.history.pushState(null, '', targetPath);
-    }
-    if (typeof window !== 'undefined' && window.scrollY > 40) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
+      const targetPath = pathMap[tab] || '/admin/overview';
+      if (onNavigate) {
+        onNavigate(targetPath);
+      } else if (typeof window !== 'undefined') {
+        window.history.pushState(null, '', targetPath);
+      }
+      if (typeof window !== 'undefined' && window.scrollY > 40) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    },
+    [onNavigate]
+  );
 
-  // Fetch Dashboard Overview & Core Data
-  const fetchDashboardData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/overview', {
-        credentials: 'include',
-        cache: 'no-store',
+  const applyOverviewData = useCallback((data: AdminOverviewData) => {
+    setStats({
+      totalCourses: data.stats?.totalCourses ?? 0,
+      activeCourses: data.stats?.activeCourses ?? 0,
+      inactiveCourses: data.stats?.inactiveCourses ?? 0,
+      closedCourses: data.stats?.closedCourses ?? 0,
+      hiddenCourses: data.stats?.hiddenCourses ?? 0,
+      popularCourses: data.stats?.popularCourses ?? 0,
+      totalClicks: data.stats?.totalClicks ?? 0,
+    });
+    if (data.bookStats) {
+      setBookStats({
+        totalBooks: data.bookStats.totalBooks ?? 0,
+        activeBooks: data.bookStats.activeBooks ?? 0,
       });
-      if (handleUnauthorizedResponse(res)) return;
-      if (!res.ok) throw new Error('এডমিন ডেটা লোড করতে ব্যর্থ হয়েছে।');
-
-      const data = await res.json();
-      setStats({
-        totalCourses: data.stats?.totalCourses ?? 0,
-        activeCourses: data.stats?.activeCourses ?? 0,
-        inactiveCourses: data.stats?.inactiveCourses ?? 0,
-        closedCourses: data.stats?.closedCourses ?? 0,
-        hiddenCourses: data.stats?.hiddenCourses ?? 0,
-        popularCourses: data.stats?.popularCourses ?? 0,
-        totalClicks: data.stats?.totalClicks ?? 0,
-      });
-      setCourses(data.courses || []);
-      setCategories(data.categories || []);
-      setRecentClicks(data.recentClicks || []);
-      setOfferTimers(data.offerTimers || []);
-      if (Array.isArray(data.selectorIconOrder)) {
-        setSelectorIconOrder(normalizeSelectorIconOrder(data.selectorIconOrder));
-      }
-      if (data.selectorIconLabels && typeof data.selectorIconLabels === 'object') {
-        setSelectorIconLabels(normalizeSelectorIconLabels(data.selectorIconLabels));
-      }
-      setStorageInfo(data.storageInfo || null);
-      if (data.serverNow) {
-        setServerNow(data.serverNow);
-        const parsedNow = new Date(data.serverNow).getTime();
-        if (Number.isFinite(parsedNow)) {
-          setOverviewNowMs(parsedNow);
-        }
-      } else {
-        setOverviewNowMs(Date.now());
-      }
-
-      if (data.settings) {
-        setSettings(data.settings);
-        setSiteTitle(data.settings.siteTitle || '');
-        setCallNumber(data.settings.callNumber || data.settings.whatsappNumber || '');
-        setWhatsappNumber(data.settings.whatsappNumber || '');
-        setWhatsappLink(data.settings.whatsappLink || '');
-        setMessengerLink(data.settings.messengerLink || 'https://m.me/10minuteschool');
-        setHeroBadge(data.settings.heroBadge || '');
-        setHeroTitle(data.settings.heroTitle || '');
-        setHeroSubtitle(data.settings.heroSubtitle || '');
-        setCountdownLabel(data.settings.countdownLabel || '');
-        setShowCountdownTimer(data.settings.showCountdownTimer !== false);
-        setCountdownTargetCourse(data.settings.countdownTargetCourse || 'all');
-        setCountdownTargetDate(data.settings.countdownTargetDate || '');
-        setDefaultAffiliateRef(data.settings.defaultAffiliateRef || '');
-      }
-      // Non-blocking lightweight fetch for Book Store count badge
-      fetch('/api/admin/books', {
-        credentials: 'include',
-        cache: 'no-store',
-      })
-        .then((bookRes) => (bookRes.ok ? bookRes.json() : null))
-        .then((bookData) => {
-          if (bookData?.stats) {
-            setBookStats({
-              totalBooks: bookData.stats.totalBooks ?? 0,
-              activeBooks: bookData.stats.activeBooks ?? 0,
-            });
-          }
-        })
-        .catch(() => {});
-    } catch (err: any) {
-      console.error('Failed to load admin data:', err);
-      setError(err.message || 'ডেটা লোড করতে ব্যর্থ হয়েছে।');
-    } finally {
-      setLoading(false);
     }
-  }, [handleUnauthorizedResponse]);
+    setCourses(data.courses || []);
+    setCategories(data.categories || []);
+    setRecentClicks(data.recentClicks || []);
+    setOfferTimers(data.offerTimers || []);
+    if (Array.isArray(data.selectorIconOrder)) {
+      setSelectorIconOrder(normalizeSelectorIconOrder(data.selectorIconOrder));
+    }
+    if (data.selectorIconLabels && typeof data.selectorIconLabels === 'object') {
+      setSelectorIconLabels(normalizeSelectorIconLabels(data.selectorIconLabels));
+    }
+    setStorageInfo(data.storageInfo || null);
+    if (data.serverNow) {
+      setServerNow(data.serverNow);
+      const parsedNow = new Date(data.serverNow).getTime();
+      if (Number.isFinite(parsedNow)) {
+        setOverviewNowMs(parsedNow);
+      }
+    } else {
+      setOverviewNowMs(Date.now());
+    }
+
+    if (data.settings) {
+      setSettings(data.settings);
+      setSiteTitle(data.settings.siteTitle || '');
+      setCallNumber(data.settings.callNumber || data.settings.whatsappNumber || '');
+      setWhatsappNumber(data.settings.whatsappNumber || '');
+      setWhatsappLink(data.settings.whatsappLink || '');
+      setMessengerLink(data.settings.messengerLink || 'https://m.me/10minuteschool');
+      setHeroBadge(data.settings.heroBadge || '');
+      setHeroTitle(data.settings.heroTitle || '');
+      setHeroSubtitle(data.settings.heroSubtitle || '');
+      setCountdownLabel(data.settings.countdownLabel || '');
+      setShowCountdownTimer(data.settings.showCountdownTimer !== false);
+      setCountdownTargetCourse(data.settings.countdownTargetCourse || 'all');
+      setCountdownTargetDate(data.settings.countdownTargetDate || '');
+      setDefaultAffiliateRef(data.settings.defaultAffiliateRef || '');
+    }
+  }, []);
+
+  // Fetch Dashboard Overview & Core Data (includes bookStats in single request — zero waterfall)
+  const fetchDashboardData = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const res = await fetch('/api/admin/overview', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (handleUnauthorizedResponse(res)) return;
+        if (!res.ok) throw new Error('এডমিন ডেটা লোড করতে ব্যর্থ হয়েছে।');
+
+        const data = (await res.json()) as AdminOverviewData;
+        applyOverviewData(data);
+      } catch (err: any) {
+        console.error('Failed to load admin data:', err);
+        setError(err.message || 'ডেটা লোড করতে ব্যর্থ হয়েছে।');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleUnauthorizedResponse, applyOverviewData]
+  );
 
   useEffect(() => {
+    // Skip redundant initial fetch when SSR or login response already provided overview data
+    if (hydratedFromInitialRef.current) {
+      return;
+    }
     let cancelled = false;
     const init = async () => {
       await Promise.resolve();
@@ -627,7 +695,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         throw new Error(errorData.error || 'কোর্সটি সংরক্ষণ করা সম্ভব হয়নি।');
       }
 
-      await fetchDashboardData();
+      await fetchDashboardData({ silent: true });
       onDataMutated();
       setEditingCourse(null);
       handleTabSwitch('all_courses');
@@ -725,7 +793,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         throw new Error(errorData.error || 'ক্যাটাগরি সংরক্ষণ করা সম্ভব হয়নি।');
       }
 
-      await fetchDashboardData();
+      await fetchDashboardData({ silent: true });
       onDataMutated();
       setShowCategoryModal(false);
       setEditingCategory(null);
@@ -771,7 +839,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (Array.isArray(data.categories)) {
         setCategories(data.categories);
       } else {
-        await fetchDashboardData();
+        await fetchDashboardData({ silent: true });
       }
       onDataMutated();
       showToast(`"${cat.name}" ক্যাটাগরির প্রদর্শন ক্রম আপডেট হয়েছে।`, 'success');
@@ -903,13 +971,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     await setCountdownVisibility(!showCountdownTimer);
   };
 
-  const handleNavigateHome = () => {
+  const handleNavigateHome = useCallback(() => {
     if (onNavigate) {
       onNavigate('/');
     } else if (typeof window !== 'undefined') {
       window.location.href = '/';
     }
-  };
+  }, [onNavigate]);
+
+  const handleRequestLogout = useCallback(() => {
+    setShowLogoutConfirm(true);
+  }, []);
+
+  const handleOpenPublicBookStore = useCallback(() => {
+    if (onNavigate) {
+      onNavigate('/books');
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/books';
+    }
+  }, [onNavigate]);
+
+  const navbarStats = useMemo(
+    () => ({ ...stats, totalBooks: bookStats.totalBooks }),
+    [stats, bookStats.totalBooks]
+  );
 
   const activeOfferTimersCount = useMemo(
     () =>
@@ -1019,10 +1104,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         activeTab={activeTab}
         onSelectTab={handleTabSwitch}
         onNavigateHome={handleNavigateHome}
-        onRequestLogout={() => setShowLogoutConfirm(true)}
+        onRequestLogout={handleRequestLogout}
         adminName={savedAdminDisplayName}
         adminEmail={adminEmail}
-        stats={{ ...stats, totalBooks: bookStats.totalBooks }}
+        stats={navbarStats}
         categoriesCount={categories.length}
         activeOfferTimersCount={activeOfferTimersCount}
       />
@@ -1053,6 +1138,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleTabSwitch(item.id)}
+                  onMouseEnter={() => preloadTabChunk(item.id)}
+                  onFocus={() => preloadTabChunk(item.id)}
                   className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
                     isActive
                       ? 'bg-rose-50 text-[#eb1c24] border border-rose-200/80 shadow-2xs'
@@ -1107,6 +1194,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => handleTabSwitch(item.id)}
+                      onMouseEnter={() => preloadTabChunk(item.id)}
+                      onFocus={() => preloadTabChunk(item.id)}
                       className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                         isActive
                           ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_8px_22px_-6px_rgba(226,43,43,0.45)]'
@@ -1120,17 +1209,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <span className="truncate">{item.label}</span>
                       </span>
 
-                      {typeof item.badge === 'number' && (
-                        <span
-                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full tabular-nums shrink-0 ${
-                            isActive
-                              ? 'bg-white/20 text-white'
-                              : 'bg-rose-100/80 text-[#b91c1c]'
-                          }`}
-                        >
-                          {toBengaliNumber(item.badge)}
-                        </span>
-                      )}
+                      {typeof item.badge === 'number' &&
+                        (loading && courses.length === 0 ? (
+                          <span
+                            className={`h-4 w-6 rounded-full animate-pulse shrink-0 ${
+                              isActive ? 'bg-white/25' : 'bg-rose-100/90'
+                            }`}
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full tabular-nums shrink-0 ${
+                              isActive
+                                ? 'bg-white/20 text-white'
+                                : 'bg-rose-100/80 text-[#b91c1c]'
+                            }`}
+                          >
+                            {toBengaliNumber(item.badge)}
+                          </span>
+                        ))}
                     </button>
                   </React.Fragment>
                 );
@@ -1164,13 +1261,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   ? 'categories'
                   : 'add'
               }
+              cachedData={cachedBookStoreData}
+              onCacheUpdated={setCachedBookStoreData}
               onUnauthorized={handleBookStoreUnauthorized}
               onDataMutated={onDataMutated}
               onShowToast={showToast}
               onStatsChange={setBookStats}
-              onOpenPublicBookStore={() =>
-                onNavigate ? onNavigate('/books') : (window.location.href = '/books')
-              }
+              onOpenPublicBookStore={handleOpenPublicBookStore}
             />
           ) : error && courses.length === 0 ? (
             <div className="glass-strong rounded-3xl p-8 text-center space-y-3">
@@ -1179,7 +1276,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <p className="text-xs text-[#6B4C4F] max-w-md mx-auto">{error}</p>
               <button
                 type="button"
-                onClick={fetchDashboardData}
+                onClick={() => void fetchDashboardData()}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold shadow-sm cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -1187,10 +1284,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </div>
           ) : loading && courses.length === 0 ? (
-            <div className="py-24 text-center space-y-3 glass-strong rounded-3xl p-8">
-              <RefreshCw className="w-8 h-8 text-[#eb1c24] animate-spin mx-auto" />
-              <p className="text-sm font-bold text-[#6B4C4F]">অ্যাডমিন ড্যাশবোর্ড লোড হচ্ছে...</p>
-            </div>
+            <AdminDashboardSkeleton />
           ) : activeTab === 'course_editor' || activeTab === 'add_course' ? (
             /* ===================================================== */
             /* VIEW 1: DEDICATED ADD / EDIT COURSE PAGE              */
@@ -2581,10 +2675,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <AdminFooter
         onSelectTab={handleTabSwitch}
         onNavigateHome={handleNavigateHome}
-        onRequestLogout={() => setShowLogoutConfirm(true)}
+        onRequestLogout={handleRequestLogout}
         adminName={savedAdminDisplayName}
         adminEmail={adminEmail}
-        stats={{ ...stats, totalBooks: bookStats.totalBooks }}
+        stats={navbarStats}
         categoriesCount={categories.length}
         activeOfferTimersCount={activeOfferTimersCount}
       />
@@ -2594,10 +2688,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         activeTab={activeTab}
         onSelectTab={handleTabSwitch}
         onNavigateHome={handleNavigateHome}
-        onRequestLogout={() => setShowLogoutConfirm(true)}
+        onRequestLogout={handleRequestLogout}
         adminName={savedAdminDisplayName}
         adminEmail={adminEmail}
-        stats={{ ...stats, totalBooks: bookStats.totalBooks }}
+        stats={navbarStats}
         activeOfferTimersCount={activeOfferTimersCount}
       />
 

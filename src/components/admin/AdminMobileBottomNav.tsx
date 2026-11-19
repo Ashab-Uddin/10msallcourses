@@ -48,7 +48,7 @@ const MORE_MENU_TABS: AdminPageTab[] = [
   'icon_sort',
 ];
 
-export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = ({
+export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = React.memo(({
   activeTab,
   onSelectTab,
   onNavigateHome,
@@ -422,4 +422,5 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = ({
       </nav>
     </>
   );
-};
+});
+AdminMobileBottomNav.displayName = 'AdminMobileBottomNav';

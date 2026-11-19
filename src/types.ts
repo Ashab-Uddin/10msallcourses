@@ -154,4 +154,46 @@ export interface Book {
   updatedAt?: string | null;
 }
 
+export interface AdminOverviewStats {
+  totalCourses: number;
+  activeCourses: number;
+  closedCourses: number;
+  hiddenCourses: number;
+  inactiveCourses: number;
+  popularCourses: number;
+  totalClicks: number;
+  totalCategories?: number;
+}
 
+export interface AdminOverviewData {
+  stats: AdminOverviewStats;
+  bookStats?: {
+    totalBooks: number;
+    activeBooks: number;
+  };
+  categories: Category[];
+  courses: Course[];
+  recentClicks?: ClickRecord[];
+  settings: SiteSettings | null;
+  offerTimers: OfferTimer[];
+  selectorIconOrder?: string[];
+  selectorIconLabels?: Record<string, { title?: string; subLabel?: string }>;
+  storageInfo?: {
+    backend: string;
+    persistentOnVercel: boolean;
+    warning?: string;
+  } | null;
+  serverNow?: string;
+}
+
+export interface BookStoreAdminPayload {
+  books: Book[];
+  bookCategories: BookCategory[];
+  stats: {
+    totalBooks: number;
+    activeBooks: number;
+    inactiveBooks: number;
+    featuredBooks: number;
+    totalCategories: number;
+  };
+}

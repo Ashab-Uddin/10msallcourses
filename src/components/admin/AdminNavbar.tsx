@@ -38,7 +38,7 @@ interface AdminNavbarProps {
   activeOfferTimersCount?: number;
 }
 
-export const AdminNavbar: React.FC<AdminNavbarProps> = ({
+export const AdminNavbar: React.FC<AdminNavbarProps> = React.memo(({
   activeTab,
   onSelectTab,
   onNavigateHome,
@@ -461,4 +461,5 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
       )}
     </header>
   );
-};
+});
+AdminNavbar.displayName = 'AdminNavbar';

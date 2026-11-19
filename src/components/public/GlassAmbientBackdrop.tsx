@@ -22,7 +22,7 @@ import {
   Target,
 } from 'lucide-react';
 
-export const GlassAmbientBackdrop: React.FC = () => {
+export const GlassAmbientBackdrop: React.FC = React.memo(() => {
   return (
     <div
       className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none"
@@ -213,4 +213,5 @@ export const GlassAmbientBackdrop: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+GlassAmbientBackdrop.displayName = 'GlassAmbientBackdrop';

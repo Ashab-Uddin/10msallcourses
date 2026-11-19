@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { isSameOriginMutation } from './csrf.ts';
-import { isSupabaseAuthReady } from './supabase/config.ts';
+import { getSupabaseUrl, isSupabaseAuthReady } from './supabase/config.ts';
 import { getSupabaseAdminClient } from './supabase/admin.ts';
 import {
   applyPendingSupabaseCookies,
@@ -9,6 +9,7 @@ import {
   buildSupabaseSessionCookies,
   createSupabaseStatelessAuthClient,
   readSupabaseCookieSession,
+  readSupabaseCookieSessionFromEntries,
   type PendingCookie,
 } from './supabase/server.ts';
 
@@ -17,6 +18,9 @@ export const ADMIN_SESSION_COOKIE = '10ms_admin_session';
 const SESSION_TTL_SECONDS = 12 * 60 * 60; // 12 hours
 const ACCESS_TOKEN_REFRESH_MARGIN_MS = 90 * 1000; // Refresh within 90s of expiry
 const REFRESH_DEDUP_TTL_MS = 25 * 1000; // Reuse rotated session across concurrent requests for 25s
+const JWKS_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const JWKS_FORCE_REFRESH_COOLDOWN_MS = 15 * 1000; // 15 seconds between forced kid-miss refetches
+const ADMIN_ALLOWLIST_CACHE_TTL_MS = 30 * 1000; // 30s active allowlist cache (invalidated immediately on logout/profile update)
 
 interface RefreshSessionOutcome {
   ok: boolean;
@@ -37,8 +41,283 @@ const recentRefreshOutcomes = new Map<
   { outcome: RefreshSessionOutcome; cachedAt: number }
 >();
 
+interface ActiveAdminRecord {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'super_admin';
+}
+
+const activeAdminAllowlistCache = new Map<
+  string,
+  { record: ActiveAdminRecord; cachedAt: number }
+>();
+
+// Tracks explicitly logged-out access tokens until their natural exp so local JWT
+// verification rejects signed-out tokens immediately with zero DB round-trip.
+const revokedAccessTokenHashes = new Map<string, number>();
+
+interface CachedJwksState {
+  url: string;
+  keysByKid: Map<string, crypto.KeyObject>;
+  fallbackKeys: crypto.KeyObject[];
+  fetchedAt: number;
+}
+
+let cachedJwks: CachedJwksState | null = null;
+let inFlightJwksFetch: Promise<CachedJwksState | null> | null = null;
+let lastForcedJwksFetchAt = 0;
+
+function hashTokenValue(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 function hashRefreshToken(refreshToken: string): string {
-  return crypto.createHash('sha256').update(refreshToken).digest('hex');
+  return hashTokenValue(refreshToken);
+}
+
+function markAccessTokenRevoked(accessToken: string, expiresAtSec?: number): void {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const expSec =
+    typeof expiresAtSec === 'number' && expiresAtSec > nowSec
+      ? expiresAtSec
+      : nowSec + 3600;
+  if (revokedAccessTokenHashes.size > 200) {
+    for (const [k, exp] of revokedAccessTokenHashes) {
+      if (exp <= nowSec) revokedAccessTokenHashes.delete(k);
+    }
+  }
+  revokedAccessTokenHashes.set(hashTokenValue(accessToken), expSec);
+}
+
+function isAccessTokenLocallyRevoked(accessToken: string): boolean {
+  if (revokedAccessTokenHashes.size === 0) return false;
+  const key = hashTokenValue(accessToken);
+  const expSec = revokedAccessTokenHashes.get(key);
+  if (expSec === undefined) return false;
+  if (expSec <= Math.floor(Date.now() / 1000)) {
+    revokedAccessTokenHashes.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function invalidateAdminAllowlistCache(userId?: string): void {
+  if (userId) {
+    activeAdminAllowlistCache.delete(userId);
+  } else {
+    activeAdminAllowlistCache.clear();
+  }
+}
+
+async function fetchSupabaseJwks(forceRefresh = false): Promise<CachedJwksState | null> {
+  const baseUrl = getSupabaseUrl().replace(/\/+$/, '');
+  if (!baseUrl) return null;
+
+  const now = Date.now();
+  if (
+    !forceRefresh &&
+    cachedJwks &&
+    cachedJwks.url === baseUrl &&
+    now - cachedJwks.fetchedAt < JWKS_CACHE_TTL_MS
+  ) {
+    return cachedJwks;
+  }
+
+  if (forceRefresh && now - lastForcedJwksFetchAt < JWKS_FORCE_REFRESH_COOLDOWN_MS) {
+    return cachedJwks && cachedJwks.url === baseUrl ? cachedJwks : null;
+  }
+
+  if (inFlightJwksFetch) {
+    return inFlightJwksFetch;
+  }
+
+  if (forceRefresh) {
+    lastForcedJwksFetchAt = now;
+  }
+
+  const fetchPromise = (async (): Promise<CachedJwksState | null> => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(`${baseUrl}/auth/v1/.well-known/jwks.json`, {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
+
+      if (!res.ok) {
+        return cachedJwks && cachedJwks.url === baseUrl ? cachedJwks : null;
+      }
+
+      const json = (await res.json()) as { keys?: Array<Record<string, unknown>> };
+      const rawKeys = Array.isArray(json?.keys) ? json.keys : [];
+      const keysByKid = new Map<string, crypto.KeyObject>();
+      const fallbackKeys: crypto.KeyObject[] = [];
+
+      for (const jwk of rawKeys) {
+        if (jwk.kty !== 'EC' || jwk.crv !== 'P-256') continue;
+        try {
+          const keyObj = crypto.createPublicKey({
+            key: jwk as unknown as crypto.JsonWebKey,
+            format: 'jwk',
+          });
+          if (typeof jwk.kid === 'string' && jwk.kid.trim()) {
+            keysByKid.set(jwk.kid.trim(), keyObj);
+          }
+          fallbackKeys.push(keyObj);
+        } catch {
+          // Ignore malformed individual JWK entries
+        }
+      }
+
+      if (fallbackKeys.length === 0) {
+        return null;
+      }
+
+      cachedJwks = {
+        url: baseUrl,
+        keysByKid,
+        fallbackKeys,
+        fetchedAt: Date.now(),
+      };
+      return cachedJwks;
+    } catch {
+      return cachedJwks && cachedJwks.url === baseUrl ? cachedJwks : null;
+    } finally {
+      inFlightJwksFetch = null;
+    }
+  })();
+
+  inFlightJwksFetch = fetchPromise;
+  return fetchPromise;
+}
+
+type LocalJwtVerifyOutcome =
+  | { status: 'valid'; userId: string; exp: number }
+  | { status: 'invalid' }
+  | { status: 'unsupported' };
+
+async function verifySupabaseAccessTokenLocally(
+  accessToken: string
+): Promise<LocalJwtVerifyOutcome> {
+  if (!accessToken || typeof accessToken !== 'string') {
+    return { status: 'invalid' };
+  }
+
+  if (isAccessTokenLocallyRevoked(accessToken)) {
+    return { status: 'invalid' };
+  }
+
+  const parts = accessToken.split('.');
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+    return { status: 'invalid' };
+  }
+
+  let header: { alg?: unknown; kid?: unknown };
+  let payload: {
+    sub?: unknown;
+    exp?: unknown;
+    nbf?: unknown;
+    iss?: unknown;
+    aud?: unknown;
+  };
+  try {
+    header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  } catch {
+    return { status: 'invalid' };
+  }
+
+  // Only locally verify asymmetric ES256 tokens; non-ES256 tokens fall back cleanly to GoTrue getUser()
+  if (header?.alg !== 'ES256') {
+    return { status: 'unsupported' };
+  }
+
+  const baseUrl = getSupabaseUrl().replace(/\/+$/, '');
+  const expectedIssuer = `${baseUrl}/auth/v1`;
+  const userId = typeof payload?.sub === 'string' ? payload.sub.trim() : '';
+  const exp = typeof payload?.exp === 'number' ? payload.exp : 0;
+  const nbf = typeof payload?.nbf === 'number' ? payload.nbf : 0;
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  if (!userId || exp <= nowSec) {
+    return { status: 'invalid' };
+  }
+  if (nbf > 0 && nbf > nowSec + 30) {
+    return { status: 'invalid' };
+  }
+  if (typeof payload?.iss !== 'string' || payload.iss.replace(/\/+$/, '') !== expectedIssuer) {
+    return { status: 'invalid' };
+  }
+  const audMatches =
+    payload?.aud === 'authenticated' ||
+    (Array.isArray(payload?.aud) && payload.aud.includes('authenticated'));
+  if (!audMatches) {
+    return { status: 'invalid' };
+  }
+
+  const kid = typeof header?.kid === 'string' ? header.kid.trim() : '';
+  let jwks = await fetchSupabaseJwks(false);
+  if (jwks && kid && !jwks.keysByKid.has(kid)) {
+    jwks = await fetchSupabaseJwks(true);
+  }
+  if (!jwks) {
+    return { status: 'unsupported' };
+  }
+
+  const candidates =
+    kid && jwks.keysByKid.has(kid)
+      ? [jwks.keysByKid.get(kid)!]
+      : jwks.fallbackKeys;
+  if (candidates.length === 0) {
+    return { status: 'unsupported' };
+  }
+
+  const signingInput = Buffer.from(`${parts[0]}.${parts[1]}`, 'utf8');
+  const signature = Buffer.from(parts[2], 'base64url');
+  if (signature.length === 0) {
+    return { status: 'invalid' };
+  }
+
+  for (const pubKey of candidates) {
+    try {
+      const ok = crypto.verify(
+        'sha256',
+        signingInput,
+        { key: pubKey, dsaEncoding: 'ieee-p1363' },
+        signature
+      );
+      if (ok) {
+        return { status: 'valid', userId, exp };
+      }
+    } catch {
+      // Try next candidate key if multiple exist
+    }
+  }
+
+  return { status: 'invalid' };
+}
+
+async function verifySupabaseAccessToken(accessToken: string): Promise<{
+  userId: string;
+  exp?: number;
+} | null> {
+  const localResult = await verifySupabaseAccessTokenLocally(accessToken);
+  if (localResult.status === 'valid') {
+    return { userId: localResult.userId, exp: localResult.exp };
+  }
+  if (localResult.status === 'invalid') {
+    return null;
+  }
+
+  // Fallback to Supabase Auth GoTrue verification when token is non-ES256 or JWKS is unavailable
+  const stateless = createSupabaseStatelessAuthClient();
+  const { data, error } = await stateless.auth.getUser(accessToken);
+  if (!error && data.user) {
+    return { userId: data.user.id };
+  }
+  return null;
 }
 
 async function singleFlightRefreshSession(
@@ -323,12 +602,18 @@ export function clearAdminSessionCookie(res: NextResponse, req?: NextRequest): v
   });
 }
 
-async function lookupActiveAdminAllowlist(userId: string): Promise<{
-  userId: string;
-  email: string;
-  displayName: string;
-  role: 'admin' | 'super_admin';
-} | null> {
+async function lookupActiveAdminAllowlist(
+  userId: string,
+  options?: { forceFresh?: boolean }
+): Promise<ActiveAdminRecord | null> {
+  const now = Date.now();
+  if (!options?.forceFresh) {
+    const cached = activeAdminAllowlistCache.get(userId);
+    if (cached && now - cached.cachedAt < ADMIN_ALLOWLIST_CACHE_TTL_MS) {
+      return cached.record;
+    }
+  }
+
   const adminClient = getSupabaseAdminClient();
   const { data, error } = await adminClient
     .from('admin_users')
@@ -338,19 +623,31 @@ async function lookupActiveAdminAllowlist(userId: string): Promise<{
     .maybeSingle();
 
   if (error || !data) {
+    activeAdminAllowlistCache.delete(userId);
     return null;
   }
 
   if (data.role !== 'admin' && data.role !== 'super_admin') {
+    activeAdminAllowlistCache.delete(userId);
     return null;
   }
 
-  return {
+  const record: ActiveAdminRecord = {
     userId: String(data.user_id),
     email: String(data.email),
     displayName: String(data.display_name || 'Site Admin'),
     role: data.role,
   };
+
+  if (activeAdminAllowlistCache.size > 100) {
+    const cutoff = now - ADMIN_ALLOWLIST_CACHE_TTL_MS;
+    for (const [k, v] of activeAdminAllowlistCache) {
+      if (v.cachedAt < cutoff) activeAdminAllowlistCache.delete(k);
+    }
+  }
+  activeAdminAllowlistCache.set(userId, { record, cachedAt: Date.now() });
+
+  return record;
 }
 
 /**
@@ -401,7 +698,11 @@ export async function authenticateAdminLogin(
       };
     }
 
-    const adminRecord = await lookupActiveAdminAllowlist(data.user.id);
+    // Pre-warm JWKS in parallel with the live allowlist lookup so post-login requests verify in <1ms
+    const [adminRecord] = await Promise.all([
+      lookupActiveAdminAllowlist(data.user.id, { forceFresh: true }),
+      fetchSupabaseJwks(false).catch(() => null),
+    ]);
     if (!adminRecord) {
       await getSupabaseAdminClient()
         .auth.admin.signOut(data.session.access_token)
@@ -533,7 +834,6 @@ export async function getAuthenticatedAdminWithCookies(req: NextRequest): Promis
         };
       }
 
-      const stateless = createSupabaseStatelessAuthClient();
       const expiresAtMs =
         typeof session.expires_at === 'number' ? session.expires_at * 1000 : 0;
       const needsRefresh =
@@ -547,9 +847,12 @@ export async function getAuthenticatedAdminWithCookies(req: NextRequest): Promis
       let pendingCookies: PendingCookie[] = [];
 
       if (!needsRefresh) {
-        const { data, error } = await stateless.auth.getUser(session.access_token);
-        if (!error && data.user) {
-          verifiedUserId = data.user.id;
+        const verified = await verifySupabaseAccessToken(session.access_token);
+        if (verified) {
+          verifiedUserId = verified.userId;
+          if (typeof verified.exp === 'number') {
+            verifiedExp = verified.exp;
+          }
         }
       }
 
@@ -661,6 +964,91 @@ export async function authorizeAdminRequest(req: NextRequest): Promise<
   return { ok: true, admin, withSessionCookies };
 }
 
+export type ServerAdminAuthState =
+  | { status: 'authenticated'; admin: AdminSessionPayload }
+  | { status: 'needs_refresh' }
+  | { status: 'unauthenticated' };
+
+/**
+ * Read-only session verification for Next.js Server Components (`app/admin/[[...slug]]/page.tsx`).
+ * Never mutates cookies directly; returns `needs_refresh` if an expired/expiring session
+ * holds a refresh token so the client can invoke `/api/admin/session` once to rotate cookies.
+ */
+export async function getServerAuthenticatedAdminFromCookieEntries(
+  cookieEntries: ReadonlyArray<{ name: string; value: string }>
+): Promise<ServerAdminAuthState> {
+  if (isSupabaseAuthReady()) {
+    try {
+      const { hasCookie, session } = readSupabaseCookieSessionFromEntries(cookieEntries);
+      if (!hasCookie || !session || !session.access_token) {
+        return { status: 'unauthenticated' };
+      }
+
+      const expiresAtMs =
+        typeof session.expires_at === 'number' ? session.expires_at * 1000 : 0;
+      const needsRefresh =
+        expiresAtMs > 0 && expiresAtMs - Date.now() <= ACCESS_TOKEN_REFRESH_MARGIN_MS;
+
+      if (needsRefresh) {
+        return session.refresh_token
+          ? { status: 'needs_refresh' }
+          : { status: 'unauthenticated' };
+      }
+
+      const verified = await verifySupabaseAccessToken(session.access_token);
+      if (!verified) {
+        return session.refresh_token
+          ? { status: 'needs_refresh' }
+          : { status: 'unauthenticated' };
+      }
+
+      const adminRecord = await lookupActiveAdminAllowlist(verified.userId);
+      if (!adminRecord) {
+        return { status: 'unauthenticated' };
+      }
+
+      const nowSec = Math.floor(Date.now() / 1000);
+      const verifiedExp =
+        typeof verified.exp === 'number'
+          ? verified.exp
+          : typeof session.expires_at === 'number'
+          ? session.expires_at
+          : nowSec + SESSION_TTL_SECONDS;
+
+      return {
+        status: 'authenticated',
+        admin: {
+          userId: adminRecord.userId,
+          email: adminRecord.email,
+          name: adminRecord.displayName,
+          role: adminRecord.role,
+          provider: 'supabase',
+          iat: nowSec,
+          exp: verifiedExp,
+        },
+      };
+    } catch {
+      return { status: 'unauthenticated' };
+    }
+  }
+
+  if (isProductionAuthStrict()) {
+    return { status: 'unauthenticated' };
+  }
+
+  const cookieToken = cookieEntries
+    .find((c) => c.name === ADMIN_SESSION_COOKIE)
+    ?.value?.trim();
+  if (!cookieToken) {
+    return { status: 'unauthenticated' };
+  }
+
+  const verified = verifyEnvSessionToken(cookieToken);
+  return verified
+    ? { status: 'authenticated', admin: verified }
+    : { status: 'unauthenticated' };
+}
+
 export async function signOutAdminSession(
   req: NextRequest,
   res: NextResponse
@@ -670,6 +1058,13 @@ export async function signOutAdminSession(
     try {
       const { session } = readSupabaseCookieSession(req);
       if (session?.access_token) {
+        markAccessTokenRevoked(session.access_token, session.expires_at);
+        const userObj = session.user as { id?: unknown } | undefined;
+        if (typeof userObj?.id === 'string' && userObj.id) {
+          invalidateAdminAllowlistCache(userObj.id);
+        } else {
+          invalidateAdminAllowlistCache();
+        }
         await getSupabaseAdminClient()
           .auth.admin.signOut(session.access_token)
           .catch(() => {});
@@ -729,9 +1124,11 @@ export async function updateAdminDisplayName(
       };
     }
 
+    const nextDisplayName = String(data.display_name || cleanName);
+    invalidateAdminAllowlistCache(admin.userId);
     return {
       ok: true,
-      name: String(data.display_name || cleanName),
+      name: nextDisplayName,
     };
   }
 

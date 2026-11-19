@@ -77,10 +77,13 @@ export function getSupabaseStorageKey(): string {
   }
 }
 
+let cachedStatelessAuthClient: SupabaseClient | null = null;
+let cachedStatelessAuthFingerprint = '';
+
 /**
- * Stateless Supabase Auth client (no cookie storage, no `onAuthStateChange` background
- * session recovery/logging). Used for explicit JWT verification (`getUser(jwt)`) and
- * single-flight server-side `refreshSession({ refresh_token })`.
+ * Singleton stateless Supabase Auth client (no cookie storage, no `onAuthStateChange`
+ * background session recovery/logging). Reuses HTTP keep-alive connections across
+ * login, explicit JWT fallback verification (`getUser(jwt)`), and single-flight refresh.
  */
 export function createSupabaseStatelessAuthClient(): SupabaseClient {
   const url = getSupabaseUrl();
@@ -92,13 +95,21 @@ export function createSupabaseStatelessAuthClient(): SupabaseClient {
     );
   }
 
-  return createClient(url, publishableKey, {
+  const fingerprint = `${url}|${publishableKey.slice(0, 12)}|${publishableKey.length}`;
+  if (cachedStatelessAuthClient && cachedStatelessAuthFingerprint === fingerprint) {
+    return cachedStatelessAuthClient;
+  }
+
+  cachedStatelessAuthClient = createClient(url, publishableKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
   });
+  cachedStatelessAuthFingerprint = fingerprint;
+
+  return cachedStatelessAuthClient;
 }
 
 function isSupabaseAuthCookieName(name: string, storageKey: string): boolean {
@@ -145,13 +156,14 @@ function createCookieChunks(key: string, value: string): Array<{ name: string; v
   return chunks.map((chunkVal, i) => ({ name: `${key}.${i}`, value: chunkVal }));
 }
 
-export function readSupabaseCookieSession(req: NextRequest): {
+export function readSupabaseCookieSessionFromEntries(
+  allCookies: ReadonlyArray<{ name: string; value: string }>
+): {
   hasCookie: boolean;
   storageKey: string;
   session: ParsedSupabaseCookieSession | null;
 } {
   const storageKey = getSupabaseStorageKey();
-  const allCookies = req.cookies.getAll();
   const cookieMap = new Map(allCookies.map((c) => [c.name, c.value]));
 
   const hasMatchingCookie = allCookies.some((c) =>
@@ -209,6 +221,14 @@ export function readSupabaseCookieSession(req: NextRequest): {
       session: null,
     };
   }
+}
+
+export function readSupabaseCookieSession(req: NextRequest): {
+  hasCookie: boolean;
+  storageKey: string;
+  session: ParsedSupabaseCookieSession | null;
+} {
+  return readSupabaseCookieSessionFromEntries(req.cookies.getAll());
 }
 
 export function buildSupabaseSessionCookies(

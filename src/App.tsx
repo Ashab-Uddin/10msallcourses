@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef, useSyncExtern
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
+import { AdminOverviewData, Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
 import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
 import { MobileCategoryCarousel } from './components/public/MobileCategoryCarousel.tsx';
@@ -15,6 +15,7 @@ import { AcademicPage, type AcademicLevel } from './components/public/AcademicPa
 import { CategoryPage } from './components/public/CategoryPage.tsx';
 import { BookStorePage } from './components/public/BookStorePage.tsx';
 import { AdminLogin } from './components/admin/AdminLogin.tsx';
+import { AdminSessionVerifyingSkeleton } from './components/admin/AdminSkeletons.tsx';
 import { ClassSelectorStrip } from './components/public/ClassSelectorStrip.tsx';
 import { GlassAmbientBackdrop } from './components/public/GlassAmbientBackdrop.tsx';
 import { FloatingContactWidget } from './components/public/FloatingContactWidget.tsx';
@@ -50,11 +51,7 @@ const AdminDashboard = dynamic(
   () => import('./components/admin/AdminDashboard.tsx').then((m) => m.AdminDashboard),
   {
     ssr: false,
-    loading: () => (
-      <div className="min-h-screen flex items-center justify-center text-sm font-bold text-[#6B4C4F]">
-        অ্যাডমিন ড্যাশবোর্ড লোড হচ্ছে...
-      </div>
-    ),
+    loading: () => <AdminSessionVerifyingSkeleton />,
   }
 );
 
@@ -258,6 +255,7 @@ export default function App({
     email: string;
     name: string;
   } | null>(null);
+  const [adminInitialOverview, setAdminInitialOverview] = useState<AdminOverviewData | null>(null);
   const [adminSessionChecked, setAdminSessionChecked] = useState<boolean>(false);
   const [appToast, setAppToast] = useState<{ message: string; type: 'error' | 'info' } | null>(null);
 
@@ -268,7 +266,7 @@ export default function App({
     }, 4000);
   }, []);
 
-  // Verify admin session against /api/admin/session via HttpOnly cookie
+  // Verify admin session against /api/admin/session via HttpOnly cookie (+ overview in single round-trip)
   useEffect(() => {
     if (route.view !== 'admin_dashboard') return;
     if (adminSession) return;
@@ -276,7 +274,7 @@ export default function App({
     let cancelled = false;
     const verifySession = async () => {
       try {
-        const res = await fetch('/api/admin/session', {
+        const res = await fetch('/api/admin/session?includeOverview=1', {
           credentials: 'include',
           cache: 'no-store',
         });
@@ -285,6 +283,9 @@ export default function App({
         if (res.ok) {
           const data = await res.json();
           if (data?.authenticated) {
+            if (data.initialDashboardData) {
+              setAdminInitialOverview(data.initialDashboardData as AdminOverviewData);
+            }
             setAdminSession({
               email: data.email || '',
               name: data.name || 'Site Admin',
@@ -342,7 +343,10 @@ export default function App({
   }, [currentPathname]);
 
   const handleAdminLogin = useCallback(
-    (email: string, name: string) => {
+    (email: string, name: string, preloadedOverview?: AdminOverviewData | null) => {
+      if (preloadedOverview) {
+        setAdminInitialOverview(preloadedOverview);
+      }
       setAdminSession({ email, name });
       setAdminSessionChecked(true);
       if (!currentPath.startsWith('/admin/') || currentPath === '/admin/login') {
@@ -359,6 +363,7 @@ export default function App({
     }).catch(() => {});
 
     setAdminSession(null);
+    setAdminInitialOverview(null);
     setAdminSessionChecked(true);
     navigate('/');
   }, [navigate]);
@@ -505,9 +510,10 @@ export default function App({
   }, []);
 
   const handleAdminDataMutated = useCallback(() => {
-    void fetchPublicData();
-    void fetchPublicBooks();
-  }, [fetchPublicData, fetchPublicBooks]);
+    // Mark cached public portal & book data stale so it auto-refreshes when returning to public routes
+    portalDataLoadedRef.current = false;
+    bookDataLoadedRef.current = false;
+  }, []);
 
   useEffect(() => {
     // Skip redundant client API fetch if SSR already provided public data or on admin routes
@@ -745,14 +751,7 @@ export default function App({
   if (route.view === 'admin_dashboard') {
     const isVerified = Boolean(adminSession);
     if (!adminSessionChecked && !isVerified) {
-      return (
-        <div className="min-h-screen flex items-center justify-center p-4 text-center">
-          <div className="glass-strong rounded-3xl px-8 py-6 flex flex-col items-center gap-3">
-            <RefreshCw className="w-6 h-6 text-[#eb1c24] animate-spin" />
-            <p className="text-sm font-bold text-[#2A0F12]">অ্যাডমিন সেশন যাচাই করা হচ্ছে...</p>
-          </div>
-        </div>
-      );
+      return <AdminSessionVerifyingSkeleton />;
     }
 
     if (!adminSession) {
@@ -787,6 +786,7 @@ export default function App({
           adminEmail={adminSession.email}
           adminName={adminSession.name}
           currentPath={currentPath}
+          initialData={adminInitialOverview}
           onNavigate={navigate}
           onLogout={handleAdminLogout}
           onDataMutated={handleAdminDataMutated}

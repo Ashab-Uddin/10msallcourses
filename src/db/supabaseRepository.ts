@@ -65,6 +65,25 @@ const FALLBACK_COURSE_ORDER_FILE = path.resolve(process.cwd(), 'data', 'course-o
 const SELECTOR_ICON_CONFIG_BUCKET = 'portal-config';
 const SELECTOR_ICON_CONFIG_OBJECT = 'selector-icon-order.json';
 const COURSE_FEATURES_CONFIG_OBJECT = 'course-features.json';
+const COURSE_FEATURES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
+const COURSE_FEATURES_STORAGE_CACHE_TTL_MS = 30 * 1000;
+
+let courseFeaturesTableMissingUntil = 0;
+let cachedCourseFeaturesStorage: {
+  data: Record<string, CourseFeatureItem[]>;
+  expiresAt: number;
+} | null = null;
+let inFlightCourseFeaturesStorageRead: Promise<Record<string, CourseFeatureItem[]>> | null = null;
+
+function cloneCourseFeaturesStorageMap(
+  map: Record<string, CourseFeatureItem[]>
+): Record<string, CourseFeatureItem[]> {
+  const cloned: Record<string, CourseFeatureItem[]> = {};
+  for (const [key, items] of Object.entries(map)) {
+    cloned[key] = items.map((item) => ({ ...item }));
+  }
+  return cloned;
+}
 
 function isMissingCourseFeaturesTableError(err: unknown): boolean {
   const pg = (err || {}) as PgErrorLike;
@@ -95,40 +114,94 @@ function mapCourseFeatureRow(row: Record<string, unknown>): CourseFeatureItem {
 }
 
 async function readCourseFeaturesMapFromStorage(
-  supabase: ReturnType<typeof getSupabaseAdminClient>
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  options?: { forceFresh?: boolean }
 ): Promise<Record<string, CourseFeatureItem[]>> {
-  try {
-    const { data, error } = await supabase.storage
-      .from(SELECTOR_ICON_CONFIG_BUCKET)
-      .download(COURSE_FEATURES_CONFIG_OBJECT);
-    if (error || !data) return {};
-    const text = await data.text();
-    const parsed = JSON.parse(text) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== 'object') return {};
-    const result: Record<string, CourseFeatureItem[]> = {};
-    for (const [key, val] of Object.entries(parsed)) {
-      const courseId = Number(key);
-      if (!Number.isInteger(courseId) || courseId <= 0 || !Array.isArray(val)) continue;
-      result[String(courseId)] = sortCourseFeatures(
-        val.map((entry, idx) => {
-          const obj = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
-          const title = String(obj.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH);
-          return {
-            id: Number(obj.id) > 0 ? Number(obj.id) : idx + 1,
-            courseId,
-            title,
-            icon: normalizeCourseFeatureIcon(obj.icon, title, idx),
-            sortOrder: Number(obj.sortOrder) >= 1 ? Math.round(Number(obj.sortOrder)) : idx + 1,
-            isActive: obj.isActive === undefined ? true : Boolean(obj.isActive),
-            createdAt: typeof obj.createdAt === 'string' ? obj.createdAt : null,
-            updatedAt: typeof obj.updatedAt === 'string' ? obj.updatedAt : null,
-          };
-        }).filter((f) => f.title.length > 0)
-      );
+  const forceFresh = options?.forceFresh === true;
+  if (
+    !forceFresh &&
+    cachedCourseFeaturesStorage &&
+    cachedCourseFeaturesStorage.expiresAt > Date.now()
+  ) {
+    return cloneCourseFeaturesStorageMap(cachedCourseFeaturesStorage.data);
+  }
+
+  if (!forceFresh && inFlightCourseFeaturesStorageRead) {
+    const shared = await inFlightCourseFeaturesStorageRead;
+    return cloneCourseFeaturesStorageMap(shared);
+  }
+
+  const readPromise = (async (): Promise<Record<string, CourseFeatureItem[]>> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(SELECTOR_ICON_CONFIG_BUCKET)
+        .download(COURSE_FEATURES_CONFIG_OBJECT);
+      if (error || !data) {
+        cachedCourseFeaturesStorage = {
+          data: {},
+          expiresAt: Date.now() + COURSE_FEATURES_STORAGE_CACHE_TTL_MS,
+        };
+        return {};
+      }
+      const text = await data.text();
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      if (!parsed || typeof parsed !== 'object') {
+        cachedCourseFeaturesStorage = {
+          data: {},
+          expiresAt: Date.now() + COURSE_FEATURES_STORAGE_CACHE_TTL_MS,
+        };
+        return {};
+      }
+      const result: Record<string, CourseFeatureItem[]> = {};
+      for (const [key, val] of Object.entries(parsed)) {
+        const courseId = Number(key);
+        if (!Number.isInteger(courseId) || courseId <= 0 || !Array.isArray(val)) continue;
+        result[String(courseId)] = sortCourseFeatures(
+          val
+            .map((entry, idx) => {
+              const obj = (entry && typeof entry === 'object' ? entry : {}) as Record<
+                string,
+                unknown
+              >;
+              const title = String(obj.title || '')
+                .trim()
+                .slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH);
+              return {
+                id: Number(obj.id) > 0 ? Number(obj.id) : idx + 1,
+                courseId,
+                title,
+                icon: normalizeCourseFeatureIcon(obj.icon, title, idx),
+                sortOrder:
+                  Number(obj.sortOrder) >= 1 ? Math.round(Number(obj.sortOrder)) : idx + 1,
+                isActive: obj.isActive === undefined ? true : Boolean(obj.isActive),
+                createdAt: typeof obj.createdAt === 'string' ? obj.createdAt : null,
+                updatedAt: typeof obj.updatedAt === 'string' ? obj.updatedAt : null,
+              };
+            })
+            .filter((f) => f.title.length > 0)
+        );
+      }
+      cachedCourseFeaturesStorage = {
+        data: result,
+        expiresAt: Date.now() + COURSE_FEATURES_STORAGE_CACHE_TTL_MS,
+      };
+      return result;
+    } catch {
+      return {};
     }
-    return result;
-  } catch {
-    return {};
+  })();
+
+  if (!forceFresh) {
+    inFlightCourseFeaturesStorageRead = readPromise;
+  }
+
+  try {
+    const map = await readPromise;
+    return cloneCourseFeaturesStorageMap(map);
+  } finally {
+    if (inFlightCourseFeaturesStorageRead === readPromise) {
+      inFlightCourseFeaturesStorageRead = null;
+    }
   }
 }
 
@@ -147,7 +220,13 @@ async function writeCourseFeaturesMapToStorage(
       });
 
   const first = await attemptUpload();
-  if (!first.error) return;
+  if (!first.error) {
+    cachedCourseFeaturesStorage = {
+      data: cloneCourseFeaturesStorageMap(map),
+      expiresAt: Date.now() + COURSE_FEATURES_STORAGE_CACHE_TTL_MS,
+    };
+    return;
+  }
 
   const errMsg = String(first.error.message || '').toLowerCase();
   if (errMsg.includes('not found') || errMsg.includes('bucket')) {
@@ -159,15 +238,42 @@ async function writeCourseFeaturesMapToStorage(
       throw new RepositoryError('কোর্স ফিচার স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
     }
     const retry = await attemptUpload();
-    if (!retry.error) return;
+    if (!retry.error) {
+      cachedCourseFeaturesStorage = {
+        data: cloneCourseFeaturesStorageMap(map),
+        expiresAt: Date.now() + COURSE_FEATURES_STORAGE_CACHE_TTL_MS,
+      };
+      return;
+    }
   }
   throw new RepositoryError('কোর্স ফিচার সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
+}
+
+function buildCourseFeaturesMapFromStorage(
+  storageMap: Record<string, CourseFeatureItem[]>,
+  courseIds?: number[]
+): Map<number, CourseFeatureItem[]> {
+  const map = new Map<number, CourseFeatureItem[]>();
+  const allowedIds = courseIds && courseIds.length > 0 ? new Set(courseIds) : null;
+  for (const [key, items] of Object.entries(storageMap)) {
+    const cid = Number(key);
+    if (!allowedIds || allowedIds.has(cid)) {
+      map.set(cid, sortCourseFeatures(items));
+    }
+  }
+  return map;
 }
 
 async function sbFetchCourseFeaturesMap(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   courseIds?: number[]
 ): Promise<Map<number, CourseFeatureItem[]>> {
+  // Fast path: skip repeated doomed queries when course_features table is known absent
+  if (Date.now() < courseFeaturesTableMissingUntil) {
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    return buildCourseFeaturesMapFromStorage(storageMap, courseIds);
+  }
+
   let query = supabase
     .from('course_features')
     .select('*')
@@ -181,15 +287,9 @@ async function sbFetchCourseFeaturesMap(
   const { data, error } = await query;
   if (error) {
     if (isMissingCourseFeaturesTableError(error)) {
+      courseFeaturesTableMissingUntil = Date.now() + COURSE_FEATURES_TABLE_MISSING_TTL_MS;
       const storageMap = await readCourseFeaturesMapFromStorage(supabase);
-      const map = new Map<number, CourseFeatureItem[]>();
-      for (const [key, items] of Object.entries(storageMap)) {
-        const cid = Number(key);
-        if (!courseIds || courseIds.includes(cid)) {
-          map.set(cid, sortCourseFeatures(items));
-        }
-      }
-      return map;
+      return buildCourseFeaturesMapFromStorage(storageMap, courseIds);
     }
     throw mapPgError(error, 'কোর্স ফিচার লোড করতে সমস্যা হয়েছে।');
   }
@@ -714,19 +814,6 @@ function mapCourseRow(row: Record<string, unknown>): Course {
   };
 }
 
-function mapClickRow(row: Record<string, unknown>): ClickRecord {
-  return {
-    id: Number(row.id),
-    courseId: Number(row.course_id),
-    courseSlug: String(row.course_slug || ''),
-    courseTitle: String(row.course_title || ''),
-    referrer: row.referrer === null || row.referrer === undefined ? null : String(row.referrer),
-    userAgent:
-      row.user_agent === null || row.user_agent === undefined ? null : String(row.user_agent),
-    clickedAt: String(row.clicked_at || new Date().toISOString()),
-  };
-}
-
 function mapSettingsRow(row: Record<string, unknown> | null): SiteSettings {
   if (!row) {
     return { ...INITIAL_SETTINGS };
@@ -792,28 +879,30 @@ export function getSupabaseStorageInfo(): StorageInfo {
 async function sbFetchPublicPortalBase() {
   const supabase = getSupabaseAdminClient();
 
-  const [catRes, courseRes, settingsRes, timerRes, selectorIconConfig] = await Promise.all([
-    supabase
-      .from('categories')
-      .select('*')
-      .eq('status', 'active')
-      .order('display_order', { ascending: true })
-      .order('id', { ascending: true }),
-    // Approved Option 2: Public visitors see `active` and `closed` courses only; `inactive` is hidden.
-    supabase
-      .from('courses')
-      .select('*')
-      .in('status', ['active', 'closed'])
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false }),
-    supabase.from('website_settings').select('*').eq('id', 1).maybeSingle(),
-    supabase
-      .from('offer_timers')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false }),
-    sbGetSelectorIconConfig(),
-  ]);
+  const [catRes, courseRes, settingsRes, timerRes, selectorIconConfig, featuresMap] =
+    await Promise.all([
+      supabase
+        .from('categories')
+        .select('*')
+        .eq('status', 'active')
+        .order('display_order', { ascending: true })
+        .order('id', { ascending: true }),
+      // Approved Option 2: Public visitors see `active` and `closed` courses only; `inactive` is hidden.
+      supabase
+        .from('courses')
+        .select('*')
+        .in('status', ['active', 'closed'])
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false }),
+      supabase.from('website_settings').select('*').eq('id', 1).maybeSingle(),
+      supabase
+        .from('offer_timers')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false }),
+      sbGetSelectorIconConfig(),
+      sbFetchCourseFeaturesMap(supabase),
+    ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড করতে সমস্যা হয়েছে।');
   if (courseRes.error) throw mapPgError(courseRes.error, 'কোর্স লোড করতে সমস্যা হয়েছে।');
@@ -826,10 +915,6 @@ async function sbFetchPublicPortalBase() {
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
   const orderedCourses = applyCourseOrdering(rawCourseRows, mappedCourses);
-  const featuresMap = await sbFetchCourseFeaturesMap(
-    supabase,
-    orderedCourses.map((c) => c.id)
-  );
   const courses = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: true });
   const settings = mapSettingsRow((settingsRes.data as Record<string, unknown> | null) || null);
   const allHydratedTimers = hydrateTimerRows(
@@ -995,35 +1080,63 @@ export async function sbRecordCourseClick(
   };
 }
 
+export async function sbGetAdminCoursesList(): Promise<Course[]> {
+  const supabase = getSupabaseAdminClient();
+  const [courseRes, featuresMap] = await Promise.all([
+    supabase
+      .from('courses')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }),
+    sbFetchCourseFeaturesMap(supabase),
+  ]);
+
+  if (courseRes.error) throw mapPgError(courseRes.error, 'কোর্স লোড ব্যর্থ হয়েছে।');
+
+  const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
+  const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
+  const orderedCourses = normalizeContiguousCourseOrder(
+    applyCourseOrdering(rawCourseRows, mappedCourses)
+  );
+  return attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: false });
+}
+
 export async function sbGetAdminOverviewData() {
   const supabase = getSupabaseAdminClient();
 
-  const [catRes, courseRes, clicksRes, settingsRes, timerRes, selectorIconConfig] =
-    await Promise.all([
-      supabase
-        .from('categories')
-        .select('*')
-        .order('display_order', { ascending: true })
-        .order('id', { ascending: true }),
-      supabase
-        .from('courses')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false }),
-      supabase
-        .from('click_records')
-        .select('*', { count: 'exact' })
-        .order('clicked_at', { ascending: false })
-        .order('id', { ascending: false })
-        .limit(200),
-      supabase.from('website_settings').select('*').eq('id', 1).maybeSingle(),
-      supabase
-        .from('offer_timers')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false }),
-      sbGetSelectorIconConfig(),
-    ]);
+  // Execute every independent query in a single parallel batch (no sequential waterfalls)
+  const [
+    catRes,
+    courseRes,
+    clicksRes,
+    settingsRes,
+    timerRes,
+    selectorIconConfig,
+    featuresMap,
+    booksRes,
+  ] = await Promise.all([
+    supabase
+      .from('categories')
+      .select('*')
+      .order('display_order', { ascending: true })
+      .order('id', { ascending: true }),
+    supabase
+      .from('courses')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }),
+    // HEAD count only — avoids transferring 200 unused click rows (~17KB+) on every load
+    supabase.from('click_records').select('id', { count: 'exact', head: true }),
+    supabase.from('website_settings').select('*').eq('id', 1).maybeSingle(),
+    supabase
+      .from('offer_timers')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }),
+    sbGetSelectorIconConfig(),
+    sbFetchCourseFeaturesMap(supabase),
+    supabase.from('books').select('status'),
+  ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
   if (courseRes.error) throw mapPgError(courseRes.error, 'কোর্স লোড ব্যর্থ হয়েছে।');
@@ -1039,14 +1152,8 @@ export async function sbGetAdminOverviewData() {
   const orderedCourses = normalizeContiguousCourseOrder(
     applyCourseOrdering(rawCourseRows, mappedCourses)
   );
-  const featuresMap = await sbFetchCourseFeaturesMap(
-    supabase,
-    orderedCourses.map((c) => c.id)
-  );
   const allCourses = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: false });
-  const recentClicks = (clicksRes.data || []).map((r) =>
-    mapClickRow(r as Record<string, unknown>)
-  );
+  const recentClicks: ClickRecord[] = [];
   const currentSettings = mapSettingsRow(
     (settingsRes.data as Record<string, unknown> | null) || null
   );
@@ -1055,6 +1162,15 @@ export async function sbGetAdminOverviewData() {
     allCourses
   );
 
+  let totalBooks = 0;
+  let activeBooks = 0;
+  if (!booksRes.error && Array.isArray(booksRes.data)) {
+    totalBooks = booksRes.data.length;
+    activeBooks = booksRes.data.filter(
+      (b) => String((b as { status?: unknown }).status || '') === 'active'
+    ).length;
+  }
+
   const totalCourses = allCourses.length;
   const activeCourses = allCourses.filter((c) => c.status === 'active').length;
   const closedCourses = allCourses.filter((c) => c.status === 'closed').length;
@@ -1062,7 +1178,7 @@ export async function sbGetAdminOverviewData() {
   const inactiveCourses = totalCourses - activeCourses;
   const popularCourses = allCourses.filter((c) => c.isPopular).length;
   const courseClickSum = allCourses.reduce((sum, c) => sum + (c.clickCount || 0), 0);
-  const totalHistoricalClicks = clicksRes.count ?? recentClicks.length;
+  const totalHistoricalClicks = clicksRes.count ?? 0;
   const totalClicks = Math.max(courseClickSum, totalHistoricalClicks);
 
   return {
@@ -1075,6 +1191,10 @@ export async function sbGetAdminOverviewData() {
       popularCourses,
       totalClicks,
       totalCategories: allCategories.length,
+    },
+    bookStats: {
+      totalBooks,
+      activeBooks,
     },
     categories: allCategories,
     courses: allCourses,
@@ -1689,7 +1809,7 @@ export async function sbDeleteCourseById(
   }
 
   try {
-    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase, { forceFresh: true });
     if (storageMap[String(id)]) {
       delete storageMap[String(id)];
       await writeCourseFeaturesMapToStorage(supabase, storageMap);
@@ -1754,7 +1874,8 @@ export async function sbReplaceCourseFeatures(
 
   if (delErr) {
     if (isMissingCourseFeaturesTableError(delErr)) {
-      const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+      courseFeaturesTableMissingUntil = Date.now() + COURSE_FEATURES_TABLE_MISSING_TTL_MS;
+      const storageMap = await readCourseFeaturesMapFromStorage(supabase, { forceFresh: true });
       const nowIso = new Date().toISOString();
       const storedItems: CourseFeatureItem[] = cleanItems.map((item, idx) => ({
         id: idx + 1,
@@ -1773,6 +1894,8 @@ export async function sbReplaceCourseFeatures(
     }
     throw mapPgError(delErr, 'কোর্স ফিচার সংরক্ষণ করতে সমস্যা হয়েছে।');
   }
+
+  courseFeaturesTableMissingUntil = 0;
 
   let savedRows: CourseFeatureItem[] = [];
   if (cleanItems.length > 0) {
@@ -1847,7 +1970,7 @@ export async function sbCreateCourseFeature(
     const nextList = [...existing];
     nextList.splice(desiredOrder - 1, 0, created);
     const normalized = nextList.map((item, idx) => ({ ...item, sortOrder: idx + 1 }));
-    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase, { forceFresh: true });
     storageMap[String(courseId)] = normalized;
     await writeCourseFeaturesMapToStorage(supabase, storageMap);
     await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, normalized);
@@ -1935,7 +2058,7 @@ export async function sbUpdateCourseFeature(
       others.splice(targetPos - 1, 0, moving);
       updatedList = others.map((f, idx) => ({ ...f, sortOrder: idx + 1 }));
     }
-    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase, { forceFresh: true });
     storageMap[String(courseId)] = updatedList;
     await writeCourseFeaturesMapToStorage(supabase, storageMap);
     await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, updatedList);
@@ -2002,7 +2125,7 @@ export async function sbDeleteCourseFeature(
     const nextList = currentList
       .filter((f) => f.id !== featureId)
       .map((f, idx) => ({ ...f, sortOrder: idx + 1 }));
-    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase, { forceFresh: true });
     storageMap[String(courseId)] = nextList;
     await writeCourseFeaturesMapToStorage(supabase, storageMap);
     await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, nextList);
@@ -2070,7 +2193,7 @@ export async function sbReorderCourseFeatures(
     .limit(1);
 
   if (tableErr && isMissingCourseFeaturesTableError(tableErr)) {
-    const storageMap = await readCourseFeaturesMapFromStorage(supabase);
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase, { forceFresh: true });
     storageMap[String(courseId)] = normalized;
     await writeCourseFeaturesMapToStorage(supabase, storageMap);
     await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, normalized);

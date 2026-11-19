@@ -1,22 +1,37 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import {
   ShieldCheck,
   ArrowLeft,
   LogIn,
+  Loader2,
   AlertCircle,
   CheckCircle2,
   Eye,
   EyeOff,
   Lock,
 } from 'lucide-react';
+import type { AdminOverviewData } from '../../types.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 
 interface AdminLoginProps {
-  onLoginSuccess: (email: string, name: string) => void;
+  onLoginSuccess: (
+    email: string,
+    name: string,
+    initialDashboardData?: AdminOverviewData | null
+  ) => void;
   onBackToSite: () => void;
+}
+
+let dashboardChunkPreloaded = false;
+function preloadAdminDashboardChunk() {
+  if (dashboardChunkPreloaded || typeof window === 'undefined') return;
+  dashboardChunkPreloaded = true;
+  void import('./AdminDashboard.tsx').catch(() => {
+    dashboardChunkPreloaded = false;
+  });
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({
@@ -29,8 +44,15 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Warm up AdminDashboard JS chunk in background while the admin enters credentials
+  useEffect(() => {
+    preloadAdminDashboardChunk();
+  }, []);
+
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     const cleanEmail = email.trim();
     const cleanPassword = password;
 
@@ -41,12 +63,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
 
     setLoading(true);
     setError(null);
+    preloadAdminDashboardChunk();
+
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: cleanPassword,
+          includeOverview: true,
+        }),
       });
 
       const contentType = res.headers.get('content-type') || '';
@@ -57,6 +85,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
         name?: string;
         role?: string;
         provider?: string;
+        initialDashboardData?: AdminOverviewData | null;
       } = {};
       if (contentType.includes('application/json')) {
         data = await res.json().catch(() => ({}));
@@ -81,12 +110,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
       const userEmail = data.email || cleanEmail;
       const userName = data.name || 'Site Admin';
 
-      onLoginSuccess(userEmail, userName);
+      onLoginSuccess(userEmail, userName, data.initialDashboardData ?? null);
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : 'সার্ভারে লগইন করতে সমস্যা হয়েছে।';
       setError(msg);
-    } finally {
       setLoading(false);
     }
   };
@@ -153,8 +181,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onFocus={preloadAdminDashboardChunk}
+                disabled={loading}
                 required
-                className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#eb1c24] transition shadow-2xs font-medium"
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#eb1c24] transition shadow-2xs font-medium disabled:opacity-65"
                 placeholder="admin@yourdomain.com"
               />
             </div>
@@ -173,15 +203,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={preloadAdminDashboardChunk}
+                  disabled={loading}
                   required
-                  className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3.5 pr-10 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#eb1c24] transition shadow-2xs font-mono font-bold"
+                  className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl px-3.5 pr-10 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#eb1c24] transition shadow-2xs font-mono font-bold disabled:opacity-65"
                   placeholder="••••••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
+                  disabled={loading}
                   aria-label={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer disabled:opacity-50"
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -195,10 +228,15 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60 shadow-md shadow-red-500/20"
+              aria-busy={loading}
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-75 shadow-md shadow-red-500/20"
             >
-              <LogIn className="w-4 h-4" />
-              <span>{loading ? 'যাচাই করা হচ্ছে...' : 'সিকিউর লগইন করুন'}</span>
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <LogIn className="w-4 h-4" />
+              )}
+              <span>{loading ? 'লগইন ও ড্যাশবোর্ড প্রস্তুত হচ্ছে...' : 'সিকিউর লগইন করুন'}</span>
             </button>
           </form>
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedAdminWithCookies } from '@/src/lib/adminAuth';
 import { applyPendingSupabaseCookies } from '@/src/lib/supabase/server';
+import { getAdminOverviewData } from '@/src/db/repository';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,14 @@ export async function GET(req: NextRequest) {
     return res;
   }
 
+  const includeOverview = req.nextUrl.searchParams.get('includeOverview') === '1';
+  const initialDashboardData = includeOverview
+    ? await getAdminOverviewData().catch((err) => {
+        console.warn('[admin/session] Preloading overview data failed:', err);
+        return null;
+      })
+    : null;
+
   const res = NextResponse.json(
     {
       authenticated: true,
@@ -26,6 +35,7 @@ export async function GET(req: NextRequest) {
       role: admin.role,
       provider: admin.provider,
       expiresAt: new Date(admin.exp * 1000).toISOString(),
+      ...(initialDashboardData ? { initialDashboardData } : {}),
     },
     {
       headers: { 'Cache-Control': 'private, no-store' },
@@ -34,3 +44,4 @@ export async function GET(req: NextRequest) {
   applyPendingSupabaseCookies(res, pendingCookies, req);
   return res;
 }
+

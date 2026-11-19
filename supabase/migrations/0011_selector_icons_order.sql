@@ -21,19 +21,25 @@ CREATE INDEX IF NOT EXISTS idx_selector_icons_position
   ON public.selector_icons (position ASC);
 
 INSERT INTO public.selector_icons (icon_id, position)
-VALUES
-  ('hsc-26', 1),
-  ('hsc-27', 2),
-  ('hsc-28', 3),
-  ('ssc-27', 4),
-  ('ssc-28', 5),
-  ('class-8', 6),
-  ('class-7', 7),
-  ('class-6', 8),
-  ('class-5', 9),
-  ('book-store', 10),
-  ('skills', 11),
-  ('free-course', 12)
+SELECT v.icon_id, v.position
+FROM (
+  VALUES
+    ('hsc-26', 1),
+    ('hsc-27', 2),
+    ('hsc-28', 3),
+    ('ssc-27', 4),
+    ('ssc-28', 5),
+    ('class-8', 6),
+    ('class-7', 7),
+    ('class-6', 8),
+    ('class-5', 9),
+    ('book-store', 10),
+    ('skills', 11),
+    ('free-course', 12)
+) AS v(icon_id, position)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.selector_icons s WHERE s.icon_id = v.icon_id
+)
 ON CONFLICT (icon_id) DO NOTHING;
 
 DROP TRIGGER IF EXISTS trg_selector_icons_set_updated_at ON public.selector_icons;
@@ -68,13 +74,14 @@ CREATE OR REPLACE FUNCTION public.save_selector_icon_positions(
   p_ordered_ids TEXT[]
 )
 RETURNS TABLE (
-  icon_id  TEXT,
-  position INTEGER
+  icon_id    TEXT,
+  "position" INTEGER
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+#variable_conflict use_column
 DECLARE
   v_count INTEGER;
   v_idx   INTEGER;
@@ -92,13 +99,17 @@ BEGIN
   ORDER BY s.icon_id ASC
   FOR UPDATE;
 
-  -- Upsert contiguous 1..N positions inside transaction (deferrable UNIQUE checks at commit)
+  -- Update contiguous 1..N positions inside transaction (deferrable UNIQUE checks at commit)
   FOR v_idx IN 1..v_count LOOP
     v_id := p_ordered_ids[v_idx];
-    INSERT INTO public.selector_icons (icon_id, position)
-    VALUES (v_id, v_idx)
-    ON CONFLICT (icon_id)
-    DO UPDATE SET position = EXCLUDED.position;
+    UPDATE public.selector_icons
+    SET position = v_idx
+    WHERE icon_id = v_id;
+
+    IF NOT FOUND THEN
+      INSERT INTO public.selector_icons (icon_id, position)
+      VALUES (v_id, v_idx);
+    END IF;
   END LOOP;
 
   RETURN QUERY

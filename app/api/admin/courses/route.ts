@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   RepositoryError,
   createNewCourse,
-  getAdminOverviewData,
+  getAdminCoursesList,
   normalizeCourseStatus,
   parseSafePrice,
 } from '@/src/db/repository';
@@ -33,11 +33,9 @@ export async function GET(req: NextRequest) {
     return auth.response;
   }
   try {
-    const data = await getAdminOverviewData();
+    let courses = await getAdminCoursesList();
     const { searchParams } = req.nextUrl;
     const hasPagination = searchParams.has('page') || searchParams.has('limit');
-
-    let courses = data.courses || [];
 
     const status = searchParams.get('status')?.trim();
     if (status && status !== 'all') {
