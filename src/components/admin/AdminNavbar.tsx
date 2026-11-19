@@ -139,6 +139,11 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
       label: 'Settings',
       icon: <Settings className="w-4 h-4" />,
     },
+    {
+      id: 'icon_sort',
+      label: 'Settings → Icon Sort',
+      icon: <Layers className="w-4 h-4" />,
+    },
   ];
 
   return (
@@ -320,12 +325,16 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
             type="button"
             onClick={() => handleNavClick('settings')}
             className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              activeTab === 'settings' ? activePillClass : inactivePillClass
+              activeTab === 'settings' || activeTab === 'icon_sort'
+                ? activePillClass
+                : inactivePillClass
             }`}
           >
             <Settings
               className={`w-3.5 h-3.5 ${
-                activeTab === 'settings' ? 'text-[#eb1c24]' : 'text-[#6B4C4F]'
+                activeTab === 'settings' || activeTab === 'icon_sort'
+                  ? 'text-[#eb1c24]'
+                  : 'text-[#6B4C4F]'
               }`}
             />
             <span>Settings</span>

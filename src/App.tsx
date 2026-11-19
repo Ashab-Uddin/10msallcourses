@@ -21,6 +21,10 @@ import { FloatingContactWidget } from './components/public/FloatingContactWidget
 import { SiteFooter } from './components/public/SiteFooter.tsx';
 import { toBengaliNumber } from './utils/format.ts';
 import {
+  normalizeSelectorIconOrder,
+  type SelectorIconId,
+} from './lib/selectorIconOrder.ts';
+import {
   CLASS_BENGALI_ORDINALS,
   courseMatchesCategorySlug,
 } from './lib/categoryMatching.ts';
@@ -56,6 +60,7 @@ export interface AppProps {
   initialSettings?: SiteSettings | null;
   initialOfferTimers?: OfferTimer[];
   initialHasOfferTimers?: boolean;
+  initialSelectorIconOrder?: SelectorIconId[];
   initialServerNow?: string;
   initialBookCategories?: BookCategory[];
   initialBooks?: Book[];
@@ -209,6 +214,7 @@ export default function App({
   initialSettings = null,
   initialOfferTimers = [],
   initialHasOfferTimers = false,
+  initialSelectorIconOrder,
   initialServerNow,
   initialBookCategories = [],
   initialBooks = [],
@@ -361,6 +367,9 @@ export default function App({
   const [hasOfferTimers, setHasOfferTimers] = useState<boolean>(
     initialHasOfferTimers || initialOfferTimers.length > 0
   );
+  const [selectorIconOrder, setSelectorIconOrder] = useState<SelectorIconId[]>(() =>
+    normalizeSelectorIconOrder(initialSelectorIconOrder)
+  );
   const [serverNow, setServerNow] = useState<string | undefined>(initialServerNow);
 
   const hasServerPortalProps =
@@ -447,6 +456,9 @@ export default function App({
       }
       if (typeof data.serverNow === 'string' && data.serverNow) {
         setServerNow(data.serverNow);
+      }
+      if (Array.isArray(data.selectorIconOrder)) {
+        setSelectorIconOrder(normalizeSelectorIconOrder(data.selectorIconOrder));
       }
       if (data.settings) {
         setSettings(data.settings);
@@ -1047,7 +1059,11 @@ export default function App({
             </div>
 
             {/* 3D CATEGORY & CLASS SELECTOR STRIP (GLASS-SHADE S-WAVE STRUCTURE) */}
-            <ClassSelectorStrip onNavigate={navigate} categories={orderedCategories} />
+            <ClassSelectorStrip
+              onNavigate={navigate}
+              categories={orderedCategories}
+              selectorIconOrder={selectorIconOrder}
+            />
           </section>
 
           {/* 3 MAIN PATHWAYS (Academic, Skills, Admission) */}

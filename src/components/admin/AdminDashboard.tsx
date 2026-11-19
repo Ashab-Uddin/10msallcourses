@@ -8,6 +8,11 @@ import {
   SiteSettings,
 } from '../../types.ts';
 import { computeOfferTimerStatus } from '../../lib/offerTimerUtils.ts';
+import {
+  DEFAULT_SELECTOR_ICON_IDS,
+  normalizeSelectorIconOrder,
+  type SelectorIconId,
+} from '../../lib/selectorIconOrder.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
@@ -54,6 +59,18 @@ const BookStoreAdminManager = dynamic(
     ),
   }
 );
+
+const IconSortManager = dynamic(
+  () => import('./IconSortManager.tsx').then((m) => m.IconSortManager),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-strong rounded-3xl p-10 text-center text-sm font-bold text-[#6B4C4F]">
+        আইকন সর্ট ম্যানেজার লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
 import {
   LayoutDashboard,
   BookOpen,
@@ -81,6 +98,7 @@ import {
   SlidersHorizontal,
   AlarmClock,
   ShoppingBag,
+  ListOrdered,
 } from 'lucide-react';
 
 const COURSES_PER_PAGE = 12;
@@ -108,6 +126,7 @@ export type AdminPageTab =
   | 'book_categories'
   | 'offer_timers'
   | 'settings'
+  | 'icon_sort'
   | 'course_editor';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -130,6 +149,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (p.includes('/admin/books')) return 'book_store';
     if (p.includes('/admin/categories')) return 'categories';
     if (p.includes('/admin/offer-timers')) return 'offer_timers';
+    if (p.includes('/admin/settings/icon-sort')) return 'icon_sort';
     if (p.includes('/admin/settings')) return 'settings';
     return 'overview';
   };
@@ -157,6 +177,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [recentClicks, setRecentClicks] = useState<ClickRecord[]>([]);
   const [, setSettings] = useState<SiteSettings | null>(null);
   const [offerTimers, setOfferTimers] = useState<OfferTimer[]>([]);
+  const [selectorIconOrder, setSelectorIconOrder] = useState<SelectorIconId[]>(() => [
+    ...DEFAULT_SELECTOR_ICON_IDS,
+  ]);
   const [storageInfo, setStorageInfo] = useState<{
     backend: string;
     persistentOnVercel: boolean;
@@ -280,6 +303,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       book_categories: '/admin/book-categories',
       offer_timers: '/admin/offer-timers',
       settings: '/admin/settings',
+      icon_sort: '/admin/settings/icon-sort',
     };
 
     const targetPath = pathMap[tab] || '/admin/overview';
@@ -319,6 +343,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCategories(data.categories || []);
       setRecentClicks(data.recentClicks || []);
       setOfferTimers(data.offerTimers || []);
+      if (Array.isArray(data.selectorIconOrder)) {
+        setSelectorIconOrder(normalizeSelectorIconOrder(data.selectorIconOrder));
+      }
       setStorageInfo(data.storageInfo || null);
       if (data.serverNow) {
         setServerNow(data.serverNow);
@@ -996,7 +1023,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 activeTab === item.id ||
                 (activeTab === 'course_editor' && item.id === 'all_courses') ||
                 ((activeTab === 'book_store' || activeTab === 'book_categories') &&
-                  item.id === 'book_add');
+                  item.id === 'book_add') ||
+                (activeTab === 'icon_sort' && item.id === 'settings');
               return (
                 <button
                   key={item.id}
@@ -1048,38 +1076,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   activeTab === item.id ||
                   (activeTab === 'course_editor' && item.id === 'all_courses') ||
                   ((activeTab === 'book_store' || activeTab === 'book_categories') &&
-                    item.id === 'book_add');
+                    item.id === 'book_add') ||
+                  (activeTab === 'icon_sort' && item.id === 'settings');
 
                 return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleTabSwitch(item.id)}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      isActive
-                        ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_8px_22px_-6px_rgba(226,43,43,0.45)]'
-                        : 'text-[#2A0F12] hover:bg-rose-50/90 hover:text-[#b91c1c] bg-transparent'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2.5 min-w-0">
-                      <span className={isActive ? 'text-white' : 'text-[#6B4C4F]'}>
-                        {item.icon}
+                  <React.Fragment key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleTabSwitch(item.id)}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        isActive
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_8px_22px_-6px_rgba(226,43,43,0.45)]'
+                          : 'text-[#2A0F12] hover:bg-rose-50/90 hover:text-[#b91c1c] bg-transparent'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        <span className={isActive ? 'text-white' : 'text-[#6B4C4F]'}>
+                          {item.icon}
+                        </span>
+                        <span className="truncate">{item.label}</span>
                       </span>
-                      <span className="truncate">{item.label}</span>
-                    </span>
 
-                    {typeof item.badge === 'number' && (
-                      <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full tabular-nums shrink-0 ${
-                          isActive
-                            ? 'bg-white/20 text-white'
-                            : 'bg-rose-100/80 text-[#b91c1c]'
-                        }`}
-                      >
-                        {toBengaliNumber(item.badge)}
-                      </span>
+                      {typeof item.badge === 'number' && (
+                        <span
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full tabular-nums shrink-0 ${
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : 'bg-rose-100/80 text-[#b91c1c]'
+                          }`}
+                        >
+                          {toBengaliNumber(item.badge)}
+                        </span>
+                      )}
+                    </button>
+
+                    {item.id === 'settings' && (
+                      <div className="pl-5 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleTabSwitch('icon_sort')}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11.5px] font-bold transition-all duration-150 cursor-pointer border ${
+                            activeTab === 'icon_sort'
+                              ? 'bg-rose-50 text-[#b91c1c] border-rose-200 shadow-2xs'
+                              : 'text-[#6B4C4F] hover:text-[#b91c1c] hover:bg-rose-50/70 border-transparent'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            <ListOrdered className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Icon Sort</span>
+                          </span>
+                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-rose-100/80 text-[#b91c1c] tabular-nums">
+                            {toBengaliNumber(selectorIconOrder.length)}
+                          </span>
+                        </button>
+                      </div>
                     )}
-                  </button>
+                  </React.Fragment>
                 );
               })}
             </nav>
@@ -2200,20 +2252,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 })}
               </div>
             </div>
-          ) : activeTab === 'settings' ? (
+          ) : activeTab === 'settings' || activeTab === 'icon_sort' ? (
             /* ===================================================== */
-            /* VIEW 5: PORTAL SETTINGS                               */
+            /* VIEW 5: PORTAL SETTINGS & ICON SORT SUB-SECTION       */
             /* ===================================================== */
             <div className="space-y-6">
-              {/* Header */}
-              <div className="glass-strong rounded-3xl p-5 sm:p-6">
-                <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
-                  পোর্টাল সেটিংস ও যোগাযোগ (Settings & Direct Contact)
-                </h1>
-                <p className="text-xs text-[#6B4C4F] mt-1">
-                  সাইট টাইটেল, ডিরেক্ট কল নম্বর, অফিশিয়াল হোয়াটসঅ্যাপ নম্বর, মেসেঞ্জার লিংক এবং হোমপেজ টেক্সট নিয়ন্ত্রণ।
-                </p>
+              {/* Header + Settings Sub-Menu Switcher */}
+              <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
+                      {activeTab === 'icon_sort'
+                        ? 'সেটিংস — Icon Sort (মেইন সাইট আইকন পজিশন)'
+                        : 'পোর্টাল সেটিংস ও যোগাযোগ (Settings & Direct Contact)'}
+                    </h1>
+                    <p className="text-xs text-[#6B4C4F] mt-1">
+                      {activeTab === 'icon_sort'
+                        ? 'মেইন ওয়েবসাইটের ক্লাস ও কোর্স সিলেক্টর আইকনগুলোর প্রদর্শনের সিরিয়াল নম্বর পরিবর্তন করুন।'
+                        : 'সাইট টাইটেল, ডিরেক্ট কল নম্বর, অফিশিয়াল হোয়াটসঅ্যাপ নম্বর, মেসেঞ্জার লিংক, হোমপেজ টেক্সট এবং Icon Sort নিয়ন্ত্রণ।'}
+                    </p>
+                  </div>
+
+                  {/* Settings Menu Tabs: General Settings | Icon Sort */}
+                  <div className="inline-flex items-center p-1 rounded-2xl bg-rose-50/80 border border-rose-200/80 self-start sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleTabSwitch('settings')}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === 'settings'
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-sm'
+                          : 'text-[#6B4C4F] hover:text-[#2A0F12]'
+                      }`}
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      <span>General Settings</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTabSwitch('icon_sort')}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === 'icon_sort'
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-sm'
+                          : 'text-[#6B4C4F] hover:text-[#2A0F12]'
+                      }`}
+                    >
+                      <ListOrdered className="w-3.5 h-3.5" />
+                      <span>Icon Sort</span>
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              {activeTab === 'icon_sort' ? (
+                <IconSortManager
+                  initialOrderedIds={selectorIconOrder}
+                  onOrderSaved={(nextOrder) => setSelectorIconOrder(nextOrder)}
+                  onUnauthorized={handleBookStoreUnauthorized}
+                  onDataMutated={onDataMutated}
+                  onShowToast={showToast}
+                />
+              ) : (
+                <>
 
               <form onSubmit={handleSaveSettings} className="glass-strong rounded-3xl p-6 sm:p-7 space-y-6">
                 {/* 1. General Site Identity */}
@@ -2383,6 +2482,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </button>
                 </div>
               </form>
+                </>
+              )}
             </div>
           ) : activeTab === 'offer_timers' ? (
             /* ===================================================== */

@@ -246,6 +246,16 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
                   </button>
                 </li>
                 <li>
+                  <button
+                    type="button"
+                    onClick={() => onSelectTab('icon_sort')}
+                    className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Settings · Icon Sort</span>
+                  </button>
+                </li>
+                <li>
                   <Link
                     href="/"
                     onClick={(e) => {

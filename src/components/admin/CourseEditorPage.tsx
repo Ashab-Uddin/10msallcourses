@@ -476,6 +476,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       instructorIcon: course?.instructorIcon || 'school',
       features: JSON.stringify(featuresList),
       affiliateUrl: affiliateUrl.trim(),
+      displayOrder: course?.displayOrder || 1,
       isPopular,
       status,
       clickCount: course?.clickCount || 0,

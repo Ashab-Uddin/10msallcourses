@@ -17,6 +17,7 @@ import {
   ExternalLink,
   LogOut,
   X,
+  ListOrdered,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
@@ -44,6 +45,7 @@ const MORE_MENU_TABS: AdminPageTab[] = [
   'book_categories',
   'offer_timers',
   'settings',
+  'icon_sort',
 ];
 
 export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = ({
@@ -179,6 +181,12 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = ({
       label: 'Settings',
       description: 'সাইট টাইটেল, অ্যাডমিন নাম ও যোগাযোগ',
       icon: Settings,
+    },
+    {
+      id: 'icon_sort',
+      label: 'Icon Sort (Settings)',
+      description: 'মেইন ওয়েবসাইটের আইকন পজিশন সাজান',
+      icon: ListOrdered,
     },
   ];
 

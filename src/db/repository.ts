@@ -15,6 +15,11 @@ import { toBengaliNumber } from '../utils/format.ts';
 import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
 import { invalidatePublicPortalCache } from '../lib/cacheInvalidation.ts';
 import {
+  DEFAULT_SELECTOR_ICON_IDS,
+  normalizeSelectorIconOrder,
+  type SelectorIconId,
+} from '../lib/selectorIconOrder.ts';
+import {
   RepositoryError,
   moveCourseToPosition,
   normalizeContiguousCourseOrder,
@@ -42,8 +47,10 @@ import {
   sbGetOfferTimers,
   sbGetPortalSettings,
   sbGetPublicPortalData,
+  sbGetSelectorIconOrder,
   sbRecordCourseClick,
   sbReorderCoursePosition,
+  sbSaveSelectorIconOrder,
   sbSetOfferTimerPaused,
   sbSwapCategoryOrder,
   sbSwapCourseOrder,
@@ -69,6 +76,7 @@ interface LocalStore {
   clicks: ClickRecord[];
   settings: SiteSettings;
   offerTimers: OfferTimer[];
+  selectorIconOrder?: SelectorIconId[];
 }
 
 export function getStorageInfo(): StorageInfo {
@@ -101,6 +109,7 @@ function buildDefaultStore(): LocalStore {
     clicks: [],
     settings: { ...INITIAL_SETTINGS },
     offerTimers: [],
+    selectorIconOrder: [...DEFAULT_SELECTOR_ICON_IDS],
   };
 }
 
@@ -158,6 +167,7 @@ function normalizeStoreShape(raw: Partial<LocalStore> | null | undefined): Local
     clicks: Array.isArray(raw.clicks) ? raw.clicks : [],
     settings: raw.settings ? { ...defaults.settings, ...raw.settings } : defaults.settings,
     offerTimers: Array.isArray(raw.offerTimers) ? raw.offerTimers : [],
+    selectorIconOrder: normalizeSelectorIconOrder(raw.selectorIconOrder),
   };
 }
 
@@ -281,6 +291,7 @@ export const getPublicPortalData = cache(async () => {
     settings: store.settings,
     offerTimers,
     hasOfferTimers: allHydratedTimers.length > 0,
+    selectorIconOrder: normalizeSelectorIconOrder(store.selectorIconOrder),
     serverNow: nowIso,
   };
 });
@@ -411,6 +422,7 @@ export async function getAdminOverviewData() {
     recentClicks,
     settings: currentSettings,
     offerTimers: hydrateOfferTimers(store),
+    selectorIconOrder: normalizeSelectorIconOrder(store.selectorIconOrder),
     storageInfo: getStorageInfo(),
     serverNow: new Date().toISOString(),
   };
@@ -1128,6 +1140,32 @@ export async function updatePortalSettings(input: Record<string, unknown>) {
   invalidatePublicPortalCache();
 
   return updated;
+}
+
+export async function getSelectorIconOrder(): Promise<SelectorIconId[]> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetSelectorIconOrder();
+  }
+
+  const store = await loadStore(true);
+  return normalizeSelectorIconOrder(store.selectorIconOrder);
+}
+
+export async function saveSelectorIconOrder(
+  orderedIds: ReadonlyArray<string>
+): Promise<SelectorIconId[]> {
+  const normalized = normalizeSelectorIconOrder(orderedIds);
+  if (isSupabaseDatabaseReady()) {
+    const saved = await sbSaveSelectorIconOrder(normalized);
+    invalidatePublicPortalCache();
+    return saved;
+  }
+
+  const store = await loadStore(true);
+  store.selectorIconOrder = normalized;
+  await persistStore(store);
+  invalidatePublicPortalCache();
+  return normalized;
 }
 
 export async function getOfferTimers(): Promise<{ timers: OfferTimer[]; serverNow: string }> {

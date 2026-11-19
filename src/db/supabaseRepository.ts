@@ -12,6 +12,11 @@ import { INITIAL_SETTINGS } from './seedData.ts';
 import { getSupabaseAdminClient } from '../lib/supabase/admin.ts';
 import { CACHE_TAG_PUBLIC_PORTAL } from '../lib/cacheInvalidation.ts';
 import {
+  DEFAULT_SELECTOR_ICON_IDS,
+  normalizeSelectorIconOrder,
+  type SelectorIconId,
+} from '../lib/selectorIconOrder.ts';
+import {
   computeDiscountPercent,
   extractExplicitTargetGroupsFromText,
   extractMatchedBatchKeywords,
@@ -42,6 +47,146 @@ interface PgErrorLike {
 }
 
 const FALLBACK_COURSE_ORDER_FILE = path.resolve(process.cwd(), 'data', 'course-order.json');
+const SELECTOR_ICON_CONFIG_BUCKET = 'portal-config';
+const SELECTOR_ICON_CONFIG_OBJECT = 'selector-icon-order.json';
+
+function isMissingSelectorIconsError(err: unknown): boolean {
+  const pg = (err || {}) as PgErrorLike;
+  const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
+  return (
+    pg.code === '42P01' ||
+    pg.code === '42883' ||
+    pg.code === 'PGRST202' ||
+    pg.code === 'PGRST205' ||
+    msg.includes('schema cache') ||
+    msg.includes('does not exist')
+  ) && (
+    msg.includes('selector_icons') ||
+    msg.includes('save_selector_icon_positions')
+  );
+}
+
+async function readSelectorIconOrderFromStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>
+): Promise<SelectorIconId[]> {
+  try {
+    const { data, error } = await supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .download(SELECTOR_ICON_CONFIG_OBJECT);
+    if (error || !data) {
+      return [...DEFAULT_SELECTOR_ICON_IDS];
+    }
+    const text = await data.text();
+    const parsed = JSON.parse(text) as { orderedIds?: unknown };
+    return normalizeSelectorIconOrder(
+      Array.isArray(parsed?.orderedIds) ? (parsed.orderedIds as string[]) : null
+    );
+  } catch {
+    return [...DEFAULT_SELECTOR_ICON_IDS];
+  }
+}
+
+async function writeSelectorIconOrderToStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  orderedIds: SelectorIconId[]
+): Promise<void> {
+  const payload = Buffer.from(
+    JSON.stringify(
+      {
+        orderedIds,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
+
+  const attemptUpload = async () =>
+    supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .upload(SELECTOR_ICON_CONFIG_OBJECT, payload, {
+        upsert: true,
+        contentType: 'application/json',
+        cacheControl: '0',
+      });
+
+  const first = await attemptUpload();
+  if (!first.error) {
+    return;
+  }
+
+  const errMsg = String(first.error.message || '').toLowerCase();
+  if (errMsg.includes('not found') || errMsg.includes('bucket')) {
+    const { error: createErr } = await supabase.storage.createBucket(
+      SELECTOR_ICON_CONFIG_BUCKET,
+      { public: false }
+    );
+    if (createErr && !String(createErr.message || '').toLowerCase().includes('already exists')) {
+      throw new RepositoryError('আইকন পজিশন স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
+    }
+    const retry = await attemptUpload();
+    if (!retry.error) {
+      return;
+    }
+    console.error('[supabaseRepository] Storage retry upload failed:', retry.error);
+  } else {
+    console.error('[supabaseRepository] Storage upload failed:', first.error);
+  }
+
+  throw new RepositoryError('আইকনের পজিশন সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
+}
+
+export async function sbGetSelectorIconOrder(): Promise<SelectorIconId[]> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('selector_icons')
+    .select('icon_id, position')
+    .order('position', { ascending: true })
+    .order('icon_id', { ascending: true });
+
+  if (error) {
+    if (isMissingSelectorIconsError(error)) {
+      return readSelectorIconOrderFromStorage(supabase);
+    }
+    throw mapPgError(error, 'আইকন পজিশন লোড করতে সমস্যা হয়েছে।');
+  }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    return [...DEFAULT_SELECTOR_ICON_IDS];
+  }
+
+  return normalizeSelectorIconOrder(
+    data as Array<{ icon_id?: unknown; position?: unknown }>
+  );
+}
+
+export async function sbSaveSelectorIconOrder(
+  orderedIds: ReadonlyArray<string>
+): Promise<SelectorIconId[]> {
+  const supabase = getSupabaseAdminClient();
+  const normalized = normalizeSelectorIconOrder(orderedIds);
+
+  const { data, error } = await supabase.rpc('save_selector_icon_positions', {
+    p_ordered_ids: normalized,
+  });
+
+  if (!error) {
+    const rows = Array.isArray(data) ? data : [];
+    return rows.length > 0
+      ? normalizeSelectorIconOrder(
+          rows as Array<{ icon_id?: unknown; position?: unknown }>
+        )
+      : normalized;
+  }
+
+  if (isMissingSelectorIconsError(error)) {
+    await writeSelectorIconOrderToStorage(supabase, normalized);
+    return normalized;
+  }
+
+  throw mapPgError(error, 'আইকনের পজিশন সংরক্ষণ করতে সমস্যা হয়েছে।');
+}
 
 function readFallbackCourseOrderIds(): number[] {
   try {
@@ -351,7 +496,7 @@ export function getSupabaseStorageInfo(): StorageInfo {
 async function sbFetchPublicPortalBase() {
   const supabase = getSupabaseAdminClient();
 
-  const [catRes, courseRes, settingsRes, timerRes] = await Promise.all([
+  const [catRes, courseRes, settingsRes, timerRes, selectorIconOrder] = await Promise.all([
     supabase
       .from('categories')
       .select('*')
@@ -371,6 +516,7 @@ async function sbFetchPublicPortalBase() {
       .select('*')
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
+    sbGetSelectorIconOrder(),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড করতে সমস্যা হয়েছে।');
@@ -395,6 +541,7 @@ async function sbFetchPublicPortalBase() {
     courses,
     settings,
     allHydratedTimers,
+    selectorIconOrder,
   };
 }
 
@@ -408,7 +555,7 @@ const getCachedSupabasePortalBase = unstable_cache(
 );
 
 export async function sbGetPublicPortalData() {
-  const { categories, courses, settings, allHydratedTimers } =
+  const { categories, courses, settings, allHydratedTimers, selectorIconOrder } =
     await getCachedSupabasePortalBase();
 
   const nowMs = Date.now();
@@ -428,6 +575,7 @@ export async function sbGetPublicPortalData() {
     settings,
     offerTimers,
     hasOfferTimers: allHydratedTimers.length > 0,
+    selectorIconOrder,
     serverNow: nowIso,
   };
 }
@@ -537,7 +685,7 @@ export async function sbRecordCourseClick(
 export async function sbGetAdminOverviewData() {
   const supabase = getSupabaseAdminClient();
 
-  const [catRes, courseRes, clicksRes, settingsRes, timerRes] =
+  const [catRes, courseRes, clicksRes, settingsRes, timerRes, selectorIconOrder] =
     await Promise.all([
       supabase
         .from('categories')
@@ -561,6 +709,7 @@ export async function sbGetAdminOverviewData() {
         .select('*')
         .order('created_at', { ascending: false })
         .order('id', { ascending: false }),
+      sbGetSelectorIconOrder(),
     ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
@@ -614,6 +763,7 @@ export async function sbGetAdminOverviewData() {
     recentClicks,
     settings: currentSettings,
     offerTimers,
+    selectorIconOrder,
     storageInfo: getSupabaseStorageInfo(),
     serverNow: new Date().toISOString(),
   };
