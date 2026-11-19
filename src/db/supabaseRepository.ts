@@ -16,6 +16,7 @@ import {
   RepositoryError,
   normalizeCourseStatus,
   normalizeSlug,
+  parseCategoryDisplayOrder,
   parseSafePrice,
   type StorageInfo,
 } from './repositoryShared.ts';
@@ -27,11 +28,25 @@ interface PgErrorLike {
   constraint?: string;
 }
 
+function isDisplayOrderUniqueError(err: PgErrorLike): boolean {
+  const combined = `${err.constraint || ''} ${err.message || ''} ${err.details || ''}`.toLowerCase();
+  return (
+    combined.includes('display_order') ||
+    combined.includes('uq_categories_display_order')
+  );
+}
+
 function mapPgError(error: unknown, fallbackMessage: string): RepositoryError {
   const err = (error || {}) as PgErrorLike;
   const code = err.code || '';
 
   if (code === '23505') {
+    if (isDisplayOrderUniqueError(err)) {
+      return new RepositoryError(
+        'এই ক্রম নম্বরটি ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।',
+        409
+      );
+    }
     return new RepositoryError(
       'এই স্লাগ বা ইউনিক মানটি ইতিমধ্যে ডাটাবেসে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি মান দিন।',
       409
@@ -766,9 +781,43 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
     throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ পূরণ করা আবশ্যক।', 400);
   }
 
-  const { count } = await supabase
+  let displayOrder: number;
+  if (
+    input.displayOrder !== undefined &&
+    input.displayOrder !== null &&
+    String(input.displayOrder).trim() !== ''
+  ) {
+    const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
+    if (!parsedOrder.valid) {
+      throw new RepositoryError(parsedOrder.error, 400);
+    }
+    displayOrder = parsedOrder.value;
+  } else {
+    const { data: maxRow, error: maxErr } = await supabase
+      .from('categories')
+      .select('display_order')
+      .order('display_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (maxErr) throw mapPgError(maxErr, 'ক্যাটাগরি ক্রম যাচাই ব্যর্থ হয়েছে।');
+    displayOrder = (Number(maxRow?.display_order) || 0) + 1;
+  }
+
+  const { data: duplicateOrderRow, error: orderCheckErr } = await supabase
     .from('categories')
-    .select('id', { count: 'exact', head: true });
+    .select('id, name')
+    .eq('display_order', displayOrder)
+    .limit(1)
+    .maybeSingle();
+
+  if (orderCheckErr) throw mapPgError(orderCheckErr, 'ক্যাটাগরি ক্রম যাচাই ব্যর্থ হয়েছে।');
+  if (duplicateOrderRow) {
+    throw new RepositoryError(
+      `এই ক্রম নম্বরটি (${toBengaliNumber(displayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${String(duplicateOrderRow.name || '')}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+      409
+    );
+  }
 
   const insertPayload = {
     name: name.slice(0, 120),
@@ -778,7 +827,7 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
         ? input.subtitle.trim().slice(0, 250)
         : null,
     badge_color: String(input.badgeColor || 'red').trim().slice(0, 30) || 'red',
-    display_order: Math.max(0, Number(input.displayOrder) || (count ?? 0) + 1),
+    display_order: displayOrder,
     status: input.status === 'inactive' ? 'inactive' : 'active',
   };
 
@@ -790,6 +839,12 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
 
   if (error) {
     if (error.code === '23505') {
+      if (isDisplayOrderUniqueError(error as PgErrorLike)) {
+        throw new RepositoryError(
+          `এই ক্রম নম্বরটি (${toBengaliNumber(displayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+          409
+        );
+      }
       throw new RepositoryError(`"${slug}" স্লাগসহ একটি ক্যাটাগরি ইতিমধ্যে রয়েছে।`, 409);
     }
     throw mapPgError(error, 'ক্যাটাগরি তৈরি ব্যর্থ হয়েছে।');
@@ -822,6 +877,31 @@ export async function sbUpdateExistingCategory(
     throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ খালি রাখা যাবে না।', 400);
   }
 
+  let nextDisplayOrder = existing.displayOrder;
+  if (input.displayOrder !== undefined) {
+    const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
+    if (!parsedOrder.valid) {
+      throw new RepositoryError(parsedOrder.error, 400);
+    }
+    nextDisplayOrder = parsedOrder.value;
+  }
+
+  const { data: duplicateOrderRow, error: orderCheckErr } = await supabase
+    .from('categories')
+    .select('id, name')
+    .eq('display_order', nextDisplayOrder)
+    .neq('id', id)
+    .limit(1)
+    .maybeSingle();
+
+  if (orderCheckErr) throw mapPgError(orderCheckErr, 'ক্যাটাগরি ক্রম যাচাই ব্যর্থ হয়েছে।');
+  if (duplicateOrderRow) {
+    throw new RepositoryError(
+      `এই ক্রম নম্বরটি (${toBengaliNumber(nextDisplayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${String(duplicateOrderRow.name || '')}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+      409
+    );
+  }
+
   const updatePayload = {
     name: nextName.slice(0, 120),
     slug: nextSlug.slice(0, 120),
@@ -835,10 +915,7 @@ export async function sbUpdateExistingCategory(
       input.badgeColor !== undefined
         ? String(input.badgeColor || 'red').trim().slice(0, 30) || 'red'
         : existing.badgeColor,
-    display_order:
-      input.displayOrder !== undefined
-        ? Math.max(0, Number(input.displayOrder) || existing.displayOrder)
-        : existing.displayOrder,
+    display_order: nextDisplayOrder,
     status:
       input.status !== undefined
         ? input.status === 'inactive'
@@ -857,6 +934,12 @@ export async function sbUpdateExistingCategory(
 
   if (error) {
     if (error.code === '23505') {
+      if (isDisplayOrderUniqueError(error as PgErrorLike)) {
+        throw new RepositoryError(
+          `এই ক্রম নম্বরটি (${toBengaliNumber(nextDisplayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+          409
+        );
+      }
       throw new RepositoryError(
         `"${nextSlug}" স্লাগটি অন্য ক্যাটাগরিতে ব্যবহৃত হচ্ছে।`,
         409
@@ -866,6 +949,92 @@ export async function sbUpdateExistingCategory(
   }
 
   return data ? mapCategoryRow(data as Record<string, unknown>) : null;
+}
+
+export async function sbSwapCategoryOrder(
+  firstId: number,
+  secondId: number
+): Promise<Category[]> {
+  const supabase = getSupabaseAdminClient();
+  if (!Number.isInteger(firstId) || !Number.isInteger(secondId) || firstId <= 0 || secondId <= 0 || firstId === secondId) {
+    throw new RepositoryError('ক্রম অদলবদলের জন্য দুইটি ভিন্ন বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+  }
+
+  const { error: rpcErr } = await supabase.rpc('swap_category_display_order', {
+    p_first_id: firstId,
+    p_second_id: secondId,
+  });
+
+  if (rpcErr) {
+    const rpcMsg = `${rpcErr.code || ''} ${rpcErr.message || ''}`.toLowerCase();
+    const isMissingRpc =
+      rpcErr.code === '42883' ||
+      rpcErr.code === 'PGRST202' ||
+      rpcMsg.includes('swap_category_display_order');
+
+    if (!isMissingRpc) {
+      if (rpcErr.code === 'P0002' || rpcMsg.includes('not found')) {
+        throw new RepositoryError('ক্যাটাগরিটি পাওয়া যায়নি।', 404);
+      }
+      throw mapPgError(rpcErr, 'ক্যাটাগরি ক্রম পরিবর্তন ব্যর্থ হয়েছে।');
+    }
+
+    // Safe 3-step fallback if SQL migration 0008 RPC has not been applied yet
+    const { data: allRows, error: listErr } = await supabase
+      .from('categories')
+      .select('id, display_order')
+      .order('display_order', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (listErr) throw mapPgError(listErr, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
+    const rows = allRows || [];
+    const first = rows.find((r) => Number(r.id) === firstId);
+    const second = rows.find((r) => Number(r.id) === secondId);
+    if (!first || !second) {
+      throw new RepositoryError('এক বা একাধিক ক্যাটাগরি পাওয়া যায়নি।', 404);
+    }
+
+    const firstOrder = Number(first.display_order);
+    const secondOrder = Number(second.display_order);
+    const maxOrder = rows.reduce((m, r) => Math.max(m, Number(r.display_order) || 0), 0);
+    const tempOrder = maxOrder + 10000;
+
+    if (firstOrder !== secondOrder) {
+      const step1 = await supabase
+        .from('categories')
+        .update({ display_order: tempOrder })
+        .eq('id', firstId);
+      if (step1.error) throw mapPgError(step1.error, 'ক্যাটাগরি ক্রম পরিবর্তন ব্যর্থ হয়েছে।');
+
+      const step2 = await supabase
+        .from('categories')
+        .update({ display_order: firstOrder })
+        .eq('id', secondId);
+      if (step2.error) {
+        await supabase.from('categories').update({ display_order: firstOrder }).eq('id', firstId);
+        throw mapPgError(step2.error, 'ক্যাটাগরি ক্রম পরিবর্তন ব্যর্থ হয়েছে।');
+      }
+
+      const step3 = await supabase
+        .from('categories')
+        .update({ display_order: secondOrder })
+        .eq('id', firstId);
+      if (step3.error) {
+        await supabase.from('categories').update({ display_order: secondOrder }).eq('id', secondId);
+        await supabase.from('categories').update({ display_order: firstOrder }).eq('id', firstId);
+        throw mapPgError(step3.error, 'ক্যাটাগরি ক্রম পরিবর্তন ব্যর্থ হয়েছে।');
+      }
+    }
+  }
+
+  const { data: sortedRows, error: fetchSortedErr } = await supabase
+    .from('categories')
+    .select('*')
+    .order('display_order', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (fetchSortedErr) throw mapPgError(fetchSortedErr, 'ক্যাটাগরি তালিকা লোড ব্যর্থ হয়েছে।');
+  return (sortedRows || []).map((r) => mapCategoryRow(r as Record<string, unknown>));
 }
 
 export async function sbDeleteCategoryById(

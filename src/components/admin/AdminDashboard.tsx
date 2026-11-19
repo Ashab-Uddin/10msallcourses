@@ -72,6 +72,8 @@ import {
   Clock,
   AlertCircle,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
@@ -212,8 +214,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [catSlug, setCatSlug] = useState('');
   const [catSubtitle, setCatSubtitle] = useState('');
   const [catBadgeColor, setCatBadgeColor] = useState('red');
-  const [catDisplayOrder, setCatDisplayOrder] = useState<number>(1);
+  const [catDisplayOrderInput, setCatDisplayOrderInput] = useState<string>('1');
+  const [catFormError, setCatFormError] = useState<string | null>(null);
   const [savingCat, setSavingCat] = useState(false);
+  const [swappingCatId, setSwappingCatId] = useState<number | null>(null);
   const [deleteModalCat, setDeleteModalCat] = useState<Category | null>(null);
 
   const showToast = useCallback(
@@ -386,6 +390,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
     return map;
   }, [categories]);
+
+  const sortedCategories = useMemo(
+    () =>
+      [...categories].sort(
+        (a, b) => (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0) || a.id - b.id
+      ),
+    [categories]
+  );
+
+  const nextAvailableCategoryOrder = useMemo(() => {
+    const maxOrder = categories.reduce(
+      (max, cat) => Math.max(max, Number(cat.displayOrder) || 0),
+      0
+    );
+    return maxOrder + 1;
+  }, [categories]);
+
+  const validateCategoryOrderInput = useCallback(
+    (
+      rawValue: string,
+      currentCategoryId?: number | null
+    ): { valid: true; value: number } | { valid: false; error: string } => {
+      const trimmed = rawValue.trim();
+      const ascii = trimmed.replace(/[০-৯]/g, (d) => String('০১২৩৪৫৬৭৮৯'.indexOf(d)));
+      if (!ascii || !/^\d+$/.test(ascii)) {
+        return {
+          valid: false,
+          error: 'ক্রম নম্বর (Order Number) অবশ্যই ১ বা তার চেয়ে বড় একটি পূর্ণসংখ্যা হতে হবে।',
+        };
+      }
+      const parsed = Number(ascii);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 1000000) {
+        return {
+          valid: false,
+          error: 'ক্রম নম্বর (Order Number) অবশ্যই ১ থেকে ১০,০০,০০০ এর মধ্যে পূর্ণসংখ্যা হতে হবে।',
+        };
+      }
+      const conflict = categories.find(
+        (c) => c.id !== currentCategoryId && Number(c.displayOrder) === parsed
+      );
+      if (conflict) {
+        return {
+          valid: false,
+          error: `এই ক্রম নম্বরটি (${toBengaliNumber(parsed)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${conflict.name}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+        };
+      }
+      return { valid: true, value: parsed };
+    },
+    [categories]
+  );
+
+  const liveOrderValidation = useMemo(
+    () =>
+      showCategoryModal
+        ? validateCategoryOrderInput(catDisplayOrderInput, editingCategory?.id ?? null)
+        : null,
+    [showCategoryModal, validateCategoryOrderInput, catDisplayOrderInput, editingCategory]
+  );
 
   // Synchronize browser URL on popstate
   useEffect(() => {
@@ -565,8 +627,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Handle Save / Create Category
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCatFormError(null);
+
     if (!catName.trim() || !catSlug.trim()) {
-      showToast('ক্যাটাগরির নাম ও স্লাগ দেওয়া আবশ্যক।', 'error');
+      const msg = 'ক্যাটাগরির নাম ও স্লাগ দেওয়া আবশ্যক।';
+      setCatFormError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    const orderCheck = validateCategoryOrderInput(
+      catDisplayOrderInput,
+      editingCategory?.id ?? null
+    );
+    if (!orderCheck.valid) {
+      setCatFormError(orderCheck.error);
+      showToast(orderCheck.error, 'error');
       return;
     }
 
@@ -577,7 +653,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         slug: catSlug.trim().toLowerCase().replace(/\s+/g, '-'),
         subtitle: catSubtitle.trim() || null,
         badgeColor: catBadgeColor,
-        displayOrder: Number(catDisplayOrder) || 1,
+        displayOrder: orderCheck.value,
         status: 'active',
       };
 
@@ -603,14 +679,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onDataMutated();
       setShowCategoryModal(false);
       setEditingCategory(null);
+      setCatFormError(null);
       setCatName('');
       setCatSlug('');
       setCatSubtitle('');
+      setCatDisplayOrderInput('1');
       showToast(editingCategory ? 'ক্যাটাগরি আপডেট হয়েছে।' : 'নতুন ক্যাটাগরি তৈরি হয়েছে।', 'success');
     } catch (err: any) {
-      showToast(err.message || 'ত্রুটি হয়েছে।', 'error');
+      const errMsg = err.message || 'ত্রুটি হয়েছে।';
+      setCatFormError(errMsg);
+      showToast(errMsg, 'error');
     } finally {
       setSavingCat(false);
+    }
+  };
+
+  // Handle Quick 1-Step Swap of Category Order
+  const handleSwapCategoryOrder = async (cat: Category, direction: 'up' | 'down') => {
+    const currentIndex = sortedCategories.findIndex((c) => c.id === cat.id);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= sortedCategories.length) return;
+    const targetCat = sortedCategories[targetIndex];
+
+    setSwappingCatId(cat.id);
+    try {
+      const res = await fetch('/api/admin/categories/reorder', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstId: cat.id, secondId: targetCat.id }),
+      });
+
+      if (handleUnauthorizedResponse(res)) return;
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'ক্যাটাগরির ক্রম পরিবর্তন করা সম্ভব হয়নি।');
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (Array.isArray(data.categories)) {
+        setCategories(data.categories);
+      } else {
+        await fetchDashboardData();
+      }
+      onDataMutated();
+      showToast(`"${cat.name}" ক্যাটাগরির প্রদর্শন ক্রম আপডেট হয়েছে।`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'ক্রম পরিবর্তনে ত্রুটি হয়েছে।', 'error');
+    } finally {
+      setSwappingCatId(null);
     }
   };
 
@@ -1961,7 +2079,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setCatSlug('');
                     setCatSubtitle('');
                     setCatBadgeColor('red');
-                    setCatDisplayOrder(categories.length + 1);
+                    setCatDisplayOrderInput(String(nextAvailableCategoryOrder));
+                    setCatFormError(null);
                     setShowCategoryModal(true);
                   }}
                   className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer shrink-0"
@@ -1973,8 +2092,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* Categories Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {categories.map((cat) => {
+                {sortedCategories.map((cat, idx) => {
                   const catCoursesCount = courses.filter((c) => c.categorySlug === cat.slug).length;
+                  const isFirst = idx === 0;
+                  const isLast = idx === sortedCategories.length - 1;
+                  const hasDuplicateOrder =
+                    sortedCategories.filter((c) => Number(c.displayOrder) === Number(cat.displayOrder))
+                      .length > 1;
                   return (
                     <div
                       key={cat.id}
@@ -1984,7 +2108,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-base font-black text-[#2A0F12]">{cat.name}</h3>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-[#b91c1c] tabular-nums">
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums ${
+                                hasDuplicateOrder
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  : 'bg-rose-100 text-[#b91c1c]'
+                              }`}
+                            >
                               ক্রম: {toBengaliNumber(cat.displayOrder)}
                             </span>
                           </div>
@@ -2001,7 +2131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </span>
                       </div>
 
-                      <div className="pt-3 border-t border-rose-200/50 flex items-center justify-between">
+                      <div className="pt-3 border-t border-rose-200/50 flex items-center justify-between gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -2014,7 +2144,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={isFirst || swappingCatId !== null}
+                            onClick={() => void handleSwapCategoryOrder(cat, 'up')}
+                            className="p-1.5 rounded-lg text-[#6B4C4F] hover:text-[#2A0F12] hover:bg-rose-50 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="এক ধাপ আগে নিন"
+                            aria-label={`${cat.name} এক ধাপ আগে নিন`}
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isLast || swappingCatId !== null}
+                            onClick={() => void handleSwapCategoryOrder(cat, 'down')}
+                            className="p-1.5 rounded-lg text-[#6B4C4F] hover:text-[#2A0F12] hover:bg-rose-50 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="এক ধাপ পরে নিন"
+                            aria-label={`${cat.name} এক ধাপ পরে নিন`}
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => {
@@ -2023,7 +2175,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               setCatSlug(cat.slug);
                               setCatSubtitle(cat.subtitle || '');
                               setCatBadgeColor(cat.badgeColor || 'red');
-                              setCatDisplayOrder(cat.displayOrder || 1);
+                              setCatDisplayOrderInput(String(cat.displayOrder || 1));
+                              setCatFormError(null);
                               setShowCategoryModal(true);
                             }}
                             className="p-1.5 rounded-lg text-[#1E63D6] hover:bg-blue-50 transition cursor-pointer"
@@ -2383,12 +2536,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </h3>
               <button
                 type="button"
-                onClick={() => setShowCategoryModal(false)}
+                onClick={() => {
+                  setCatFormError(null);
+                  setShowCategoryModal(false);
+                }}
                 className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-rose-50 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {catFormError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50/90 px-3.5 py-2.5 text-xs font-bold text-red-700"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                <span>{catFormError}</span>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-bold text-[#2A0F12] mb-1">
@@ -2400,6 +2566,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 value={catName}
                 onChange={(e) => {
                   setCatName(e.target.value);
+                  if (catFormError) setCatFormError(null);
                   if (!editingCategory) {
                     setCatSlug(
                       e.target.value
@@ -2427,7 +2594,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="text"
                   required
                   value={catSlug}
-                  onChange={(e) => setCatSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                  onChange={(e) => {
+                    setCatSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'));
+                    if (catFormError) setCatFormError(null);
+                  }}
                   placeholder="hsc"
                   className="w-full px-3 py-2 rounded-r-xl border border-slate-200 text-xs font-mono text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                 />
@@ -2450,15 +2620,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-[#2A0F12] mb-1">
-                  প্রদর্শন ক্রম (Order)
+                  প্রদর্শন ক্রম (Order) <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  value={catDisplayOrder}
-                  onChange={(e) => setCatDisplayOrder(Number(e.target.value) || 1)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono font-bold"
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  value={catDisplayOrderInput}
+                  onChange={(e) => {
+                    setCatDisplayOrderInput(e.target.value);
+                    if (catFormError) setCatFormError(null);
+                  }}
+                  placeholder={String(nextAvailableCategoryOrder)}
+                  aria-invalid={liveOrderValidation ? !liveOrderValidation.valid : false}
+                  className={`w-full px-3 py-2 rounded-xl border text-xs outline-none shadow-2xs font-mono font-bold transition ${
+                    liveOrderValidation && !liveOrderValidation.valid
+                      ? 'border-red-500 bg-red-50/40 text-red-700 focus:border-red-600'
+                      : 'border-slate-200 text-[#2A0F12] bg-white focus:border-[#eb1c24]'
+                  }`}
                 />
+                {liveOrderValidation && !liveOrderValidation.valid ? (
+                  <p className="text-[10px] font-bold text-red-600 mt-1 leading-snug">
+                    {liveOrderValidation.error}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-[#6B4C4F] mt-1">
+                    পরবর্তী খালি ক্রম: {toBengaliNumber(nextAvailableCategoryOrder)}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -2482,7 +2671,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-rose-100">
               <button
                 type="button"
-                onClick={() => setShowCategoryModal(false)}
+                onClick={() => {
+                  setCatFormError(null);
+                  setShowCategoryModal(false);
+                }}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
               >
                 বাতিল

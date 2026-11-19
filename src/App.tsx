@@ -683,6 +683,14 @@ export default function App({
   };
 
 
+  const orderedCategories = useMemo(
+    () =>
+      [...categories].sort(
+        (a, b) => (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0) || a.id - b.id
+      ),
+    [categories]
+  );
+
   const coursesById = useMemo(() => {
     const map = new Map<number, Course>();
     for (const c of courses) {
@@ -851,7 +859,7 @@ export default function App({
         <main className="relative z-10 pt-2">
           <CategoryPage
             categorySlug={route.slug}
-            categories={categories}
+            categories={orderedCategories}
             courses={courses}
             onBack={() => navigate('/')}
             onEnrollClick={handleEnrollClick}
@@ -913,7 +921,7 @@ export default function App({
             batchOrClass={route.batchOrClass}
             sectionHash={route.sectionHash || currentHash}
             courses={courses}
-            categories={categories}
+            categories={orderedCategories}
             onNavigate={navigate}
             onEnrollClick={handleEnrollClick}
           />
@@ -1039,7 +1047,7 @@ export default function App({
             </div>
 
             {/* 3D CATEGORY & CLASS SELECTOR STRIP (GLASS-SHADE S-WAVE STRUCTURE) */}
-            <ClassSelectorStrip onNavigate={navigate} categories={categories} />
+            <ClassSelectorStrip onNavigate={navigate} categories={orderedCategories} />
           </section>
 
           {/* 3 MAIN PATHWAYS (Academic, Skills, Admission) */}
@@ -1235,7 +1243,7 @@ export default function App({
                   >
                     সব ক্যাটাগরি ({toBengaliNumber(courses.length)})
                   </button>
-                  {categories.map((cat) => (
+                  {orderedCategories.map((cat) => (
                     <button
                       key={cat.slug}
                       type="button"
@@ -1354,7 +1362,7 @@ export default function App({
                 </div>
               ) : (
                 /* DEFAULT CATEGORY-WISE SECTIONS (Frosted Glass Container) */
-                categories.map((cat) => {
+                orderedCategories.map((cat) => {
                   const catCourses = courses.filter((c) =>
                     courseMatchesCategorySlug(c, cat.slug)
                   );

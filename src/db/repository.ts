@@ -18,7 +18,9 @@ import {
   RepositoryError,
   normalizeCourseStatus,
   normalizeSlug,
+  parseCategoryDisplayOrder,
   parseSafePrice,
+  sortCategoriesByOrder,
   type StorageInfo,
 } from './repositoryShared.ts';
 import {
@@ -38,6 +40,7 @@ import {
   sbGetPublicPortalData,
   sbRecordCourseClick,
   sbSetOfferTimerPaused,
+  sbSwapCategoryOrder,
   sbUpdateExistingCategory,
   sbUpdateExistingCourse,
   sbUpdateOfferTimer,
@@ -101,11 +104,38 @@ function normalizeStoreShape(raw: Partial<LocalStore> | null | undefined): Local
     return defaults;
   }
 
+  const rawCategories =
+    Array.isArray(raw.categories) && raw.categories.length > 0
+      ? raw.categories
+      : defaults.categories;
+
+  const sortedRawCategories = sortCategoriesByOrder(
+    rawCategories.map((c) => ({
+      ...c,
+      displayOrder: Math.max(1, Math.round(Number(c.displayOrder) || 1)),
+    }))
+  );
+
+  // Guard local JSON against legacy duplicate displayOrder values
+  const seenOrders = new Set<number>();
+  let nextOrderCursor = 1;
+  const deduplicatedCategories = sortedRawCategories.map((c) => {
+    if (!seenOrders.has(c.displayOrder)) {
+      seenOrders.add(c.displayOrder);
+      nextOrderCursor = Math.max(nextOrderCursor, c.displayOrder + 1);
+      return c;
+    }
+    while (seenOrders.has(nextOrderCursor)) {
+      nextOrderCursor += 1;
+    }
+    seenOrders.add(nextOrderCursor);
+    const repaired = { ...c, displayOrder: nextOrderCursor };
+    nextOrderCursor += 1;
+    return repaired;
+  });
+
   return {
-    categories:
-      Array.isArray(raw.categories) && raw.categories.length > 0
-        ? raw.categories
-        : defaults.categories,
+    categories: sortCategoriesByOrder(deduplicatedCategories),
     courses: Array.isArray(raw.courses) ? raw.courses : [],
     clicks: Array.isArray(raw.clicks) ? raw.clicks : [],
     settings: raw.settings ? { ...defaults.settings, ...raw.settings } : defaults.settings,
@@ -206,9 +236,9 @@ export const getPublicPortalData = cache(async () => {
   }
 
   const store = await loadStore();
-  const activeCategories = [...store.categories]
-    .filter((c) => c.status === 'active')
-    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+  const activeCategories = sortCategoriesByOrder(
+    store.categories.filter((c) => c.status === 'active')
+  );
 
   // Approved Option 2 visibility: Public visitors see `active` and `closed` courses only; `inactive` is hidden.
   const publicCourses = store.courses.filter(
@@ -333,9 +363,7 @@ export async function getAdminOverviewData() {
 
   const store = await loadStore(true);
 
-  const allCategories = [...store.categories].sort(
-    (a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)
-  );
+  const allCategories = sortCategoriesByOrder(store.categories);
   const allCourses = store.courses;
   const recentClicks = store.clicks;
   const currentSettings = store.settings;
@@ -672,6 +700,32 @@ export async function createNewCategory(input: Record<string, unknown>) {
     throw new RepositoryError(`"${slug}" স্লাগসহ একটি ক্যাটাগরি ইতিমধ্যে রয়েছে।`, 409);
   }
 
+  let displayOrder: number;
+  if (
+    input.displayOrder !== undefined &&
+    input.displayOrder !== null &&
+    String(input.displayOrder).trim() !== ''
+  ) {
+    const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
+    if (!parsedOrder.valid) {
+      throw new RepositoryError(parsedOrder.error, 400);
+    }
+    displayOrder = parsedOrder.value;
+  } else {
+    displayOrder =
+      store.categories.length > 0
+        ? Math.max(...store.categories.map((c) => Number(c.displayOrder) || 0)) + 1
+        : 1;
+  }
+
+  const duplicateOrderCat = store.categories.find((c) => c.displayOrder === displayOrder);
+  if (duplicateOrderCat) {
+    throw new RepositoryError(
+      `এই ক্রম নম্বরটি (${toBengaliNumber(displayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${duplicateOrderCat.name}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+      409
+    );
+  }
+
   const newId =
     store.categories.length > 0 ? Math.max(...store.categories.map((c) => c.id)) + 1 : 1;
 
@@ -684,12 +738,12 @@ export async function createNewCategory(input: Record<string, unknown>) {
         ? input.subtitle.trim().slice(0, 250)
         : null,
     badgeColor: String(input.badgeColor || 'red').trim().slice(0, 30),
-    displayOrder: Number(input.displayOrder) || store.categories.length + 1,
+    displayOrder,
     status: input.status === 'inactive' ? 'inactive' : 'active',
     createdAt: new Date().toISOString(),
   };
 
-  store.categories.push(newCat);
+  store.categories = sortCategoriesByOrder([...store.categories, newCat]);
   await persistStore(store);
   invalidatePublicPortalCache();
 
@@ -728,6 +782,25 @@ export async function updateExistingCategory(id: number, input: Record<string, u
     throw new RepositoryError(`"${nextSlug}" স্লাগটি অন্য ক্যাটাগরিতে ব্যবহৃত হচ্ছে।`, 409);
   }
 
+  let nextDisplayOrder = existing.displayOrder;
+  if (input.displayOrder !== undefined) {
+    const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
+    if (!parsedOrder.valid) {
+      throw new RepositoryError(parsedOrder.error, 400);
+    }
+    nextDisplayOrder = parsedOrder.value;
+  }
+
+  const duplicateOrderCat = store.categories.find(
+    (c) => c.id !== id && c.displayOrder === nextDisplayOrder
+  );
+  if (duplicateOrderCat) {
+    throw new RepositoryError(
+      `এই ক্রম নম্বরটি (${toBengaliNumber(nextDisplayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${duplicateOrderCat.name}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+      409
+    );
+  }
+
   const updated: Category = {
     ...existing,
     name: nextName.slice(0, 120),
@@ -742,10 +815,7 @@ export async function updateExistingCategory(id: number, input: Record<string, u
       input.badgeColor !== undefined
         ? String(input.badgeColor || 'red').trim().slice(0, 30)
         : existing.badgeColor,
-    displayOrder:
-      input.displayOrder !== undefined
-        ? Number(input.displayOrder) || existing.displayOrder
-        : existing.displayOrder,
+    displayOrder: nextDisplayOrder,
     status:
       input.status !== undefined
         ? input.status === 'inactive'
@@ -755,6 +825,7 @@ export async function updateExistingCategory(id: number, input: Record<string, u
   };
 
   store.categories[idx] = updated;
+  store.categories = sortCategoriesByOrder(store.categories);
 
   // Cascade category slug change to all linked courses so referential integrity stays intact.
   if (nextSlug !== existing.slug) {
@@ -769,6 +840,45 @@ export async function updateExistingCategory(id: number, input: Record<string, u
   invalidatePublicPortalCache();
 
   return updated;
+}
+
+export async function swapCategoryOrder(
+  firstId: number,
+  secondId: number
+): Promise<Category[]> {
+  if (isSupabaseDatabaseReady()) {
+    const categories = await sbSwapCategoryOrder(firstId, secondId);
+    invalidatePublicPortalCache();
+    return categories;
+  }
+
+  if (
+    !Number.isInteger(firstId) ||
+    !Number.isInteger(secondId) ||
+    firstId <= 0 ||
+    secondId <= 0 ||
+    firstId === secondId
+  ) {
+    throw new RepositoryError('ক্রম অদলবদলের জন্য দুইটি ভিন্ন বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+  }
+
+  const store = await loadStore(true);
+  const firstIdx = store.categories.findIndex((c) => c.id === firstId);
+  const secondIdx = store.categories.findIndex((c) => c.id === secondId);
+  if (firstIdx === -1 || secondIdx === -1) {
+    throw new RepositoryError('এক বা একাধিক ক্যাটাগরি পাওয়া যায়নি।', 404);
+  }
+
+  const firstOrder = store.categories[firstIdx].displayOrder;
+  const secondOrder = store.categories[secondIdx].displayOrder;
+  store.categories[firstIdx] = { ...store.categories[firstIdx], displayOrder: secondOrder };
+  store.categories[secondIdx] = { ...store.categories[secondIdx], displayOrder: firstOrder };
+  store.categories = sortCategoriesByOrder(store.categories);
+
+  await persistStore(store);
+  invalidatePublicPortalCache();
+
+  return store.categories;
 }
 
 export async function deleteCategoryById(
