@@ -4,7 +4,11 @@ import {
   getAdminOverviewData,
   updatePortalSettings,
 } from '@/src/db/repository';
-import { isAuthorizedAdminRequest } from '@/src/lib/adminAuth';
+import {
+  getAuthenticatedAdmin,
+  isAuthorizedAdminRequest,
+  updateAdminDisplayName,
+} from '@/src/lib/adminAuth';
 import { validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +32,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await isAuthorizedAdminRequest(req))) {
+  const admin = await getAuthenticatedAdmin(req);
+  if (!admin) {
     return NextResponse.json(
       { error: 'Unauthorized' },
       { status: 401, headers: { 'Cache-Control': 'private, no-store' } }
@@ -67,10 +72,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let updatedAdminName = admin.name;
+    let applySessionCookies: ((res: NextResponse) => void) | undefined;
+
+    if (body?.adminName !== undefined) {
+      if (typeof body.adminName !== 'string') {
+        return NextResponse.json(
+          { error: 'অ্যাডমিনের নাম সঠিক ফরম্যাটে প্রদান করুন।' },
+          { status: 400 }
+        );
+      }
+      const nameUpdateResult = await updateAdminDisplayName(req, admin, body.adminName);
+      if (nameUpdateResult.ok === false) {
+        return NextResponse.json(
+          { error: nameUpdateResult.error },
+          { status: nameUpdateResult.status }
+        );
+      }
+      updatedAdminName = nameUpdateResult.name;
+      applySessionCookies = nameUpdateResult.applySessionCookies;
+    }
+
     const data = await updatePortalSettings(body);
-    return NextResponse.json(data, {
-      headers: { 'Cache-Control': 'private, no-store' },
-    });
+    const res = NextResponse.json(
+      {
+        ...data,
+        adminName: updatedAdminName,
+      },
+      {
+        headers: { 'Cache-Control': 'private, no-store' },
+      }
+    );
+    applySessionCookies?.(res);
+    return res;
   } catch (error) {
     if (error instanceof RepositoryError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

@@ -499,3 +499,81 @@ export async function signOutAdminSession(
     }
   }
 }
+
+export async function updateAdminDisplayName(
+  req: NextRequest,
+  admin: AdminSessionPayload,
+  nextNameInput: string
+): Promise<
+  | {
+      ok: true;
+      name: string;
+      applySessionCookies?: (res: NextResponse) => void;
+    }
+  | {
+      ok: false;
+      error: string;
+      status: number;
+    }
+> {
+  const cleanName = nextNameInput.trim().slice(0, 120);
+  if (!cleanName) {
+    return {
+      ok: false,
+      error: 'অ্যাডমিনের নাম খালি রাখা যাবে না।',
+      status: 400,
+    };
+  }
+
+  if (admin.provider === 'supabase' && admin.userId && isSupabaseAuthReady()) {
+    const adminClient = getSupabaseAdminClient();
+    const { data, error } = await adminClient
+      .from('admin_users')
+      .update({
+        display_name: cleanName,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', admin.userId)
+      .eq('is_active', true)
+      .select('display_name')
+      .maybeSingle();
+
+    if (error || !data) {
+      console.error('[adminAuth] Failed to update admin display_name:', error);
+      return {
+        ok: false,
+        error: 'অ্যাডমিনের নাম আপডেট করা যায়নি।',
+        status: 500,
+      };
+    }
+
+    return {
+      ok: true,
+      name: String(data.display_name || cleanName),
+    };
+  }
+
+  if (admin.provider === 'env-cookie') {
+    const created = createEnvSessionToken(admin.email, cleanName);
+    if (!created) {
+      return {
+        ok: true,
+        name: cleanName,
+      };
+    }
+
+    return {
+      ok: true,
+      name: created.payload.name,
+      applySessionCookies: (res: NextResponse) => {
+        setAdminSessionCookie(res, created.token, req);
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    name: cleanName,
+  };
+}
+

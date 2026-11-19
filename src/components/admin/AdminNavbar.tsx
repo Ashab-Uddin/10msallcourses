@@ -143,15 +143,15 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
 
   return (
     <header
-      style={{ borderRadius: mobileMenuOpen ? '26px' : '22px' }}
-      className={`sticky top-3 z-50 mx-auto max-w-[1440px] w-[calc(100%-16px)] sm:w-[calc(100%-28px)] bg-white/95 backdrop-blur-xl border border-white/90 shadow-[0_10px_32px_-6px_rgba(42,15,18,0.12),0_4px_14px_rgba(226,43,43,0.08)] transition-all duration-200 relative overflow-visible ${
-        mobileMenuOpen ? 'rounded-[26px]' : 'rounded-[22px]'
+      className={`sticky top-3 z-50 mx-auto max-w-[1440px] w-[calc(100%-16px)] sm:w-[calc(100%-28px)] bg-white/95 backdrop-blur-xl border border-white/90 shadow-[0_10px_32px_-6px_rgba(42,15,18,0.12),0_4px_14px_rgba(226,43,43,0.08)] transition-all duration-200 relative overflow-visible rounded-[22px] ${
+        mobileMenuOpen ? 'md:rounded-[26px]' : ''
       }`}
     >
       {/* Decorative Brand Waves matching Main Website HeaderNav */}
       <div
-        className="absolute inset-0 overflow-hidden pointer-events-none z-0"
-        style={{ borderRadius: mobileMenuOpen ? '26px' : '22px' }}
+        className={`absolute inset-0 overflow-hidden pointer-events-none z-0 rounded-[22px] ${
+          mobileMenuOpen ? 'md:rounded-[26px]' : ''
+        }`}
       >
         {/* Left Crimson Wave */}
         <div className="absolute left-0 top-0 bottom-0 w-32 sm:w-44 select-none opacity-90">
@@ -370,7 +370,7 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
-            className="lg:hidden p-2 rounded-full text-[#2A0F12] hover:bg-rose-50 cursor-pointer transition-colors shrink-0 border border-rose-100"
+            className="hidden md:inline-flex lg:hidden p-2 rounded-full text-[#2A0F12] hover:bg-rose-50 cursor-pointer transition-colors shrink-0 border border-rose-100"
             aria-label="Toggle Admin Navigation Menu"
             aria-expanded={mobileMenuOpen}
           >
@@ -383,9 +383,9 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({
         </div>
       </div>
 
-      {/* MOBILE / TABLET EXPANDED ADMIN DRAWER */}
+      {/* TABLET EXPANDED ADMIN DRAWER (Mobile uses Bottom Navigation Bar + More Menu) */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-rose-100 bg-white/95 px-4 py-3.5 space-y-3 rounded-b-[22px] relative z-10">
+        <div className="hidden md:block lg:hidden border-t border-rose-100 bg-white/95 px-4 py-3.5 space-y-3 rounded-b-[22px] relative z-10">
           <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-rose-50/70 border border-rose-100">
             <div className="min-w-0">
               <div className="text-xs font-black text-[#2A0F12] truncate">

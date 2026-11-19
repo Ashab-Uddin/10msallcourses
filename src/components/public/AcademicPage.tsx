@@ -117,6 +117,18 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
     ];
   }, [level]);
 
+  const mobileSchoolGridOptions: ToggleOption[] = useMemo(
+    () => [
+      { id: 'ssc-27', label: 'Class 10', subLabel: '১০ম শ্রেণি', path: '/ssc/ssc-27' },
+      { id: 'ssc-28', label: 'Class 9', subLabel: '৯ম শ্রেণি', path: '/ssc/ssc-28' },
+      { id: 'class8', label: 'Class 8', subLabel: '৮ম শ্রেণি', path: '/class-8' },
+      { id: 'class7', label: 'Class 7', subLabel: '৭ম শ্রেণি', path: '/class-7' },
+      { id: 'class6', label: 'Class 6', subLabel: '৬ষ্ঠ শ্রেণি', path: '/class-6' },
+      { id: 'class5', label: 'Class 5', subLabel: '৫ম শ্রেণি', path: '/class-5' },
+    ],
+    []
+  );
+
   // Compute page heading details
   const pageDetails = useMemo(() => {
     if (level === 'ssc') {
@@ -570,7 +582,48 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
           {/* DEDICATED TOGGLE PILL FOR ACADEMIC YEARS / CLASSES */}
           <div className="flex items-center justify-center mb-6 w-full px-1">
-            <div className="flex items-center gap-1.5 sm:gap-2.5 p-1.5 sm:p-2 rounded-2xl glass-strong max-w-full overflow-x-auto no-scrollbar scroll-smooth justify-start sm:justify-center mx-auto shadow-sm">
+            {(level === 'class' || level === 'ssc') && (
+              <div className="sm:hidden grid grid-cols-3 gap-1.5 p-1.5 rounded-xl glass-strong w-full shadow-sm">
+                {mobileSchoolGridOptions.map((opt) => {
+                  const isActive = opt.id === batchOrClass;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        if (!isActive) {
+                          onNavigate(opt.path);
+                        }
+                      }}
+                      className={`px-1.5 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                        isActive
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-md shadow-red-500/25'
+                          : 'glass-inset text-[#2A0F12] hover:bg-white/90 hover:text-[#B91C1C]'
+                      }`}
+                    >
+                      <span className="leading-tight">{opt.label}</span>
+                      {opt.subLabel && (
+                        <span
+                          className={`text-[9px] font-semibold px-1.5 py-[1px] rounded leading-tight ${
+                            isActive
+                              ? 'bg-black/20 text-rose-50'
+                              : 'bg-rose-500/10 text-[#6B4C4F]'
+                          }`}
+                        >
+                          {opt.subLabel}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div
+              className={`${
+                level === 'class' || level === 'ssc' ? 'hidden sm:flex' : 'flex'
+              } items-center gap-1.5 sm:gap-2.5 p-1.5 sm:p-2 rounded-2xl glass-strong max-w-full overflow-x-auto no-scrollbar scroll-smooth justify-start sm:justify-center mx-auto shadow-sm`}
+            >
               {toggleOptions.map((opt) => {
                 const isActive = opt.id === batchOrClass;
                 return (
@@ -608,8 +661,8 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
         </div>
       </section>
 
-      {/* QUICK SECTION / FILTER NAVIGATION STRIP (Fixed & Stationary) */}
-      <section className="max-w-[1240px] mx-auto px-4 sm:px-6 -mt-6 sm:-mt-7 relative z-30 sticky top-[68px] sm:top-[74px]">
+      {/* QUICK SECTION / FILTER NAVIGATION STRIP (Scrolls on Mobile, Sticky on Tablet/Desktop) */}
+      <section className="max-w-[1240px] mx-auto px-4 sm:px-6 -mt-6 sm:-mt-7 relative z-30 sm:sticky sm:top-[74px]">
         <div className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-4 border border-rose-100 shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex flex-col md:flex-row md:items-center justify-between gap-3">
           
           {level === 'hsc' ? (

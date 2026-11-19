@@ -785,6 +785,9 @@ export default function App({
           onNavigate={navigate}
           onLogout={handleAdminLogout}
           onDataMutated={handleAdminDataMutated}
+          onAdminNameUpdated={(nextName) =>
+            setAdminSession((prev) => (prev ? { ...prev, name: nextName } : prev))
+          }
           onDownloadZip={handleDownloadZip}
         />
       </>

@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
   Category,
@@ -13,6 +12,7 @@ import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
 import { AdminFooter } from './AdminFooter.tsx';
+import { AdminMobileBottomNav } from './AdminMobileBottomNav.tsx';
 
 const CourseEditorPage = dynamic(
   () => import('./CourseEditorPage.tsx').then((m) => m.CourseEditorPage),
@@ -76,7 +76,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
-  ExternalLink,
   SlidersHorizontal,
   AlarmClock,
   ShoppingBag,
@@ -92,6 +91,7 @@ interface AdminDashboardProps {
   onNavigate?: (path: string) => void;
   onLogout: () => void;
   onDataMutated: () => void;
+  onAdminNameUpdated?: (nextName: string) => void;
   onDownloadZip?: () => void;
 }
 
@@ -116,6 +116,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onNavigate,
   onLogout,
   onDataMutated,
+  onAdminNameUpdated,
   onDownloadZip,
 }) => {
   // Determine initial tab from currentPath
@@ -166,6 +167,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Settings form local state
   const [siteTitle, setSiteTitle] = useState('');
+  const [adminDisplayName, setAdminDisplayName] = useState(
+    () => (adminName || 'Site Admin').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Site Admin'
+  );
+  const [savedAdminDisplayName, setSavedAdminDisplayName] = useState(
+    () => (adminName || 'Site Admin').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Site Admin'
+  );
+  const [prevAdminNameProp, setPrevAdminNameProp] = useState(adminName);
+  if (adminName !== prevAdminNameProp) {
+    setPrevAdminNameProp(adminName);
+    const cleaned = (adminName || 'Site Admin').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Site Admin';
+    setAdminDisplayName(cleaned);
+    setSavedAdminDisplayName(cleaned);
+  }
   const [callNumber, setCallNumber] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [whatsappLink, setWhatsappLink] = useState('');
@@ -271,6 +285,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onNavigate(targetPath);
     } else if (typeof window !== 'undefined') {
       window.history.pushState(null, '', targetPath);
+    }
+    if (typeof window !== 'undefined' && window.scrollY > 40) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -627,11 +644,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Handle Save Settings
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanedAdminName = adminDisplayName.trim();
+    if (!cleanedAdminName) {
+      showToast('অ্যাডমিনের নাম খালি রাখা যাবে না।', 'error');
+      return;
+    }
+
     setSavingSettings(true);
 
     try {
       const payload = {
         siteTitle: siteTitle.trim(),
+        adminName: cleanedAdminName,
         callNumber: callNumber.trim(),
         whatsappNumber: whatsappNumber.trim(),
         whatsappLink: whatsappLink.trim(),
@@ -663,6 +687,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const updated = await res.json();
       setSettings(updated);
+      const nextAdminName =
+        typeof updated?.adminName === 'string' && updated.adminName.trim()
+          ? updated.adminName.trim()
+          : cleanedAdminName;
+      setAdminDisplayName(nextAdminName);
+      setSavedAdminDisplayName(nextAdminName);
+      onAdminNameUpdated?.(nextAdminName);
       onDataMutated();
       showToast('পোর্টাল সেটিংস সফলভাবে সংরক্ষিত হয়েছে।', 'success');
     } catch (err: any) {
@@ -823,7 +854,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onSelectTab={handleTabSwitch}
         onNavigateHome={handleNavigateHome}
         onRequestLogout={() => setShowLogoutConfirm(true)}
-        adminName={adminName}
+        adminName={savedAdminDisplayName}
         adminEmail={adminEmail}
         stats={{ ...stats, totalBooks: bookStats.totalBooks }}
         categoriesCount={categories.length}
@@ -937,28 +968,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               })}
             </nav>
 
-            {/* Admin Profile & Quick Website Link inside Sidebar */}
-            <div className="pt-4 border-t border-rose-200/50 space-y-2.5">
+            {/* Admin Profile inside Sidebar */}
+            <div className="pt-4 border-t border-rose-200/50">
               <div className="glass-inset px-3.5 py-2.5 rounded-2xl text-[11px]">
                 <div className="font-bold text-[#2A0F12] truncate">
-                  {(adminName || 'Admin Manager').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Admin Manager'}
+                  {savedAdminDisplayName}
                 </div>
                 <div className="text-[#6B4C4F] truncate font-mono text-[10.5px]">
                   {adminEmail || 'admin@10ms.com'}
                 </div>
               </div>
-
-              <Link
-                href="/"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleNavigateHome();
-                }}
-                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-rose-200/70 bg-white/60 hover:bg-rose-50 text-xs font-bold text-[#991b1b] transition"
-              >
-                <span>পাবলিক ওয়েবসাইট দেখুন</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </Link>
             </div>
           </div>
         </aside>
@@ -2052,16 +2071,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     ওয়েবসাইট শিরোনাম ও পরিচয় (Branding)
                   </h3>
 
-                  <div>
-                    <label className="block text-xs font-bold text-[#2A0F12] mb-1">
-                      সাইট টাইটেল (Site Title)
-                    </label>
-                    <input
-                      type="text"
-                      value={siteTitle}
-                      onChange={(e) => setSiteTitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                        সাইট টাইটেল (Site Title)
+                      </label>
+                      <input
+                        type="text"
+                        value={siteTitle}
+                        onChange={(e) => setSiteTitle(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                        অ্যাডমিনের নাম (Site Admin Name)
+                      </label>
+                      <input
+                        type="text"
+                        value={adminDisplayName}
+                        onChange={(e) => setAdminDisplayName(e.target.value)}
+                        placeholder="Site Admin"
+                        maxLength={120}
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
+                      />
+                      <p className="text-[11px] text-[#6B4C4F] mt-1">
+                        অ্যাডমিন পোর্টালের সাইডবার, হেডার ও ফুটারে এই নামটি প্রদর্শিত হবে।
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -2233,10 +2272,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onNavigateHome={handleNavigateHome}
         onRequestLogout={() => setShowLogoutConfirm(true)}
         onDownloadZip={onDownloadZip}
-        adminName={adminName}
+        adminName={savedAdminDisplayName}
         adminEmail={adminEmail}
         stats={{ ...stats, totalBooks: bookStats.totalBooks }}
         categoriesCount={categories.length}
+        activeOfferTimersCount={activeOfferTimersCount}
+      />
+
+      {/* Mobile Fixed Bottom Navigation Bar + More Menu */}
+      <AdminMobileBottomNav
+        activeTab={activeTab}
+        onSelectTab={handleTabSwitch}
+        onNavigateHome={handleNavigateHome}
+        onRequestLogout={() => setShowLogoutConfirm(true)}
+        onDownloadZip={onDownloadZip}
+        adminName={savedAdminDisplayName}
+        adminEmail={adminEmail}
+        stats={{ ...stats, totalBooks: bookStats.totalBooks }}
         activeOfferTimersCount={activeOfferTimersCount}
       />
 

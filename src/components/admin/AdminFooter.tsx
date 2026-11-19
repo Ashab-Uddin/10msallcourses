@@ -71,7 +71,7 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
 
       {/* Main Warm Burgundy-Crimson Body Container */}
       <div
-        className="relative pt-6 sm:pt-8 pb-8 px-4 sm:px-6 lg:px-8 border-t border-rose-800/40 shadow-2xl"
+        className="relative pt-6 sm:pt-8 pb-24 md:pb-8 px-4 sm:px-6 lg:px-8 border-t border-rose-800/40 shadow-2xl"
         style={{
           background: 'linear-gradient(180deg, #3d0b13 0%, #2a060d 50%, #1e0308 100%)',
         }}
