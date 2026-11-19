@@ -9,7 +9,7 @@ import {
   OfferTimer,
 } from '../types.ts';
 import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
-import { computeDiscountPercent } from '../lib/courseValidation.ts';
+import { computeDiscountPercent, syncTargetStudentsMetadata } from '../lib/courseValidation.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import { toBengaliNumber } from '../utils/format.ts';
 import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
@@ -445,6 +445,18 @@ export async function createNewCourse(input: Record<string, unknown>) {
       ? `${toBengaliNumber(discountPercent)}% ছাড়`
       : '';
 
+  const syncedTargets = syncTargetStudentsMetadata({
+    targetStudents: input.targetStudents,
+    targetBatch: input.targetBatch,
+    targetGroups: input.targetGroups,
+  });
+  if (!syncedTargets.valid) {
+    throw new RepositoryError(
+      syncedTargets.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।',
+      400
+    );
+  }
+
   const nowIso = new Date().toISOString();
   const newCourse: Course = {
     id: newId,
@@ -470,8 +482,9 @@ export async function createNewCourse(input: Record<string, unknown>) {
     rating: String(input.rating || '৪.৯').trim().slice(0, 10),
     studentCount: String(input.studentCount || '১০k+ শিক্ষার্থী').trim().slice(0, 60),
     duration: String(input.duration || '৬ মাস').trim().slice(0, 60),
-    targetStudents:
-      typeof input.targetStudents === 'string' ? input.targetStudents.trim().slice(0, 200) : '',
+    targetStudents: syncedTargets.targetStudents,
+    targetBatch: syncedTargets.targetBatch,
+    targetGroups: syncedTargets.targetGroups,
     instructorInfo: String(
       input.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল'
     ).trim().slice(0, 200),
@@ -622,10 +635,40 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
     ...(input.instructorInfo !== undefined
       ? { instructorInfo: String(input.instructorInfo).trim().slice(0, 200) }
       : {}),
-    targetStudents:
-      typeof input.targetStudents === 'string'
-        ? input.targetStudents.trim().slice(0, 200)
-        : existing.targetStudents,
+    ...((): {
+      targetStudents: string | null;
+      targetBatch?: string | null;
+      targetGroups?: Course['targetGroups'];
+    } => {
+      if (
+        input.targetStudents === undefined &&
+        input.targetBatch === undefined &&
+        input.targetGroups === undefined
+      ) {
+        return {
+          targetStudents: existing.targetStudents,
+          targetBatch: existing.targetBatch,
+          targetGroups: existing.targetGroups,
+        };
+      }
+      const synced = syncTargetStudentsMetadata({
+        targetStudents:
+          input.targetStudents !== undefined ? input.targetStudents : existing.targetStudents,
+        targetBatch: input.targetBatch,
+        targetGroups: input.targetGroups,
+      });
+      if (!synced.valid) {
+        throw new RepositoryError(
+          synced.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।',
+          400
+        );
+      }
+      return {
+        targetStudents: synced.targetStudents,
+        targetBatch: synced.targetBatch,
+        targetGroups: synced.targetGroups,
+      };
+    })(),
     originalPrice,
     discountPrice,
     discountPercent,

@@ -9,6 +9,8 @@ export interface Category {
   createdAt?: string | null;
 }
 
+export type CourseGroupKey = 'science' | 'business' | 'humanities';
+
 export interface Course {
   id: number;
   title: string;
@@ -31,6 +33,8 @@ export interface Course {
   studentCount: string;
   duration: string;
   targetStudents: string | null;
+  targetBatch?: string | null;
+  targetGroups?: CourseGroupKey[];
   instructorInfo: string;
   instructorIcon: string;
   features: string; // JSON string array

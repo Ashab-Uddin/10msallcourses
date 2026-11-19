@@ -10,7 +10,7 @@ import {
 } from '@/src/db/repository';
 import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 import { sanitizeImageUrl, validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
-import { validateCoursePricing, validateSingleBatchKeyword } from '@/src/lib/courseValidation';
+import { syncTargetStudentsMetadata, validateCoursePricing } from '@/src/lib/courseValidation';
 import { deleteImageKitFileByUrl, isManagedImageKitUrl } from '@/src/lib/imagekit';
 
 export const dynamic = 'force-dynamic';
@@ -90,16 +90,39 @@ export async function PUT(
       body.imageUrl = imageCheck.value;
     }
 
-    if (body.targetStudents !== undefined) {
-      const batchCheck = validateSingleBatchKeyword(body.targetStudents);
-      if (!batchCheck.valid) {
+    let syncedTargetMetadata: {
+      targetStudents: string;
+      targetBatch: string | null;
+      targetGroups: ReturnType<typeof syncTargetStudentsMetadata>['targetGroups'];
+    } | null = null;
+
+    if (
+      body.targetStudents !== undefined ||
+      body.targetBatch !== undefined ||
+      body.targetGroups !== undefined
+    ) {
+      const targetSync = syncTargetStudentsMetadata({
+        targetStudents:
+          body.targetStudents !== undefined ? body.targetStudents : existing.targetStudents,
+        targetBatch: body.targetBatch,
+        targetGroups: body.targetGroups,
+      });
+      if (!targetSync.valid) {
         return auth.withSessionCookies(
           NextResponse.json(
-            { error: batchCheck.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।' },
+            {
+              error:
+                targetSync.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।',
+            },
             { status: 400 }
           )
         );
       }
+      syncedTargetMetadata = {
+        targetStudents: targetSync.targetStudents,
+        targetBatch: targetSync.targetBatch,
+        targetGroups: targetSync.targetGroups,
+      };
     }
 
     const origCheck =
@@ -135,6 +158,11 @@ export async function PUT(
     }
 
     const sanitizedBody = { ...body };
+    if (syncedTargetMetadata) {
+      sanitizedBody.targetStudents = syncedTargetMetadata.targetStudents;
+      sanitizedBody.targetBatch = syncedTargetMetadata.targetBatch;
+      sanitizedBody.targetGroups = syncedTargetMetadata.targetGroups;
+    }
     if (origCheck) sanitizedBody.originalPrice = origCheck.value;
     if (discCheck) sanitizedBody.discountPrice = discCheck.value;
     if (sanitizedBody.shortBadge !== undefined && typeof sanitizedBody.shortBadge === 'string') {

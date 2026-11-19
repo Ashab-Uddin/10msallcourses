@@ -5,9 +5,12 @@ import { Category, Course } from '../../types.ts';
 import { toBengaliNumber, parseFeatures } from '../../utils/format.ts';
 import {
   BATCH_KEYWORD_OPTIONS,
+  CANONICAL_GROUP_OPTIONS,
   DEPARTMENT_KEYWORD_OPTIONS,
   BatchKeywordOption,
   extractMatchedBatchKeywords,
+  normalizeValidationText,
+  syncTargetStudentsMetadata,
   validateSingleBatchKeyword,
   validateCoursePricing,
 } from '../../lib/courseValidation.ts';
@@ -76,7 +79,7 @@ function removeBatchKeywordsFromText(text: string): string {
 }
 
 function normalizeKeywordToken(token: string): string {
-  return token.normalize('NFC').trim().toLowerCase();
+  return normalizeValidationText(token).toLowerCase();
 }
 
 function dedupeCommaKeywords(text: string): string {
@@ -130,7 +133,15 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const duration = course?.duration || '৬ মাস';
   const studentCount = course?.studentCount || '১২,৫০০+ শিক্ষার্থী';
   const rating = course?.rating || '৪.৯';
-  const [targetStudents, setTargetStudents] = useState(course?.targetStudents || '');
+  const [targetStudents, setTargetStudents] = useState(() => {
+    if (!course) return '';
+    const synced = syncTargetStudentsMetadata({
+      targetStudents: course.targetStudents || '',
+      targetBatch: course.targetBatch,
+      targetGroups: course.targetGroups,
+    });
+    return synced.valid ? synced.targetStudents : course.targetStudents || '';
+  });
   const [batchError, setBatchError] = useState<string | null>(null);
   const [featuresList, setFeaturesList] = useState<string[]>(() =>
     parseFeatures(
@@ -169,6 +180,10 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   );
   const batchValidation = useMemo(
     () => validateSingleBatchKeyword(targetStudents),
+    [targetStudents]
+  );
+  const targetMetadataSync = useMemo(
+    () => syncTargetStudentsMetadata({ targetStudents }),
     [targetStudents]
   );
 
@@ -452,7 +467,11 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       rating: rating.trim() || '৪.৯',
       studentCount: studentCount.trim() || '১২,৫০০+ শিক্ষার্থী',
       duration: duration.trim() || '৬ মাস',
-      targetStudents: targetStudents.trim(),
+      targetStudents: targetMetadataSync.valid
+        ? targetMetadataSync.targetStudents
+        : targetStudents.trim(),
+      targetBatch: targetMetadataSync.valid ? targetMetadataSync.targetBatch : null,
+      targetGroups: targetMetadataSync.valid ? targetMetadataSync.targetGroups : [],
       instructorInfo: course?.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল',
       instructorIcon: course?.instructorIcon || 'school',
       features: JSON.stringify(featuresList),
@@ -484,6 +503,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     slug,
     status,
     studentCount,
+    targetMetadataSync,
     targetStudents,
     title,
     affiliateUrl,
@@ -558,7 +578,11 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       rating: rating.trim() || '৪.৯',
       studentCount: studentCount.trim() || '১২,৫০০+ শিক্ষার্থী',
       duration: duration.trim() || '৬ মাস',
-      targetStudents: dedupeCommaKeywords(targetStudents),
+      targetStudents: targetMetadataSync.valid
+        ? targetMetadataSync.targetStudents
+        : dedupeCommaKeywords(targetStudents),
+      targetBatch: targetMetadataSync.valid ? targetMetadataSync.targetBatch : null,
+      targetGroups: targetMetadataSync.valid ? targetMetadataSync.targetGroups : [],
       features: featuresList,
       affiliateUrl: affiliateUrl.trim(),
       isPopular,
@@ -765,95 +789,134 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                 </div>
               )}
 
-              {/* Clickable Target Students & Batch Keyword Chips */}
+              {/* Clickable Target Batch & Group Selector Chips */}
               <div
-                className="flex flex-wrap gap-1.5"
+                className="space-y-2.5 pt-1"
                 role="group"
-                aria-label="লক্ষ্য শিক্ষার্থী ও ব্যাচ কীওয়ার্ড"
+                aria-label="লক্ষ্য শিক্ষার্থী, ব্যাচ ও বিভাগ"
                 onKeyDown={handleTargetChipGroupKeyDown}
               >
-                {BATCH_KEYWORD_OPTIONS.map((opt) => {
-                  const isSelected = matchedBatches.some((b) => b.id === opt.id);
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      data-target-chip="true"
-                      onClick={() => handleBatchChipClick(opt)}
-                      onKeyDown={(e) => {
-                        if ((e.key === 'Backspace' || e.key === 'Delete') && isSelected) {
-                          e.preventDefault();
-                          handleBatchChipClick(opt);
-                        }
-                      }}
-                      aria-pressed={isSelected}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm'
-                          : 'bg-white text-[#2A0F12] border-rose-200/90 hover:border-[#eb1c24] hover:bg-rose-50/80 shadow-2xs'
-                      }`}
-                    >
-                      {isSelected && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
-                      <span>{opt.label}</span>
-                      <span
-                        className={`text-[10px] font-medium ${
-                          isSelected ? 'text-rose-100' : 'text-[#6B4C4F]'
-                        }`}
+                <div>
+                  <div className="text-[11px] font-bold text-[#6B4C4F] mb-1.5">
+                    ১. টার্গেট ব্যাচ / শ্রেণি (Target Batch — যেকোনো ১টি নির্বাচন করুন):
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {BATCH_KEYWORD_OPTIONS.map((opt) => {
+                      const isSelected = matchedBatches.some((b) => b.id === opt.id);
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          data-target-chip="true"
+                          onClick={() => handleBatchChipClick(opt)}
+                          onKeyDown={(e) => {
+                            if ((e.key === 'Backspace' || e.key === 'Delete') && isSelected) {
+                              e.preventDefault();
+                              handleBatchChipClick(opt);
+                            }
+                          }}
+                          aria-pressed={isSelected}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm'
+                              : 'bg-white text-[#2A0F12] border-rose-200/90 hover:border-[#eb1c24] hover:bg-rose-50/80 shadow-2xs'
+                          }`}
+                        >
+                          {isSelected && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                          <span>{opt.label}</span>
+                          <span
+                            className={`text-[10px] font-medium ${
+                              isSelected ? 'text-rose-100' : 'text-[#6B4C4F]'
+                            }`}
+                          >
+                            ({opt.subLabel})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-bold text-[#6B4C4F] mb-1.5">
+                    ২. বিভাগ ও ফোকাস ট্যাগ (Group / Department — শুধুমাত্র নির্বাচিত বিভাগেই দেখাবে):
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DEPARTMENT_KEYWORD_OPTIONS.map((dept) => {
+                      const isDeptActive = targetTokensLower.includes(normalizeKeywordToken(dept));
+                      return (
+                        <button
+                          key={dept}
+                          type="button"
+                          data-target-chip="true"
+                          onClick={() => handleDepartmentChipClick(dept)}
+                          onKeyDown={(e) => {
+                            if ((e.key === 'Backspace' || e.key === 'Delete') && isDeptActive) {
+                              e.preventDefault();
+                              handleDepartmentChipClick(dept);
+                            }
+                          }}
+                          aria-pressed={isDeptActive}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 ${
+                            isDeptActive
+                              ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c24] shadow-sm'
+                              : 'bg-white text-[#2A0F12] border-rose-200/90 hover:border-[#eb1c24] hover:bg-rose-50/80 shadow-2xs'
+                          }`}
+                        >
+                          {isDeptActive && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                          <span>{dept}</span>
+                        </button>
+                      );
+                    })}
+
+                    {customTargetTokens.map((customToken) => (
+                      <button
+                        key={customToken}
+                        type="button"
+                        data-target-chip="true"
+                        onClick={() => handleRemoveCustomTargetToken(customToken)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Backspace' || e.key === 'Delete') {
+                            e.preventDefault();
+                            handleRemoveCustomTargetToken(customToken);
+                          }
+                        }}
+                        aria-pressed={true}
+                        title="রিমুভ করতে ক্লিক করুন"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm"
                       >
-                        ({opt.subLabel})
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>{customToken}</span>
+                        <X className="w-3 h-3 shrink-0 opacity-90" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {targetMetadataSync.valid &&
+                  (targetMetadataSync.targetBatch ||
+                    targetMetadataSync.targetGroups.length > 0) && (
+                    <div className="text-[11px] font-bold text-[#7A353B] bg-rose-50/75 border border-rose-200/80 rounded-xl px-3 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span>
+                        সক্রিয় ফিল্টারিং:{' '}
+                        {targetMetadataSync.targetBatch
+                          ? BATCH_KEYWORD_OPTIONS.find(
+                              (b) => b.id === targetMetadataSync.targetBatch
+                            )?.label || targetMetadataSync.targetBatch
+                          : 'নির্দিষ্ট ব্যাচ নেই'}
                       </span>
-                    </button>
-                  );
-                })}
-
-                {DEPARTMENT_KEYWORD_OPTIONS.map((dept) => {
-                  const isDeptActive = targetTokensLower.includes(normalizeKeywordToken(dept));
-                  return (
-                    <button
-                      key={dept}
-                      type="button"
-                      data-target-chip="true"
-                      onClick={() => handleDepartmentChipClick(dept)}
-                      onKeyDown={(e) => {
-                        if ((e.key === 'Backspace' || e.key === 'Delete') && isDeptActive) {
-                          e.preventDefault();
-                          handleDepartmentChipClick(dept);
-                        }
-                      }}
-                      aria-pressed={isDeptActive}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 ${
-                        isDeptActive
-                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm'
-                          : 'bg-white text-[#2A0F12] border-rose-200/90 hover:border-[#eb1c24] hover:bg-rose-50/80 shadow-2xs'
-                      }`}
-                    >
-                      {isDeptActive && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
-                      <span>{dept}</span>
-                    </button>
-                  );
-                })}
-
-                {customTargetTokens.map((customToken) => (
-                  <button
-                    key={customToken}
-                    type="button"
-                    data-target-chip="true"
-                    onClick={() => handleRemoveCustomTargetToken(customToken)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Backspace' || e.key === 'Delete') {
-                        e.preventDefault();
-                        handleRemoveCustomTargetToken(customToken);
-                      }
-                    }}
-                    aria-pressed={true}
-                    title="রিমুভ করতে ক্লিক করুন"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#eb1c24]/40 bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                    <span>{customToken}</span>
-                    <X className="w-3 h-3 shrink-0 opacity-90" />
-                  </button>
-                ))}
+                      {targetMetadataSync.targetGroups.length > 0 && (
+                        <span>
+                          • বিভাগ:{' '}
+                          {targetMetadataSync.targetGroups
+                            .map(
+                              (g) => CANONICAL_GROUP_OPTIONS.find((o) => o.key === g)?.label || g
+                            )
+                            .join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  )}
               </div>
             </div>
 

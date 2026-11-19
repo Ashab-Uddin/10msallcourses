@@ -9,7 +9,14 @@ import {
 import { INITIAL_SETTINGS } from './seedData.ts';
 import { getSupabaseAdminClient } from '../lib/supabase/admin.ts';
 import { CACHE_TAG_PUBLIC_PORTAL } from '../lib/cacheInvalidation.ts';
-import { computeDiscountPercent } from '../lib/courseValidation.ts';
+import {
+  computeDiscountPercent,
+  extractExplicitTargetGroupsFromText,
+  extractMatchedBatchKeywords,
+  normalizeTargetBatchId,
+  normalizeTargetGroups,
+  syncTargetStudentsMetadata,
+} from '../lib/courseValidation.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import { parseFeatures, toBengaliNumber } from '../utils/format.ts';
 import {
@@ -33,6 +40,15 @@ function isDisplayOrderUniqueError(err: PgErrorLike): boolean {
   return (
     combined.includes('display_order') ||
     combined.includes('uq_categories_display_order')
+  );
+}
+
+function isMissingTargetMetadataColumnError(err: unknown): boolean {
+  const pg = (err || {}) as PgErrorLike;
+  const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
+  return (
+    (pg.code === '42703' || pg.code === 'PGRST204' || msg.includes('schema cache') || msg.includes('does not exist')) &&
+    (msg.includes('target_batch') || msg.includes('target_groups'))
   );
 }
 
@@ -103,10 +119,27 @@ function mapCourseRow(row: Record<string, unknown>): Course {
     ? rawFeatures
     : '[]';
 
+  const targetStudentsStr =
+    row.target_students === null || row.target_students === undefined
+      ? ''
+      : String(row.target_students);
+  const titleStr = String(row.title || '');
+  const slugStr = String(row.slug || '');
+  const resolvedTargetBatch =
+    normalizeTargetBatchId(row.target_batch) ||
+    extractMatchedBatchKeywords(targetStudentsStr)[0]?.id ||
+    extractMatchedBatchKeywords(`${titleStr} ${slugStr}`)[0]?.id ||
+    null;
+  const groupsFromCol = normalizeTargetGroups(row.target_groups);
+  const resolvedTargetGroups =
+    groupsFromCol.length > 0
+      ? groupsFromCol
+      : extractExplicitTargetGroupsFromText(targetStudentsStr);
+
   return {
     id: Number(row.id),
-    title: String(row.title || ''),
-    slug: String(row.slug || ''),
+    title: titleStr,
+    slug: slugStr,
     categoryId:
       row.category_id === null || row.category_id === undefined
         ? null
@@ -133,10 +166,9 @@ function mapCourseRow(row: Record<string, unknown>): Course {
     rating: String(row.rating || '৪.৯'),
     studentCount: String(row.student_count || '১০k+ শিক্ষার্থী'),
     duration: String(row.duration || '৬ মাস'),
-    targetStudents:
-      row.target_students === null || row.target_students === undefined
-        ? ''
-        : String(row.target_students),
+    targetStudents: targetStudentsStr,
+    targetBatch: resolvedTargetBatch,
+    targetGroups: resolvedTargetGroups,
     instructorInfo: String(
       row.instructor_info || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল'
     ),
@@ -527,7 +559,19 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     ? imageFitRaw
     : 'contain';
 
-  const insertPayload = {
+  const syncedTargets = syncTargetStudentsMetadata({
+    targetStudents: input.targetStudents,
+    targetBatch: input.targetBatch,
+    targetGroups: input.targetGroups,
+  });
+  if (!syncedTargets.valid) {
+    throw new RepositoryError(
+      syncedTargets.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।',
+      400
+    );
+  }
+
+  const insertPayload: Record<string, unknown> = {
     title: title.slice(0, 220),
     slug: slug.slice(0, 220),
     category_id: Number(matchedCat.id),
@@ -554,10 +598,9 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     rating: String(input.rating || '৪.৯').trim().slice(0, 10),
     student_count: String(input.studentCount || '১০k+ শিক্ষার্থী').trim().slice(0, 60),
     duration: String(input.duration || '৬ মাস').trim().slice(0, 60),
-    target_students:
-      typeof input.targetStudents === 'string'
-        ? input.targetStudents.trim().slice(0, 200)
-        : '',
+    target_students: syncedTargets.targetStudents,
+    target_batch: syncedTargets.targetBatch,
+    target_groups: syncedTargets.targetGroups,
     instructor_info: String(
       input.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল'
     )
@@ -571,11 +614,22 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     click_count: 0,
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('courses')
     .insert(insertPayload)
     .select('*')
     .single();
+
+  if (error && isMissingTargetMetadataColumnError(error)) {
+    const legacyPayload = { ...insertPayload };
+    delete legacyPayload.target_batch;
+    delete legacyPayload.target_groups;
+    ({ data, error } = await supabase
+      .from('courses')
+      .insert(legacyPayload)
+      .select('*')
+      .single());
+  }
 
   if (error) {
     if (error.code === '23505') {
@@ -724,19 +778,49 @@ export async function sbUpdateExistingCourse(
   if (input.instructorIcon !== undefined) {
     updatePayload.instructor_icon = String(input.instructorIcon).trim().slice(0, 50);
   }
-  if (typeof input.targetStudents === 'string') {
-    updatePayload.target_students = input.targetStudents.trim().slice(0, 200);
+  if (
+    input.targetStudents !== undefined ||
+    input.targetBatch !== undefined ||
+    input.targetGroups !== undefined
+  ) {
+    const syncedTargets = syncTargetStudentsMetadata({
+      targetStudents:
+        input.targetStudents !== undefined ? input.targetStudents : existing.targetStudents,
+      targetBatch: input.targetBatch,
+      targetGroups: input.targetGroups,
+    });
+    if (!syncedTargets.valid) {
+      throw new RepositoryError(
+        syncedTargets.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।',
+        400
+      );
+    }
+    updatePayload.target_students = syncedTargets.targetStudents;
+    updatePayload.target_batch = syncedTargets.targetBatch;
+    updatePayload.target_groups = syncedTargets.targetGroups;
   }
   if (input.features !== undefined) {
     updatePayload.features = serializeFeaturesForJsonb(input.features);
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('courses')
     .update(updatePayload)
     .eq('id', id)
     .select('*')
     .maybeSingle();
+
+  if (error && isMissingTargetMetadataColumnError(error)) {
+    const legacyPayload = { ...updatePayload };
+    delete legacyPayload.target_batch;
+    delete legacyPayload.target_groups;
+    ({ data, error } = await supabase
+      .from('courses')
+      .update(legacyPayload)
+      .eq('id', id)
+      .select('*')
+      .maybeSingle());
+  }
 
   if (error) {
     if (error.code === '23505') {

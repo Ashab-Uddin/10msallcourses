@@ -3,6 +3,7 @@ import { BookCategory, Category, Course, SiteSettings } from '@/src/types';
 import { toBengaliNumber } from '@/src/utils/format';
 import {
   CLASS_BENGALI_ORDINALS,
+  courseMatchesAcademicBatch,
   courseMatchesCategorySlug,
   courseMatchesClass,
   type JuniorClassNumber,
@@ -95,12 +96,7 @@ function resolveRouteSeo(
       canonicalPath: '/hsc/hsc-26',
       filterCourses: (all) =>
         all.filter(
-          (c) =>
-            isPublicVisibleCourse(c) &&
-            (c.categorySlug === 'hsc' || c.categorySlug === 'admission') &&
-            (c.slug.includes('hsc-26') ||
-              c.title.toLowerCase().includes('hsc 26') ||
-              c.categorySlug === 'admission')
+          (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'hsc-26')
         ),
     };
   }
@@ -113,10 +109,7 @@ function resolveRouteSeo(
       canonicalPath: '/hsc/hsc-27',
       filterCourses: (all) =>
         all.filter(
-          (c) =>
-            isPublicVisibleCourse(c) &&
-            c.categorySlug === 'hsc' &&
-            (c.slug.includes('hsc-27') || c.title.toLowerCase().includes('hsc 27'))
+          (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'hsc-27')
         ),
     };
   }
@@ -135,10 +128,7 @@ function resolveRouteSeo(
       canonicalPath: '/hsc/hsc-28',
       filterCourses: (all) =>
         all.filter(
-          (c) =>
-            isPublicVisibleCourse(c) &&
-            c.categorySlug === 'hsc' &&
-            (c.slug.includes('hsc-28') || c.title.toLowerCase().includes('hsc 28'))
+          (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'hsc-28')
         ),
     };
   }
@@ -158,7 +148,9 @@ function resolveRouteSeo(
         'দশম শ্রেণি ও SSC ২০২৭ বোর্ড পরীক্ষার পূর্ণাঙ্গ প্রস্তুতি, লাইভ ক্লাস, মডেল টেস্ট ও বোর্ড প্রশ্ন সমাধান।',
       canonicalPath: '/ssc/ssc-27',
       filterCourses: (all) =>
-        all.filter((c) => isPublicVisibleCourse(c) && c.categorySlug === 'school'),
+        all.filter(
+          (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'ssc-2027')
+        ),
     };
   }
 
@@ -175,7 +167,9 @@ function resolveRouteSeo(
         'নবম শ্রেণি ও SSC ২০২৮ ব্যাচের বাংলা, ইংরেজি, গণিত, বিজ্ঞান, মানবিক ও ব্যবসায় শিক্ষার পূর্ণাঙ্গ একাডেমিক ব্যাচ।',
       canonicalPath: '/ssc/ssc-28',
       filterCourses: (all) =>
-        all.filter((c) => isPublicVisibleCourse(c) && c.categorySlug === 'school'),
+        all.filter(
+          (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'ssc-2028')
+        ),
     };
   }
 
@@ -226,7 +220,7 @@ function resolveRouteSeo(
         all.filter(
           (c) =>
             isPublicVisibleCourse(c) &&
-            (c.categorySlug === 'skills' || c.categorySlug === 'language-learning')
+            courseMatchesCategorySlug(c, 'language-learning')
         ),
     };
   }

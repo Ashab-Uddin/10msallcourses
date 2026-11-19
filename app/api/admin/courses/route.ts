@@ -8,7 +8,15 @@ import {
 } from '@/src/db/repository';
 import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 import { sanitizeImageUrl, validateExternalHttpUrl } from '@/src/lib/affiliateUrl';
-import { validateCoursePricing, validateSingleBatchKeyword } from '@/src/lib/courseValidation';
+import {
+  normalizeTargetGroups,
+  syncTargetStudentsMetadata,
+  validateCoursePricing,
+} from '@/src/lib/courseValidation';
+import {
+  courseMatchesAcademicBatch,
+  resolveCourseDepartments,
+} from '@/src/lib/categoryMatching';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +40,21 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get('category')?.trim();
     if (category && category !== 'all') {
       courses = courses.filter((c) => c.categorySlug === category);
+    }
+
+    const batch = searchParams.get('batch')?.trim();
+    if (batch && batch !== 'all') {
+      courses = courses.filter((c) => courseMatchesAcademicBatch(c, batch));
+    }
+
+    const group = searchParams.get('group')?.trim();
+    if (group && group !== 'all') {
+      const targetGroups = normalizeTargetGroups(group);
+      if (targetGroups.length > 0) {
+        courses = courses.filter((c) =>
+          resolveCourseDepartments(c).some((g) => targetGroups.includes(g))
+        );
+      }
     }
 
     const q = searchParams.get('q')?.trim().toLowerCase();
@@ -122,11 +145,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const batchCheck = validateSingleBatchKeyword(body.targetStudents);
-    if (!batchCheck.valid) {
+    const targetSync = syncTargetStudentsMetadata({
+      targetStudents: body.targetStudents,
+      targetBatch: body.targetBatch,
+      targetGroups: body.targetGroups,
+    });
+    if (!targetSync.valid) {
       return auth.withSessionCookies(
         NextResponse.json(
-          { error: batchCheck.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।' },
+          { error: targetSync.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।' },
           { status: 400 }
         )
       );
@@ -162,6 +189,9 @@ export async function POST(req: NextRequest) {
 
     const data = await createNewCourse({
       ...body,
+      targetStudents: targetSync.targetStudents,
+      targetBatch: targetSync.targetBatch,
+      targetGroups: targetSync.targetGroups,
       affiliateUrl: affiliateCheck.normalized,
       imageUrl: imageCheck.value,
       originalPrice: origCheck.value,

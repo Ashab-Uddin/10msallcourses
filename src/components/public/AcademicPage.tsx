@@ -4,7 +4,9 @@ import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
 import {
   CLASS_BENGALI_ORDINALS,
-  courseMatchesClass,
+  courseMatchesAcademicBatch,
+  normalizeCategoryMatchText,
+  resolveCourseDepartments,
 } from '../../lib/categoryMatching.ts';
 import {
   Search,
@@ -19,16 +21,7 @@ export type AcademicLevel = 'ssc' | 'hsc' | 'class';
 export type DepartmentType = 'all' | 'science' | 'business' | 'humanities';
 
 function normalizeSearchText(value: string): string {
-  return value
-    .normalize('NFC')
-    .replace(/য\u09BC/g, 'য়')
-    .replace(/ড\u09BC/g, 'ড়')
-    .replace(/ঢ\u09BC/g, 'ঢ়')
-    .toLowerCase();
-}
-
-function matchesAnyKeyword(haystack: string, keywords: string[]): boolean {
-  return keywords.some((kw) => haystack.includes(normalizeSearchText(kw)));
+  return normalizeCategoryMatchText(value);
 }
 
 interface AcademicPageProps {
@@ -176,283 +169,10 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
     };
   }, [level, batchOrClass, categories]);
 
-  // Filter courses strictly respecting Course Category first, then matching batch/class metadata
+  // Filter courses strictly respecting Course Category first, then exact Target Batch / Class metadata
   const batchCourses = useMemo(() => {
-    return courses.filter((c) => {
-      const text = normalizeSearchText(
-        `${c.title} ${c.slug} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''} ${c.description}`
-      );
-
-      if (level === 'ssc') {
-        if (c.categorySlug !== 'school') return false;
-        if (batchOrClass === 'ssc-27') {
-          return matchesAnyKeyword(text, [
-            'ssc 27',
-            'ssc27',
-            'ssc-27',
-            'ssc 2027',
-            'ssc-2027',
-            'ssc ২৭',
-            'ssc ২০২৭',
-            'এসএসসি ২৭',
-            'এসএসসি ২০২৭',
-            'এসএসসি 27',
-            'এসএসসি 2027',
-            '১০ম',
-            'দশম',
-            'class 10',
-            'class-10',
-            'class10',
-          ]);
-        }
-        if (batchOrClass === 'ssc-28') {
-          return matchesAnyKeyword(text, [
-            'ssc 28',
-            'ssc28',
-            'ssc-28',
-            'ssc 2028',
-            'ssc-2028',
-            'ssc ২৮',
-            'ssc ২০২৮',
-            'এসএসসি ২৮',
-            'এসএসসি ২০২৮',
-            'এসএসসি 28',
-            'এসএসসি 2028',
-            '৯ম',
-            'নবম',
-            'class 9',
-            'class-9',
-            'class9',
-          ]);
-        }
-      }
-
-      if (level === 'hsc') {
-        if (batchOrClass === 'hsc-26') {
-          if (c.categorySlug !== 'hsc' && c.categorySlug !== 'admission') return false;
-          return matchesAnyKeyword(text, [
-            'hsc 26',
-            'hsc26',
-            'hsc-26',
-            'hsc 2026',
-            'hsc-2026',
-            'hsc ২৬',
-            'hsc ২০২৬',
-            'এইচএসসি ২৬',
-            'এইচএসসি ২০২৬',
-            'এইচএসসি 26',
-            'এইচএসসি 2026',
-            'varsity',
-            'ভার্সিটি',
-            'গুচ্ছ',
-            'gst',
-            'admission',
-            'এডমিশন',
-            'ভর্তি',
-            'মেডিকেল',
-            'medical',
-            'বুয়েট',
-            'buet',
-            'ইঞ্জিনিয়ারিং',
-            'engineering',
-          ]);
-        }
-        if (c.categorySlug !== 'hsc') return false;
-        if (batchOrClass === 'hsc-27') {
-          return matchesAnyKeyword(text, [
-            'hsc 27',
-            'hsc27',
-            'hsc-27',
-            'hsc 2027',
-            'hsc-2027',
-            'hsc ২৭',
-            'hsc ২০২৭',
-            'এইচএসসি ২৭',
-            'এইচএসসি ২০২৭',
-            'এইচএসসি 27',
-            'এইচএসসি 2027',
-            '২য় বর্ষ',
-            'দ্বিতীয় বর্ষ',
-            '2nd year',
-          ]);
-        }
-        if (batchOrClass === 'hsc-28') {
-          return matchesAnyKeyword(text, [
-            'hsc 28',
-            'hsc28',
-            'hsc-28',
-            'hsc 2028',
-            'hsc-2028',
-            'hsc ২৮',
-            'hsc ২০২৮',
-            'এইচএসসি ২৮',
-            'এইচএসসি ২০২৮',
-            'এইচএসসি 28',
-            'এইচএসসি 2028',
-            '১ম বর্ষ',
-            'প্রথম বর্ষ',
-            '1st year',
-          ]);
-        }
-      }
-
-      if (level === 'class') {
-        if (batchOrClass === 'class5') {
-          return courseMatchesClass(c, 5);
-        }
-        if (batchOrClass === 'class6') {
-          return courseMatchesClass(c, 6);
-        }
-        if (batchOrClass === 'class7') {
-          return courseMatchesClass(c, 7);
-        }
-        if (batchOrClass === 'class8') {
-          return courseMatchesClass(c, 8);
-        }
-        if (c.categorySlug !== 'school') return false;
-        if (batchOrClass === 'class9') {
-          return matchesAnyKeyword(text, [
-            '৯ম',
-            'নবম',
-            'class 9',
-            'class-9',
-            'class9',
-            'ssc 28',
-            'ssc-28',
-            'ssc 2028',
-            'ssc ২০২৮',
-            'এসএসসি ২০২৮',
-          ]);
-        }
-        if (batchOrClass === 'class10') {
-          return matchesAnyKeyword(text, [
-            '১০ম',
-            'দশম',
-            'class 10',
-            'class-10',
-            'class10',
-            'ssc 27',
-            'ssc-27',
-            'ssc 2027',
-            'ssc ২০২৭',
-            'এসএসসি ২০২৭',
-          ]);
-        }
-      }
-
-      return false;
-    });
-  }, [level, batchOrClass, courses]);
-
-  // Helper to determine departments for a course
-  const getCourseDepartments = (c: Course): ('science' | 'business' | 'humanities')[] => {
-    const text = normalizeSearchText(
-      `${c.title} ${c.slug} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''} ${c.description}`
-    );
-
-    if (matchesAnyKeyword(text, ['সকল বিভাগ', 'all department'])) {
-      return ['science', 'business', 'humanities'];
-    }
-
-    const isBusiness = matchesAnyKeyword(text, [
-      'ব্যবসায়',
-      'ব্যবসা',
-      'ব্যাবসা',
-      'বাণিজ্য',
-      'কমার্শ',
-      'কমার্স',
-      'commerce',
-      'business',
-      'হিসাববিজ্ঞান',
-      'accounting',
-      'ফিন্যান্স',
-      'finance',
-      'ব্যবস্থাপনা',
-      'management',
-      'মার্কেটিং',
-      'marketing',
-      'c-unit',
-      'c unit',
-      'গ’ ইউনিট',
-      'গ ইউনিট',
-      'iba',
-    ]);
-
-    const isHumanities = matchesAnyKeyword(text, [
-      'মানবিক',
-      'আর্টস',
-      'humanities',
-      'arts',
-      'ইতিহাস',
-      'history',
-      'পৌরনীতি',
-      'civics',
-      'ভূগোল',
-      'geography',
-      'অর্থনীতি',
-      'economics',
-      'সমাজবিজ্ঞান',
-      'sociology',
-      'যুক্তিবিদ্যা',
-      'logic',
-      'b-unit',
-      'b unit',
-      'খ’ ইউনিট',
-      'খ ইউনিট',
-      'd-unit',
-      'd unit',
-      'ঘ’ ইউনিট',
-      'ঘ ইউনিট',
-    ]);
-
-    const isScience = matchesAnyKeyword(text, [
-      'বিজ্ঞান',
-      'সায়েন্স',
-      'science',
-      'pcmb',
-      'physics',
-      'chem',
-      'chemistry',
-      'biology',
-      'math',
-      'mathematics',
-      'পদার্থ',
-      'রসায়ন',
-      'জীববিজ্ঞান',
-      'বায়োলজি',
-      'গণিত',
-      'উচ্চতর গণিত',
-      'a-unit',
-      'a unit',
-      'ক’ ইউনিট',
-      'ক ইউনিট',
-      'ইঞ্জিনিয়ারিং',
-      'engineering',
-      'বুয়েট',
-      'buet',
-      'মেডিকেল',
-      'medical',
-      'ভার্সিটি ‘ক’',
-      'টেস্ট পেপার',
-      'কৃষি',
-      'agri',
-    ]);
-
-    const depts: ('science' | 'business' | 'humanities')[] = [];
-    if (isScience) depts.push('science');
-    if (isBusiness) depts.push('business');
-    if (isHumanities) depts.push('humanities');
-
-    // General or foundational courses apply to all 3 departments
-    if (
-      depts.length === 0 ||
-      matchesAnyKeyword(text, ['bei', 'বাংলা, ইংরেজি', 'মাস্টারক্লাস'])
-    ) {
-      return ['science', 'business', 'humanities'];
-    }
-
-    return depts;
-  };
+    return courses.filter((c) => courseMatchesAcademicBatch(c, batchOrClass));
+  }, [batchOrClass, courses]);
 
   // Only HSC has the 3 dedicated department sections (Science, Business Studies, Humanities)
   const hasDepartments = level === 'hsc';
@@ -467,15 +187,15 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
   // Dedicated course lists per department
   const scienceCourses = useMemo(() => {
-    return batchCourses.filter((c) => getCourseDepartments(c).includes('science'));
+    return batchCourses.filter((c) => resolveCourseDepartments(c).includes('science'));
   }, [batchCourses]);
 
   const businessCourses = useMemo(() => {
-    return batchCourses.filter((c) => getCourseDepartments(c).includes('business'));
+    return batchCourses.filter((c) => resolveCourseDepartments(c).includes('business'));
   }, [batchCourses]);
 
   const humanitiesCourses = useMemo(() => {
-    return batchCourses.filter((c) => getCourseDepartments(c).includes('humanities'));
+    return batchCourses.filter((c) => resolveCourseDepartments(c).includes('humanities'));
   }, [batchCourses]);
 
   // Search filtered courses per department
@@ -507,7 +227,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   const filteredBatchCourses = useMemo(() => {
     let list = batchCourses;
     if (selectedDept !== 'all') {
-      list = list.filter((c) => getCourseDepartments(c).includes(selectedDept));
+      list = list.filter((c) => resolveCourseDepartments(c).includes(selectedDept));
     }
     if (searchQuery.trim()) {
       const q = normalizeSearchText(searchQuery);

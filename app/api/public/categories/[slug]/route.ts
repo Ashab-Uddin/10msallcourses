@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
-import { courseMatchesCategorySlug } from '@/src/lib/categoryMatching';
+import {
+  courseMatchesAcademicBatch,
+  courseMatchesCategorySlug,
+  resolveCourseDepartments,
+} from '@/src/lib/categoryMatching';
+import { normalizeTargetGroups } from '@/src/lib/courseValidation';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
@@ -44,9 +49,26 @@ export async function GET(
       (cat) => cat.slug.toLowerCase() === effectiveSlug
     );
 
-    const matchedCourses = data.courses.filter((course) =>
+    const batchFilter = req.nextUrl.searchParams.get('batch')?.trim();
+    const groupFilter = req.nextUrl.searchParams.get('group')?.trim();
+    const targetGroupsFilter =
+      groupFilter && groupFilter !== 'all' ? normalizeTargetGroups(groupFilter) : [];
+
+    let matchedCourses = data.courses.filter((course) =>
       courseMatchesCategorySlug(course, effectiveSlug)
     );
+
+    if (batchFilter && batchFilter !== 'all') {
+      matchedCourses = matchedCourses.filter((course) =>
+        courseMatchesAcademicBatch(course, batchFilter)
+      );
+    }
+
+    if (targetGroupsFilter.length > 0) {
+      matchedCourses = matchedCourses.filter((course) =>
+        resolveCourseDepartments(course).some((g) => targetGroupsFilter.includes(g))
+      );
+    }
 
     if (
       !matchedCategory &&

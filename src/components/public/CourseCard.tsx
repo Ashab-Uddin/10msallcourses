@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Course } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { computeDiscountPercent } from '../../lib/courseValidation.ts';
+import { resolveCourseTargetBatch } from '../../lib/categoryMatching.ts';
 import { X, ArrowRight } from 'lucide-react';
 
 export interface CourseCardProps {
@@ -112,10 +113,22 @@ export const CourseCard: React.FC<CourseCardProps> = ({
       ? '২০২৭ সালে SSC 2027 বোর্ড পরীক্ষায় সেরা রেজাল্ট করার জন্য সঠিক গাইডলাইন ও ফুল রিভিশন প্রোগ্রাম...'
       : 'প্রথম থেকেই বিষয়ভিত্তিক পূর্ণাঙ্গ A+ প্রস্তুতির গোছানো একাডেমিক প্রোগ্রাম এবং লাইভ গাইডলাইন...');
 
+  const resolvedBatch = resolveCourseTargetBatch(course);
+
   // 1. Top small black badge (e.g. HSC 28, HSC 27, SSC 27, 10MS)
   const topBadge =
     course.headerTitle && course.headerTitle !== '10MS' && course.headerTitle !== 'লাইভ ব্যাচ চলমান'
       ? course.headerTitle
+      : resolvedBatch === 'hsc-28'
+      ? 'HSC 28'
+      : resolvedBatch === 'hsc-27'
+      ? 'HSC 27'
+      : resolvedBatch === 'hsc-26'
+      ? 'HSC 26'
+      : resolvedBatch === 'ssc-2028'
+      ? 'SSC 28'
+      : resolvedBatch === 'ssc-2027'
+      ? 'SSC 27'
       : course.categorySlug === 'hsc'
       ? course.title.includes('28')
         ? 'HSC 28'

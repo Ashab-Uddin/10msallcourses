@@ -1,3 +1,5 @@
+import { CourseGroupKey } from '../types.ts';
+
 export interface BatchKeywordOption {
   id: string;
   label: string;
@@ -77,17 +79,252 @@ export const DEPARTMENT_KEYWORD_OPTIONS = [
   'বুয়েট',
 ] as const;
 
-export function extractMatchedBatchKeywords(input: string): BatchKeywordOption[] {
-  const normalized = (input || '')
+export const CANONICAL_GROUP_OPTIONS: ReadonlyArray<{
+  key: CourseGroupKey;
+  label: string;
+  enLabel: string;
+}> = [
+  { key: 'science', label: 'বিজ্ঞান বিভাগ', enLabel: 'Science' },
+  { key: 'business', label: 'ব্যবসায় শিক্ষা', enLabel: 'Business Studies' },
+  { key: 'humanities', label: 'মানবিক বিভাগ', enLabel: 'Humanities' },
+];
+
+export function normalizeValidationText(input: string): string {
+  return (input || '')
     .normalize('NFC')
     .replace(/য\u09BC/g, 'য়')
     .replace(/ড\u09BC/g, 'ড়')
     .replace(/ঢ\u09BC/g, 'ঢ়')
     .trim();
+}
 
+export function extractMatchedBatchKeywords(input: string): BatchKeywordOption[] {
+  const normalized = normalizeValidationText(input);
   if (!normalized) return [];
 
   return BATCH_KEYWORD_OPTIONS.filter((opt) => opt.matcher.test(normalized));
+}
+
+export function normalizeTargetBatchId(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = normalizeValidationText(raw).toLowerCase();
+  if (!trimmed) return null;
+
+  const aliasMap: Record<string, string> = {
+    'hsc-26': 'hsc-26',
+    hsc26: 'hsc-26',
+    'hsc-27': 'hsc-27',
+    hsc27: 'hsc-27',
+    'hsc-28': 'hsc-28',
+    hsc28: 'hsc-28',
+    'ssc-27': 'ssc-2027',
+    ssc27: 'ssc-2027',
+    'ssc-2027': 'ssc-2027',
+    ssc2027: 'ssc-2027',
+    class10: 'ssc-2027',
+    'class-10': 'ssc-2027',
+    'ssc-28': 'ssc-2028',
+    ssc28: 'ssc-2028',
+    'ssc-2028': 'ssc-2028',
+    ssc2028: 'ssc-2028',
+    class9: 'ssc-2028',
+    'class-9': 'ssc-2028',
+    class5: 'class-5',
+    'class-5': 'class-5',
+    class6: 'class-6',
+    'class-6': 'class-6',
+    class7: 'class-7',
+    'class-7': 'class-7',
+    class8: 'class-8',
+    'class-8': 'class-8',
+  };
+
+  if (aliasMap[trimmed]) {
+    return aliasMap[trimmed];
+  }
+
+  const matched = extractMatchedBatchKeywords(trimmed);
+  return matched.length === 1 ? matched[0].id : null;
+}
+
+export function extractExplicitTargetGroupsFromText(input: string): CourseGroupKey[] {
+  const normalized = normalizeValidationText(input).toLowerCase();
+  if (!normalized) return [];
+
+  if (
+    normalized.includes('সকল বিভাগ') ||
+    normalized.includes('all department') ||
+    normalized.includes('all group')
+  ) {
+    return ['science', 'business', 'humanities'];
+  }
+
+  const groups: CourseGroupKey[] = [];
+  if (
+    normalized.includes('বিজ্ঞান') ||
+    normalized.includes('সায়েন্স') ||
+    /\bscience\b/i.test(normalized)
+  ) {
+    groups.push('science');
+  }
+  if (
+    normalized.includes('ব্যবসায়') ||
+    normalized.includes('ব্যবসা') ||
+    normalized.includes('ব্যাবসা') ||
+    normalized.includes('বাণিজ্য') ||
+    normalized.includes('কমার্স') ||
+    normalized.includes('কমার্শ') ||
+    /\b(?:business|commerce)\b/i.test(normalized)
+  ) {
+    groups.push('business');
+  }
+  if (
+    normalized.includes('মানবিক') ||
+    normalized.includes('আর্টস') ||
+    /\b(?:humanities|arts)\b/i.test(normalized)
+  ) {
+    groups.push('humanities');
+  }
+
+  return groups;
+}
+
+export function normalizeTargetGroups(raw: unknown): CourseGroupKey[] {
+  if (!raw) return [];
+  const validSet = new Set<CourseGroupKey>(['science', 'business', 'humanities']);
+  const out = new Set<CourseGroupKey>();
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const str = typeof item === 'string' ? normalizeValidationText(item).toLowerCase() : '';
+      if (!str) continue;
+      if (validSet.has(str as CourseGroupKey)) {
+        out.add(str as CourseGroupKey);
+      } else {
+        for (const g of extractExplicitTargetGroupsFromText(str)) {
+          out.add(g);
+        }
+      }
+    }
+  } else if (typeof raw === 'string') {
+    for (const g of extractExplicitTargetGroupsFromText(raw)) {
+      out.add(g);
+    }
+  }
+
+  return CANONICAL_GROUP_OPTIONS.map((o) => o.key).filter((k) => out.has(k));
+}
+
+function dedupeTargetTokens(tokens: string[]): string {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of tokens) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const key = normalizeValidationText(trimmed).toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(trimmed);
+    }
+  }
+  return result.join(', ');
+}
+
+export function syncTargetStudentsMetadata(input: {
+  targetStudents?: unknown;
+  targetBatch?: unknown;
+  targetGroups?: unknown;
+}): {
+  valid: boolean;
+  targetStudents: string;
+  targetBatch: string | null;
+  targetGroups: CourseGroupKey[];
+  error?: string;
+} {
+  const rawStudents = typeof input.targetStudents === 'string' ? input.targetStudents.trim() : '';
+
+  const textBatchCheck = validateSingleBatchKeyword(rawStudents);
+  if (!textBatchCheck.valid) {
+    return {
+      valid: false,
+      targetStudents: rawStudents,
+      targetBatch: null,
+      targetGroups: [],
+      error: textBatchCheck.error,
+    };
+  }
+
+  let resolvedBatch: string | null = null;
+  if (input.targetBatch !== undefined) {
+    if (input.targetBatch !== null && String(input.targetBatch).trim() !== '') {
+      const normalized = normalizeTargetBatchId(String(input.targetBatch));
+      if (!normalized) {
+        return {
+          valid: false,
+          targetStudents: rawStudents,
+          targetBatch: null,
+          targetGroups: [],
+          error: 'নির্বাচিত ব্যাচ কীওয়ার্ডটি বৈধ নয়।',
+        };
+      }
+      if (
+        textBatchCheck.matchedBatches.length === 1 &&
+        textBatchCheck.matchedBatches[0].id !== normalized
+      ) {
+        return {
+          valid: false,
+          targetStudents: rawStudents,
+          targetBatch: null,
+          targetGroups: [],
+          error: `একটি কোর্সে একাধিক ব্যাচ (${textBatchCheck.matchedBatches[0].label} ও ${normalized.toUpperCase()}) নির্বাচন করা যাবে না।`,
+        };
+      }
+      resolvedBatch = normalized;
+    } else {
+      resolvedBatch = null;
+    }
+  } else {
+    resolvedBatch = textBatchCheck.matchedBatches[0]?.id || null;
+  }
+
+  const textGroups = extractExplicitTargetGroupsFromText(rawStudents);
+  const resolvedGroups =
+    input.targetGroups !== undefined
+      ? normalizeTargetGroups(input.targetGroups)
+      : textGroups;
+
+  const rawTokens = rawStudents
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  const extraNonBatchNonGroupTokens = rawTokens.filter(
+    (tok) =>
+      extractMatchedBatchKeywords(tok).length === 0 &&
+      extractExplicitTargetGroupsFromText(tok).length === 0
+  );
+
+  const batchOption = resolvedBatch
+    ? BATCH_KEYWORD_OPTIONS.find((b) => b.id === resolvedBatch)
+    : undefined;
+  const groupLabels = resolvedGroups
+    .map((g) => CANONICAL_GROUP_OPTIONS.find((o) => o.key === g)?.label)
+    .filter((l): l is string => Boolean(l));
+
+  const syncedTokens: string[] = [
+    ...(batchOption ? [batchOption.label] : []),
+    ...groupLabels,
+    ...extraNonBatchNonGroupTokens,
+  ];
+
+  const finalTargetStudents = dedupeTargetTokens(syncedTokens).slice(0, 200);
+
+  return {
+    valid: true,
+    targetStudents: finalTargetStudents,
+    targetBatch: resolvedBatch,
+    targetGroups: resolvedGroups,
+  };
 }
 
 export function validateSingleBatchKeyword(targetStudents: unknown): {
