@@ -39,6 +39,7 @@ export interface Course {
   instructorIcon: string;
   features: string; // JSON string array
   affiliateUrl: string;
+  displayOrder: number;
   isPopular: boolean;
   status: string;
   clickCount: number;

@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { unstable_cache } from 'next/cache';
 import {
   Category,
@@ -21,10 +23,14 @@ import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import { parseFeatures, toBengaliNumber } from '../utils/format.ts';
 import {
   RepositoryError,
+  moveCourseToPosition,
+  normalizeContiguousCourseOrder,
   normalizeCourseStatus,
   normalizeSlug,
   parseCategoryDisplayOrder,
+  parseCourseDisplayOrder,
   parseSafePrice,
+  sortCoursesByOrder,
   type StorageInfo,
 } from './repositoryShared.ts';
 
@@ -35,11 +41,53 @@ interface PgErrorLike {
   constraint?: string;
 }
 
+const FALLBACK_COURSE_ORDER_FILE = path.resolve(process.cwd(), 'data', 'course-order.json');
+
+function readFallbackCourseOrderIds(): number[] {
+  try {
+    if (!fs.existsSync(FALLBACK_COURSE_ORDER_FILE)) return [];
+    const raw = fs.readFileSync(FALLBACK_COURSE_ORDER_FILE, 'utf-8');
+    const parsed = JSON.parse(raw) as { orderedIds?: unknown };
+    if (!Array.isArray(parsed?.orderedIds)) return [];
+    const seen = new Set<number>();
+    const ids: number[] = [];
+    for (const item of parsed.orderedIds) {
+      const id = Number(item);
+      if (Number.isInteger(id) && id > 0 && !seen.has(id)) {
+        seen.add(id);
+        ids.push(id);
+      }
+    }
+    return ids;
+  } catch {
+    return [];
+  }
+}
+
+function writeFallbackCourseOrderIds(orderedIds: number[]): void {
+  if (process.env.VERCEL === '1') return;
+  try {
+    const dir = path.dirname(FALLBACK_COURSE_ORDER_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const cleanIds = Array.from(
+      new Set(orderedIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))
+    );
+    const tmp = `${FALLBACK_COURSE_ORDER_FILE}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ orderedIds: cleanIds }, null, 2), 'utf-8');
+    fs.renameSync(tmp, FALLBACK_COURSE_ORDER_FILE);
+  } catch {
+    // Ignore read-only filesystem errors
+  }
+}
+
 function isDisplayOrderUniqueError(err: PgErrorLike): boolean {
   const combined = `${err.constraint || ''} ${err.message || ''} ${err.details || ''}`.toLowerCase();
   return (
     combined.includes('display_order') ||
-    combined.includes('uq_categories_display_order')
+    combined.includes('uq_categories_display_order') ||
+    combined.includes('uq_courses_display_order')
   );
 }
 
@@ -50,6 +98,44 @@ function isMissingTargetMetadataColumnError(err: unknown): boolean {
     (pg.code === '42703' || pg.code === 'PGRST204' || msg.includes('schema cache') || msg.includes('does not exist')) &&
     (msg.includes('target_batch') || msg.includes('target_groups'))
   );
+}
+
+function isMissingCourseDisplayOrderColumnError(err: unknown): boolean {
+  const pg = (err || {}) as PgErrorLike;
+  const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
+  return (
+    (pg.code === '42703' || pg.code === 'PGRST204' || msg.includes('schema cache') || msg.includes('does not exist')) &&
+    msg.includes('display_order')
+  );
+}
+
+function rowsHaveDisplayOrderColumn(rows: Array<Record<string, unknown>>): boolean {
+  return rows.some((r) => r.display_order !== undefined && r.display_order !== null);
+}
+
+function applyCourseOrdering(
+  rawRows: Array<Record<string, unknown>>,
+  mappedCourses: Course[]
+): Course[] {
+  if (mappedCourses.length === 0) return [];
+  const hasDbColumn = rowsHaveDisplayOrderColumn(rawRows);
+  if (hasDbColumn) {
+    return sortCoursesByOrder(mappedCourses);
+  }
+  const fallbackIds = readFallbackCourseOrderIds();
+  if (fallbackIds.length === 0) {
+    return normalizeContiguousCourseOrder(mappedCourses);
+  }
+  const rankMap = new Map<number, number>();
+  fallbackIds.forEach((id, idx) => rankMap.set(id, idx + 1));
+  const withRanks = mappedCourses.map((c) => ({
+    ...c,
+    displayOrder: rankMap.get(c.id) ?? Number.MAX_SAFE_INTEGER,
+  }));
+  return sortCoursesByOrder(withRanks).map((course, idx) => ({
+    ...course,
+    displayOrder: rankMap.get(course.id) ?? idx + 1,
+  }));
 }
 
 function mapPgError(error: unknown, fallbackMessage: string): RepositoryError {
@@ -175,6 +261,10 @@ function mapCourseRow(row: Record<string, unknown>): Course {
     instructorIcon: String(row.instructor_icon || 'school'),
     features: featuresStr,
     affiliateUrl: String(row.affiliate_url || ''),
+    displayOrder:
+      row.display_order !== undefined && row.display_order !== null && Number(row.display_order) >= 1
+        ? Math.round(Number(row.display_order))
+        : 0,
     isPopular: Boolean(row.is_popular),
     status: String(row.status || 'active'),
     clickCount: Number(row.click_count ?? 0),
@@ -291,9 +381,9 @@ async function sbFetchPublicPortalBase() {
   const categories = (catRes.data || []).map((r) =>
     mapCategoryRow(r as Record<string, unknown>)
   );
-  const courses = (courseRes.data || []).map((r) =>
-    mapCourseRow(r as Record<string, unknown>)
-  );
+  const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
+  const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
+  const courses = applyCourseOrdering(rawCourseRows, mappedCourses);
   const settings = mapSettingsRow((settingsRes.data as Record<string, unknown> | null) || null);
   const allHydratedTimers = hydrateTimerRows(
     (timerRes.data || []) as Array<Record<string, unknown>>,
@@ -367,7 +457,17 @@ export async function sbGetCourseById(id: number): Promise<Course | null> {
     .maybeSingle();
 
   if (error) throw mapPgError(error, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
-  return data ? mapCourseRow(data as Record<string, unknown>) : null;
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  const mapped = mapCourseRow(row);
+  if (mapped.displayOrder < 1) {
+    const fallbackIds = readFallbackCourseOrderIds();
+    const rank = fallbackIds.indexOf(mapped.id);
+    if (rank !== -1) {
+      mapped.displayOrder = rank + 1;
+    }
+  }
+  return mapped;
 }
 
 export async function sbCountCoursesUsingImageUrl(
@@ -472,8 +572,10 @@ export async function sbGetAdminOverviewData() {
   const allCategories = (catRes.data || []).map((r) =>
     mapCategoryRow(r as Record<string, unknown>)
   );
-  const allCourses = (courseRes.data || []).map((r) =>
-    mapCourseRow(r as Record<string, unknown>)
+  const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
+  const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
+  const allCourses = normalizeContiguousCourseOrder(
+    applyCourseOrdering(rawCourseRows, mappedCourses)
   );
   const recentClicks = (clicksRes.data || []).map((r) =>
     mapClickRow(r as Record<string, unknown>)
@@ -571,6 +673,19 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     );
   }
 
+  let requestedDisplayOrder: number | null = null;
+  if (
+    input.displayOrder !== undefined &&
+    input.displayOrder !== null &&
+    String(input.displayOrder).trim() !== ''
+  ) {
+    const parsedOrder = parseCourseDisplayOrder(input.displayOrder);
+    if (!parsedOrder.valid) {
+      throw new RepositoryError(parsedOrder.error, 400);
+    }
+    requestedDisplayOrder = parsedOrder.value;
+  }
+
   const insertPayload: Record<string, unknown> = {
     title: title.slice(0, 220),
     slug: slug.slice(0, 220),
@@ -641,7 +756,10 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     throw mapPgError(error, 'কোর্স তৈরি করতে সমস্যা হয়েছে।');
   }
 
-  return mapCourseRow(data as Record<string, unknown>);
+  const created = mapCourseRow(data as Record<string, unknown>);
+  const targetPos = requestedDisplayOrder ?? 1;
+  const reordered = await sbReorderCoursePosition(created.id, targetPos);
+  return reordered.find((c) => c.id === created.id) || { ...created, displayOrder: targetPos };
 }
 
 export async function sbUpdateExistingCourse(
@@ -799,6 +917,19 @@ export async function sbUpdateExistingCourse(
     updatePayload.target_batch = syncedTargets.targetBatch;
     updatePayload.target_groups = syncedTargets.targetGroups;
   }
+  let requestedDisplayOrder: number | null = null;
+  if (
+    input.displayOrder !== undefined &&
+    input.displayOrder !== null &&
+    String(input.displayOrder).trim() !== ''
+  ) {
+    const parsedOrder = parseCourseDisplayOrder(input.displayOrder);
+    if (!parsedOrder.valid) {
+      throw new RepositoryError(parsedOrder.error, 400);
+    }
+    requestedDisplayOrder = parsedOrder.value;
+  }
+
   if (input.features !== undefined) {
     updatePayload.features = serializeFeaturesForJsonb(input.features);
   }
@@ -832,7 +963,173 @@ export async function sbUpdateExistingCourse(
     throw mapPgError(error, 'কোর্স আপডেট করতে সমস্যা হয়েছে।');
   }
 
-  return data ? mapCourseRow(data as Record<string, unknown>) : null;
+  if (!data) return null;
+  const updated = mapCourseRow(data as Record<string, unknown>);
+
+  if (requestedDisplayOrder !== null && requestedDisplayOrder !== existing.displayOrder) {
+    const reordered = await sbReorderCoursePosition(id, requestedDisplayOrder);
+    return reordered.find((c) => c.id === id) || updated;
+  }
+
+  return updated;
+}
+
+async function sbPersistNormalizedCourses(
+  reordered: Course[],
+  hasDbColumn: boolean
+): Promise<Course[]> {
+  const supabase = getSupabaseAdminClient();
+  if (!hasDbColumn) {
+    writeFallbackCourseOrderIds(reordered.map((c) => c.id));
+    return reordered;
+  }
+
+  // Two-pass update safely satisfies `uq_courses_display_order` even when called without RPC
+  const baseOffset = 1000000;
+  for (let i = 0; i < reordered.length; i += 1) {
+    const c = reordered[i];
+    const { error: tempErr } = await supabase
+      .from('courses')
+      .update({ display_order: baseOffset + i + 1 })
+      .eq('id', c.id);
+    if (tempErr) {
+      if (isMissingCourseDisplayOrderColumnError(tempErr)) {
+        writeFallbackCourseOrderIds(reordered.map((item) => item.id));
+        return reordered;
+      }
+      throw mapPgError(tempErr, 'কোর্স ক্রম পরিবর্তন করতে সমস্যা হয়েছে।');
+    }
+  }
+
+  for (const c of reordered) {
+    const { error: finalErr } = await supabase
+      .from('courses')
+      .update({ display_order: c.displayOrder })
+      .eq('id', c.id);
+    if (finalErr) {
+      throw mapPgError(finalErr, 'কোর্স ক্রম পরিবর্তন করতে সমস্যা হয়েছে।');
+    }
+  }
+
+  return reordered;
+}
+
+async function sbFetchAllOrderedCourses(): Promise<{
+  courses: Course[];
+  hasDbColumn: boolean;
+}> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false });
+
+  if (error) throw mapPgError(error, 'কোর্স লোড করতে সমস্যা হয়েছে।');
+  const rawRows = (data || []) as Array<Record<string, unknown>>;
+  const hasDbColumn = rowsHaveDisplayOrderColumn(rawRows);
+  const mapped = rawRows.map((r) => mapCourseRow(r));
+  const ordered = normalizeContiguousCourseOrder(applyCourseOrdering(rawRows, mapped));
+  return { courses: ordered, hasDbColumn };
+}
+
+export async function sbReorderCoursePosition(
+  courseId: number,
+  targetPosition: number
+): Promise<Course[]> {
+  const supabase = getSupabaseAdminClient();
+  if (!Number.isInteger(courseId) || courseId <= 0) {
+    throw new RepositoryError('অবৈধ কোর্স আইডি প্রদান করা হয়েছে।', 400);
+  }
+  const parsedPos = parseCourseDisplayOrder(targetPosition);
+  if (!parsedPos.valid) {
+    throw new RepositoryError(parsedPos.error, 400);
+  }
+
+  const { error: rpcErr } = await supabase.rpc('reorder_course_display_order', {
+    p_course_id: courseId,
+    p_new_position: parsedPos.value,
+  });
+
+  if (!rpcErr) {
+    const { courses } = await sbFetchAllOrderedCourses();
+    return courses;
+  }
+
+  const rpcMsg = `${rpcErr.code || ''} ${rpcErr.message || ''}`.toLowerCase();
+  const isMissingRpc =
+    rpcErr.code === '42883' ||
+    rpcErr.code === 'PGRST202' ||
+    rpcMsg.includes('reorder_course_display_order');
+
+  if (!isMissingRpc) {
+    if (rpcErr.code === 'P0002' || rpcMsg.includes('not found')) {
+      throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+    }
+    throw mapPgError(rpcErr, 'কোর্স ক্রম পরিবর্তন করতে সমস্যা হয়েছে।');
+  }
+
+  const { courses, hasDbColumn } = await sbFetchAllOrderedCourses();
+  if (!courses.some((c) => c.id === courseId)) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+
+  const reordered = moveCourseToPosition(courses, courseId, parsedPos.value);
+  return sbPersistNormalizedCourses(reordered, hasDbColumn);
+}
+
+export async function sbSwapCourseOrder(
+  firstId: number,
+  secondId: number
+): Promise<Course[]> {
+  const supabase = getSupabaseAdminClient();
+  if (
+    !Number.isInteger(firstId) ||
+    !Number.isInteger(secondId) ||
+    firstId <= 0 ||
+    secondId <= 0 ||
+    firstId === secondId
+  ) {
+    throw new RepositoryError('ক্রম অদলবদলের জন্য দুইটি ভিন্ন বৈধ কোর্স নির্বাচন করুন।', 400);
+  }
+
+  const { error: rpcErr } = await supabase.rpc('swap_course_display_order', {
+    p_first_id: firstId,
+    p_second_id: secondId,
+  });
+
+  if (!rpcErr) {
+    const { courses } = await sbFetchAllOrderedCourses();
+    return courses;
+  }
+
+  const rpcMsg = `${rpcErr.code || ''} ${rpcErr.message || ''}`.toLowerCase();
+  const isMissingRpc =
+    rpcErr.code === '42883' ||
+    rpcErr.code === 'PGRST202' ||
+    rpcMsg.includes('swap_course_display_order');
+
+  if (!isMissingRpc) {
+    if (rpcErr.code === 'P0002' || rpcMsg.includes('not found')) {
+      throw new RepositoryError('এক বা একাধিক কোর্স খুঁজে পাওয়া যায়নি।', 404);
+    }
+    throw mapPgError(rpcErr, 'কোর্স ক্রম অদলবদল করতে সমস্যা হয়েছে।');
+  }
+
+  const { courses, hasDbColumn } = await sbFetchAllOrderedCourses();
+  const firstIdx = courses.findIndex((c) => c.id === firstId);
+  const secondIdx = courses.findIndex((c) => c.id === secondId);
+  if (firstIdx === -1 || secondIdx === -1) {
+    throw new RepositoryError('এক বা একাধিক কোর্স খুঁজে পাওয়া যায়নি।', 404);
+  }
+
+  const swapped = [...courses];
+  const temp = swapped[firstIdx];
+  swapped[firstIdx] = swapped[secondIdx];
+  swapped[secondIdx] = temp;
+  const normalized = swapped.map((c, idx) => ({ ...c, displayOrder: idx + 1 }));
+
+  return sbPersistNormalizedCourses(normalized, hasDbColumn);
 }
 
 export async function sbDeleteCourseById(
@@ -848,6 +1145,15 @@ export async function sbDeleteCourseById(
   // `click_records` is append-only historical analytics and is intentionally preserved.
   const { error } = await supabase.from('courses').delete().eq('id', id);
   if (error) throw mapPgError(error, 'কোর্স মুছে ফেলতে সমস্যা হয়েছে।');
+
+  try {
+    const { courses, hasDbColumn } = await sbFetchAllOrderedCourses();
+    if (hasDbColumn || readFallbackCourseOrderIds().length > 0) {
+      await sbPersistNormalizedCourses(courses, hasDbColumn);
+    }
+  } catch (cleanupErr) {
+    console.warn('[supabaseRepository] Failed to rebalance course order after delete:', cleanupErr);
+  }
 
   return {
     deleted: true,

@@ -16,11 +16,15 @@ import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
 import { invalidatePublicPortalCache } from '../lib/cacheInvalidation.ts';
 import {
   RepositoryError,
+  moveCourseToPosition,
+  normalizeContiguousCourseOrder,
   normalizeCourseStatus,
   normalizeSlug,
   parseCategoryDisplayOrder,
+  parseCourseDisplayOrder,
   parseSafePrice,
   sortCategoriesByOrder,
+  sortCoursesByOrder,
   type StorageInfo,
 } from './repositoryShared.ts';
 import {
@@ -39,8 +43,10 @@ import {
   sbGetPortalSettings,
   sbGetPublicPortalData,
   sbRecordCourseClick,
+  sbReorderCoursePosition,
   sbSetOfferTimerPaused,
   sbSwapCategoryOrder,
+  sbSwapCourseOrder,
   sbUpdateExistingCategory,
   sbUpdateExistingCourse,
   sbUpdateOfferTimer,
@@ -134,9 +140,21 @@ function normalizeStoreShape(raw: Partial<LocalStore> | null | undefined): Local
     return repaired;
   });
 
+  const normalizedCourses = Array.isArray(raw.courses)
+    ? normalizeContiguousCourseOrder(
+        raw.courses.map((c) => ({
+          ...c,
+          displayOrder:
+            typeof c.displayOrder === 'number' && Number.isFinite(c.displayOrder) && c.displayOrder >= 1
+              ? Math.round(c.displayOrder)
+              : 0,
+        }))
+      )
+    : [];
+
   return {
     categories: sortCategoriesByOrder(deduplicatedCategories),
-    courses: Array.isArray(raw.courses) ? raw.courses : [],
+    courses: normalizedCourses,
     clicks: Array.isArray(raw.clicks) ? raw.clicks : [],
     settings: raw.settings ? { ...defaults.settings, ...raw.settings } : defaults.settings,
     offerTimers: Array.isArray(raw.offerTimers) ? raw.offerTimers : [],
@@ -241,8 +259,8 @@ export const getPublicPortalData = cache(async () => {
   );
 
   // Approved Option 2 visibility: Public visitors see `active` and `closed` courses only; `inactive` is hidden.
-  const publicCourses = store.courses.filter(
-    (c) => c.status === 'active' || c.status === 'closed'
+  const publicCourses = sortCoursesByOrder(
+    store.courses.filter((c) => c.status === 'active' || c.status === 'closed')
   );
 
   const nowMs = Date.now();
@@ -364,7 +382,7 @@ export async function getAdminOverviewData() {
   const store = await loadStore(true);
 
   const allCategories = sortCategoriesByOrder(store.categories);
-  const allCourses = store.courses;
+  const allCourses = normalizeContiguousCourseOrder(store.courses);
   const recentClicks = store.clicks;
   const currentSettings = store.settings;
 
@@ -457,6 +475,19 @@ export async function createNewCourse(input: Record<string, unknown>) {
     );
   }
 
+  let requestedDisplayOrder: number | null = null;
+  if (
+    input.displayOrder !== undefined &&
+    input.displayOrder !== null &&
+    String(input.displayOrder).trim() !== ''
+  ) {
+    const parsedOrder = parseCourseDisplayOrder(input.displayOrder);
+    if (!parsedOrder.valid) {
+      throw new RepositoryError(parsedOrder.error, 400);
+    }
+    requestedDisplayOrder = parsedOrder.value;
+  }
+
   const nowIso = new Date().toISOString();
   const newCourse: Course = {
     id: newId,
@@ -494,6 +525,7 @@ export async function createNewCourse(input: Record<string, unknown>) {
         ? input.features
         : JSON.stringify(Array.isArray(input.features) ? input.features : []),
     affiliateUrl: typeof input.affiliateUrl === 'string' ? input.affiliateUrl.trim() : '',
+    displayOrder: requestedDisplayOrder ?? 1,
     isPopular: Boolean(input.isPopular ?? true),
     status: normalizeCourseStatus(input.status, 'active'),
     clickCount: 0,
@@ -501,11 +533,15 @@ export async function createNewCourse(input: Record<string, unknown>) {
     updatedAt: nowIso,
   };
 
-  store.courses.unshift(newCourse);
+  store.courses = moveCourseToPosition(
+    [newCourse, ...store.courses],
+    newCourse.id,
+    requestedDisplayOrder ?? 1
+  );
   await persistStore(store);
   invalidatePublicPortalCache();
 
-  return newCourse;
+  return store.courses.find((c) => c.id === newCourse.id) || newCourse;
 }
 
 export async function updateExistingCourse(id: number, input: Record<string, unknown>) {
@@ -686,11 +722,93 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
     updatedAt: new Date().toISOString(),
   };
 
+  let requestedDisplayOrder: number | null = null;
+  if (
+    input.displayOrder !== undefined &&
+    input.displayOrder !== null &&
+    String(input.displayOrder).trim() !== ''
+  ) {
+    const parsedOrder = parseCourseDisplayOrder(input.displayOrder);
+    if (!parsedOrder.valid) {
+      throw new RepositoryError(parsedOrder.error, 400);
+    }
+    requestedDisplayOrder = parsedOrder.value;
+  }
+
   store.courses[idx] = updated;
+  if (requestedDisplayOrder !== null && requestedDisplayOrder !== existing.displayOrder) {
+    store.courses = moveCourseToPosition(store.courses, id, requestedDisplayOrder);
+  }
   await persistStore(store);
   invalidatePublicPortalCache();
 
-  return updated;
+  return store.courses.find((c) => c.id === id) || updated;
+}
+
+export async function reorderCoursePosition(
+  courseId: number,
+  targetPosition: number
+): Promise<Course[]> {
+  if (isSupabaseDatabaseReady()) {
+    const courses = await sbReorderCoursePosition(courseId, targetPosition);
+    invalidatePublicPortalCache();
+    return courses;
+  }
+
+  if (!Number.isInteger(courseId) || courseId <= 0) {
+    throw new RepositoryError('অবৈধ কোর্স আইডি প্রদান করা হয়েছে।', 400);
+  }
+  const parsedPos = parseCourseDisplayOrder(targetPosition);
+  if (!parsedPos.valid) {
+    throw new RepositoryError(parsedPos.error, 400);
+  }
+
+  const store = await loadStore(true);
+  if (!store.courses.some((c) => c.id === courseId)) {
+    throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+
+  store.courses = moveCourseToPosition(store.courses, courseId, parsedPos.value);
+  await persistStore(store);
+  invalidatePublicPortalCache();
+
+  return store.courses;
+}
+
+export async function swapCourseOrder(firstId: number, secondId: number): Promise<Course[]> {
+  if (isSupabaseDatabaseReady()) {
+    const courses = await sbSwapCourseOrder(firstId, secondId);
+    invalidatePublicPortalCache();
+    return courses;
+  }
+
+  if (
+    !Number.isInteger(firstId) ||
+    !Number.isInteger(secondId) ||
+    firstId <= 0 ||
+    secondId <= 0 ||
+    firstId === secondId
+  ) {
+    throw new RepositoryError('ক্রম অদলবদলের জন্য দুইটি ভিন্ন বৈধ কোর্স নির্বাচন করুন।', 400);
+  }
+
+  const store = await loadStore(true);
+  const ordered = normalizeContiguousCourseOrder(store.courses);
+  const firstIdx = ordered.findIndex((c) => c.id === firstId);
+  const secondIdx = ordered.findIndex((c) => c.id === secondId);
+  if (firstIdx === -1 || secondIdx === -1) {
+    throw new RepositoryError('এক বা একাধিক কোর্স খুঁজে পাওয়া যায়নি।', 404);
+  }
+
+  const temp = ordered[firstIdx];
+  ordered[firstIdx] = ordered[secondIdx];
+  ordered[secondIdx] = temp;
+  store.courses = ordered.map((c, idx) => ({ ...c, displayOrder: idx + 1 }));
+
+  await persistStore(store);
+  invalidatePublicPortalCache();
+
+  return store.courses;
 }
 
 export async function deleteCourseById(
@@ -711,7 +829,7 @@ export async function deleteCourseById(
   }
 
   // Preserve historical click_records (append-only analytics); clean up offerTimers.
-  store.courses = store.courses.filter((c) => c.id !== id);
+  store.courses = normalizeContiguousCourseOrder(store.courses.filter((c) => c.id !== id));
   store.offerTimers = store.offerTimers.filter((t) => t.courseId !== id);
   await persistStore(store);
   invalidatePublicPortalCache();
