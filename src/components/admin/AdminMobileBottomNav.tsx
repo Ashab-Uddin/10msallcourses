@@ -16,7 +16,6 @@ import {
   Settings,
   ExternalLink,
   LogOut,
-  Download,
   X,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
@@ -27,7 +26,6 @@ interface AdminMobileBottomNavProps {
   onSelectTab: (tab: AdminPageTab) => void;
   onNavigateHome: () => void;
   onRequestLogout: () => void;
-  onDownloadZip?: () => void;
   adminName: string;
   adminEmail: string;
   stats: {
@@ -53,7 +51,6 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = ({
   onSelectTab,
   onNavigateHome,
   onRequestLogout,
-  onDownloadZip,
   adminName,
   adminEmail,
   stats,
@@ -310,27 +307,13 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = ({
 
               {/* Utility Actions */}
               <div className="mt-3 pt-2.5 border-t border-rose-100 flex items-center gap-2">
-                {onDownloadZip && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMoreMenuOpen(false);
-                      onDownloadZip();
-                    }}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/80 text-emerald-800 text-[11px] font-bold transition cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>ব্যাকআপ ZIP</span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   onClick={() => {
                     setMoreMenuOpen(false);
                     onRequestLogout();
                   }}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50/80 hover:bg-[#eb1c24] hover:text-white text-[#991b1b] text-[11px] font-bold transition cursor-pointer"
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50/80 hover:bg-[#eb1c24] hover:text-white text-[#991b1b] text-[11px] font-bold transition cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>লগআউট</span>

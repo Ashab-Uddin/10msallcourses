@@ -1,14 +1,23 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { getSiteBaseUrl } from '@/src/lib/seo';
+import {
+  DEFAULT_OG_IMAGE_PATH,
+  DEFAULT_SITE_DESCRIPTION,
+  DEFAULT_SITE_NAME,
+  DEFAULT_SITE_TITLE,
+  getSiteBaseUrl,
+} from '@/src/lib/seo';
 
 const siteUrl = getSiteBaseUrl();
+const ogImageUrl = `${siteUrl}${DEFAULT_OG_IMAGE_PATH}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: '১০ মিনিট স্কুল কোর্স — 10 Minute School Course Marketplace',
-  description:
-    '১০ মিনিট স্কুলের সকল একাডেমিক, এডমিশন ও স্কিলস কোর্সে সরাসরি সর্বোচ্চ ছাড়ে ভর্তি নিশ্চিত করার জন্য ডেডিকেটেড অ্যাফিলিয়েট প্ল্যাটফর্ম।',
+  title: DEFAULT_SITE_TITLE,
+  description: DEFAULT_SITE_DESCRIPTION,
+  alternates: {
+    canonical: siteUrl,
+  },
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -17,27 +26,33 @@ export const metadata: Metadata = {
     apple: [{ url: '/apple-touch-icon.png' }],
   },
   openGraph: {
-    title: '১০ মিনিট স্কুল কোর্স — 10 Minute School Course Marketplace',
-    description:
-      '১০ মিনিট স্কুলের সকল একাডেমিক, এডমিশন ও স্কিলস কোর্সে সরাসরি সর্বোচ্চ ছাড়ে ভর্তি নিশ্চিত করার জন্য ডেডিকেটেড অ্যাফিলিয়েট প্ল্যাটফর্ম।',
+    title: DEFAULT_SITE_TITLE,
+    description: DEFAULT_SITE_DESCRIPTION,
+    url: siteUrl,
     type: 'website',
     locale: 'bn_BD',
-    siteName: '10msallcourse.com',
+    siteName: DEFAULT_SITE_NAME,
     images: [
       {
-        url: '/images/logo.png',
-        width: 512,
-        height: 512,
-        alt: '১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস',
+        url: ogImageUrl,
+        secureUrl: ogImageUrl,
+        width: 1200,
+        height: 630,
+        type: 'image/png',
+        alt: `${DEFAULT_SITE_TITLE} — 10 Minute School Courses`,
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: '১০ মিনিট স্কুল কোর্স — 10 Minute School Course Marketplace',
-    description:
-      '১০ মিনিট স্কুলের সকল একাডেমিক, এডমিশন ও স্কিলস কোর্সে সরাসরি সর্বোচ্চ ছাড়ে ভর্তি নিশ্চিত করার জন্য ডেডিকেটেড অ্যাফিলিয়েট প্ল্যাটফর্ম।',
-    images: ['/images/logo.png'],
+    title: DEFAULT_SITE_TITLE,
+    description: DEFAULT_SITE_DESCRIPTION,
+    images: [
+      {
+        url: ogImageUrl,
+        alt: `${DEFAULT_SITE_TITLE} — 10 Minute School Courses`,
+      },
+    ],
   },
 };
 

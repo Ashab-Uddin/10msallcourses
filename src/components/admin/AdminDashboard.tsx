@@ -92,7 +92,6 @@ interface AdminDashboardProps {
   onLogout: () => void;
   onDataMutated: () => void;
   onAdminNameUpdated?: (nextName: string) => void;
-  onDownloadZip?: () => void;
 }
 
 export type AdminPageTab =
@@ -117,7 +116,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onLogout,
   onDataMutated,
   onAdminNameUpdated,
-  onDownloadZip,
 }) => {
   // Determine initial tab from currentPath
   const getTabFromPath = (p: string): AdminPageTab => {
@@ -2086,7 +2084,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                     <div>
                       <label className="block text-xs font-bold text-[#2A0F12] mb-1">
-                        অ্যাডমিনের নাম (Site Admin Name)
+                        অ্যাডমিনের নাম (Admin Name)
                       </label>
                       <input
                         type="text"
@@ -2271,7 +2269,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onSelectTab={handleTabSwitch}
         onNavigateHome={handleNavigateHome}
         onRequestLogout={() => setShowLogoutConfirm(true)}
-        onDownloadZip={onDownloadZip}
         adminName={savedAdminDisplayName}
         adminEmail={adminEmail}
         stats={{ ...stats, totalBooks: bookStats.totalBooks }}
@@ -2285,7 +2282,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onSelectTab={handleTabSwitch}
         onNavigateHome={handleNavigateHome}
         onRequestLogout={() => setShowLogoutConfirm(true)}
-        onDownloadZip={onDownloadZip}
         adminName={savedAdminDisplayName}
         adminEmail={adminEmail}
         stats={{ ...stats, totalBooks: bookStats.totalBooks }}

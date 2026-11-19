@@ -8,17 +8,53 @@ import {
   type JuniorClassNumber,
 } from '@/src/lib/categoryMatching';
 
+export const DEFAULT_PUBLIC_SITE_URL = 'https://10msallcourse.com';
+export const DEFAULT_SITE_NAME = '10ms All Courses';
+export const DEFAULT_SITE_TITLE = '10ms All Courses';
+export const DEFAULT_SITE_DESCRIPTION =
+  'Explore and discover courses from 10 Minute School. Find your preferred courses, compare prices, and access them easily.';
+export const DEFAULT_OG_IMAGE_PATH = '/og-image.png';
+
+function normalizePublicOrigin(raw?: string | null): string | null {
+  if (!raw || !raw.trim()) return null;
+  const trimmed = raw.trim().replace(/\/+$/, '');
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    const host = parsed.hostname.toLowerCase();
+    if (
+      !host ||
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host.endsWith('.local')
+    ) {
+      return null;
+    }
+    return `https://${parsed.host}`;
+  } catch {
+    return null;
+  }
+}
+
 export function getSiteBaseUrl(): string {
-  const explicit = process.env.APP_URL || process.env.NEXT_PUBLIC_SITE_URL;
-  if (explicit && explicit.trim()) {
-    return explicit.trim().replace(/\/+$/, '');
+  const candidates = [
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.APP_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_URL,
+  ];
+
+  for (const candidate of candidates) {
+    const validOrigin = normalizePublicOrigin(candidate);
+    if (validOrigin) {
+      return validOrigin;
+    }
   }
-  const vercelProd = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
-  if (vercelProd) {
-    const prefixed = vercelProd.startsWith('http') ? vercelProd : `https://${vercelProd}`;
-    return prefixed.replace(/\/+$/, '');
-  }
-  return 'https://10msallcourse.com';
+
+  return DEFAULT_PUBLIC_SITE_URL;
 }
 
 interface ResolvedRouteSeo {
@@ -266,12 +302,8 @@ function resolveRouteSeo(
   }
 
   return {
-    title:
-      settings?.siteTitle ||
-      '১০ মিনিট স্কুল কোর্স — ৩D ক্লাস সিলেক্টর ও মডার্ন কোর্স পোর্টাল',
-    description:
-      settings?.heroSubtitle ||
-      'সরাসরি সর্বোচ্চ প্রাথমিক ছাড়ে যেকোনো একাডেমিক, HSC, SSC, এডমিশন ও ক্যারিয়ার স্কিল প্রোগ্রামে ভর্তি হোন।',
+    title: DEFAULT_SITE_TITLE,
+    description: DEFAULT_SITE_DESCRIPTION,
     canonicalPath: '/',
     filterCourses: (all) => all.filter(isPublicVisibleCourse),
   };
@@ -297,7 +329,13 @@ export function buildSeoMetadata(
     };
   }
 
-  const canonicalUrl = `${baseUrl}${resolved.canonicalPath}`;
+  const canonicalUrl =
+    resolved.canonicalPath === '/' ? baseUrl : `${baseUrl}${resolved.canonicalPath}`;
+  const ogImageUrl = `${baseUrl}${DEFAULT_OG_IMAGE_PATH}`;
+  const ogImageAlt =
+    resolved.title === DEFAULT_SITE_NAME
+      ? `${DEFAULT_SITE_NAME} — 10 Minute School Courses`
+      : `${resolved.title} — ${DEFAULT_SITE_NAME}`;
 
   return {
     title: resolved.title,
@@ -315,13 +353,15 @@ export function buildSeoMetadata(
       url: canonicalUrl,
       type: 'website',
       locale: 'bn_BD',
-      siteName: '10msallcourse.com',
+      siteName: DEFAULT_SITE_NAME,
       images: [
         {
-          url: `${baseUrl}/images/logo.png`,
-          width: 512,
-          height: 512,
-          alt: resolved.title,
+          url: ogImageUrl,
+          secureUrl: ogImageUrl,
+          width: 1200,
+          height: 630,
+          type: 'image/png',
+          alt: ogImageAlt,
         },
       ],
     },
@@ -329,7 +369,12 @@ export function buildSeoMetadata(
       card: 'summary_large_image',
       title: resolved.title,
       description: resolved.description,
-      images: [`${baseUrl}/images/logo.png`],
+      images: [
+        {
+          url: ogImageUrl,
+          alt: ogImageAlt,
+        },
+      ],
     },
   };
 }

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
   ChevronRight,
-  Download,
   Layers,
   ShieldCheck,
   Sparkles,
@@ -19,7 +18,6 @@ interface AdminFooterProps {
   onSelectTab: (tab: AdminPageTab) => void;
   onNavigateHome: () => void;
   onRequestLogout?: () => void;
-  onDownloadZip?: () => void;
   adminName: string;
   adminEmail: string;
   stats: {
@@ -35,7 +33,6 @@ interface AdminFooterProps {
 export const AdminFooter: React.FC<AdminFooterProps> = ({
   onSelectTab,
   onNavigateHome,
-  onDownloadZip,
   adminName,
   adminEmail,
   stats,
@@ -261,18 +258,6 @@ export const AdminFooter: React.FC<AdminFooterProps> = ({
                     <span>পাবলিক ওয়েবসাইট ওপেন করুন</span>
                   </Link>
                 </li>
-                {onDownloadZip && (
-                  <li>
-                    <button
-                      type="button"
-                      onClick={onDownloadZip}
-                      className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer text-emerald-300 font-semibold"
-                    >
-                      <Download className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>প্রজেক্ট ব্যাকআপ ZIP ডাউনলোড</span>
-                    </button>
-                  </li>
-                )}
               </ul>
             </div>
 

@@ -383,34 +383,6 @@ export default function App({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [priceFilter, setPriceFilter] = useState<string>('all');
   const [onlyPopular, setOnlyPopular] = useState<boolean>(false);
-  const isDownloadingZipRef = useRef<boolean>(false);
-
-  const handleDownloadZip = useCallback(async () => {
-    if (isDownloadingZipRef.current) return;
-    isDownloadingZipRef.current = true;
-    try {
-      const res = await fetch('/api/download-project-zip', {
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'ZIP ফাইল তৈরি ব্যর্থ হয়েছে');
-      }
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = '10ms-affiliate-portal-backup.zip';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
-    } catch (err: any) {
-      showAppToast('ডাউনলোড সমস্যা: ' + (err?.message || 'ব্যর্থ হয়েছে'), 'error');
-    } finally {
-      isDownloadingZipRef.current = false;
-    }
-  }, [showAppToast]);
 
   // Mobile Bottom Navigation State
   const [, setMobileTab] = useState<MobileTab>('home');
@@ -788,7 +760,6 @@ export default function App({
           onAdminNameUpdated={(nextName) =>
             setAdminSession((prev) => (prev ? { ...prev, name: nextName } : prev))
           }
-          onDownloadZip={handleDownloadZip}
         />
       </>
     );
