@@ -673,7 +673,7 @@ export default function App({
     } else if (tab === 'hsc28') {
       navigate('/hsc/hsc-28');
     } else if (tab === 'school') {
-      navigate('/class-7');
+      navigate('/ssc/ssc-27');
     } else if (tab === 'admission') {
       navigate('/category/admission');
     } else if (tab === 'skills') {

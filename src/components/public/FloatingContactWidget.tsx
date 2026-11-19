@@ -25,16 +25,16 @@ export const FloatingContactWidget: React.FC<FloatingContactWidgetProps> = ({
   return (
     <aside
       aria-label="সরাসরি যোগাযোগ ও সহায়তা"
-      className="fixed bottom-20 md:bottom-7 right-4 md:right-7 z-40 flex flex-col items-center gap-3 select-none print:hidden pointer-events-auto"
+      className="fixed bottom-20 md:bottom-7 right-1 sm:right-4 md:right-7 z-40 flex flex-col items-center gap-1.5 sm:gap-3 select-none print:hidden pointer-events-auto"
     >
       {/* 1. Direct Phone Call Floating Button */}
       <a
         href={telHref}
-        className="w-13 h-13 rounded-full bg-gradient-to-tr from-[#dc2626] via-[#eb1c24] to-[#fb7185] hover:from-[#b91c1c] hover:to-[#eb1c24] text-white flex items-center justify-center shadow-[0_8px_25px_-5px_rgba(235,28,36,0.5)] hover:shadow-[0_12px_30px_-5px_rgba(235,28,36,0.7)] hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group relative border-2 border-white/60"
+        className="w-7 h-7 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-[#dc2626] via-[#eb1c24] to-[#fb7185] hover:from-[#b91c1c] hover:to-[#eb1c24] text-white flex items-center justify-center shadow-[0_4px_14px_-3px_rgba(235,28,36,0.45)] sm:shadow-[0_8px_25px_-5px_rgba(235,28,36,0.5)] hover:shadow-[0_12px_30px_-5px_rgba(235,28,36,0.7)] hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group relative border sm:border-2 border-white/60"
         aria-label={`সরাসরি কল করুন ${effectiveCallNumber}`}
         title={`সরাসরি কল করুন (${effectiveCallNumber})`}
       >
-        <Phone className="w-6 h-6 text-white drop-shadow-xs" aria-hidden="true" />
+        <Phone className="w-3.5 h-3.5 sm:w-6 sm:h-6 text-white drop-shadow-xs" aria-hidden="true" />
 
         {/* Hover Tooltip */}
         <span className="hidden md:group-hover:flex absolute right-16 top-1/2 -translate-y-1/2 bg-slate-900/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xl border border-white/10 pointer-events-none items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150">
@@ -48,13 +48,13 @@ export const FloatingContactWidget: React.FC<FloatingContactWidgetProps> = ({
         href={waHref}
         target="_blank"
         rel="noopener noreferrer"
-        className="w-13 h-13 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white flex items-center justify-center shadow-[0_8px_25px_-5px_rgba(37,211,102,0.5)] hover:shadow-[0_12px_30px_-5px_rgba(37,211,102,0.7)] hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group relative border-2 border-white/60"
+        className="w-7 h-7 sm:w-13 sm:h-13 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white flex items-center justify-center shadow-[0_4px_14px_-3px_rgba(37,211,102,0.45)] sm:shadow-[0_8px_25px_-5px_rgba(37,211,102,0.5)] hover:shadow-[0_12px_30px_-5px_rgba(37,211,102,0.7)] hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group relative border sm:border-2 border-white/60"
         aria-label="হোয়াটসঅ্যাপে সরাসরি চ্যাট করুন"
         title="হোয়াটসঅ্যাপে সরাসরি চ্যাট করুন"
       >
         {/* Official WhatsApp Vector Icon */}
         <svg
-          className="w-7 h-7 fill-white drop-shadow-xs"
+          className="w-4 h-4 sm:w-7 sm:h-7 fill-white drop-shadow-xs"
           viewBox="0 0 24 24"
           aria-hidden="true"
         >
@@ -73,13 +73,13 @@ export const FloatingContactWidget: React.FC<FloatingContactWidgetProps> = ({
         href={mHref}
         target="_blank"
         rel="noopener noreferrer"
-        className="w-13 h-13 rounded-full bg-gradient-to-tr from-[#006AFF] via-[#0084FF] to-[#00C6FF] hover:from-[#005ce6] hover:to-[#00b0e6] text-white flex items-center justify-center shadow-[0_8px_25px_-5px_rgba(0,132,255,0.5)] hover:shadow-[0_12px_30px_-5px_rgba(0,132,255,0.7)] hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group relative border-2 border-white/60"
+        className="w-7 h-7 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-[#006AFF] via-[#0084FF] to-[#00C6FF] hover:from-[#005ce6] hover:to-[#00b0e6] text-white flex items-center justify-center shadow-[0_4px_14px_-3px_rgba(0,132,255,0.45)] sm:shadow-[0_8px_25px_-5px_rgba(0,132,255,0.5)] hover:shadow-[0_12px_30px_-5px_rgba(0,132,255,0.7)] hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group relative border sm:border-2 border-white/60"
         aria-label="ফেসবুক মেসেঞ্জারে সরাসরি নক দিন"
         title="ফেসবুক মেসেঞ্জারে সরাসরি নক দিন"
       >
         {/* Official Facebook Messenger Vector Icon */}
         <svg
-          className="w-7 h-7 fill-white drop-shadow-xs"
+          className="w-4 h-4 sm:w-7 sm:h-7 fill-white drop-shadow-xs"
           viewBox="0 0 24 24"
           aria-hidden="true"
         >

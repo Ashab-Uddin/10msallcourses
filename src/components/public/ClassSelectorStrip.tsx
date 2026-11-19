@@ -274,7 +274,7 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
       </div>
 
       {/* Frosted Glass Container */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4 p-3.5 sm:p-5 rounded-3xl glass-surface">
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 p-2.5 sm:p-5 rounded-3xl glass-surface">
         {BATCH_ITEMS.map((item) => {
           const IconComponent = item.Icon;
           const linkedCategory = item.categorySlug
@@ -287,15 +287,15 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
               data-category-id={linkedCategory?.id ?? undefined}
               data-category-slug={item.categorySlug}
               onClick={() => onNavigate(item.path)}
-              className="group flex flex-col items-center cursor-pointer text-left focus:outline-none"
+              className="group min-w-0 w-full flex flex-col items-center cursor-pointer text-left focus:outline-none"
             >
               {/* Split S-Wave Glass Card matching structural archetype */}
               <div
-                className={`relative w-full rounded-[22px] overflow-hidden border border-white/90 bg-white/80 backdrop-blur-xl shadow-[0_10px_28px_-10px_rgba(185,28,28,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] ${item.hoverShadow} group-hover:-translate-y-1.5 active:scale-[0.98] transition-all duration-300 flex flex-col`}
+                className={`relative w-full aspect-square sm:aspect-auto rounded-[18px] sm:rounded-[22px] overflow-hidden border border-white/90 bg-white/80 backdrop-blur-xl shadow-[0_10px_28px_-10px_rgba(185,28,28,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] ${item.hoverShadow} group-hover:-translate-y-1.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between`}
               >
                 {/* TOP RICH 3D COLOR STAGE */}
                 <div
-                  className={`relative w-full h-[112px] sm:h-[122px] ${item.topGradient} flex flex-col items-center justify-center px-3 pb-5 pt-3 overflow-hidden`}
+                  className={`relative w-full flex-1 min-h-0 sm:flex-none sm:h-[122px] ${item.topGradient} flex flex-col items-center justify-center px-1.5 pt-4 pb-2.5 sm:px-3 sm:pb-5 sm:pt-3 overflow-hidden`}
                 >
                   {/* Specular top-left glass sheen */}
                   <div
@@ -307,15 +307,15 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
                   />
 
                   {/* Compact Batch Code Tag at top-left */}
-                  <span className="absolute top-2.5 left-2.5 text-[10px] font-black tracking-wider text-white/95 bg-black/20 backdrop-blur-md border border-white/25 px-2 py-0.5 rounded-full">
+                  <span className="absolute top-1.5 left-1.5 sm:top-2.5 sm:left-2.5 text-[7.5px] min-[390px]:text-[8px] sm:text-[10px] font-black tracking-wider text-white/95 bg-black/20 backdrop-blur-md border border-white/25 px-1.5 sm:px-2 py-[1px] sm:py-0.5 rounded-full max-w-[calc(100%-12px)] sm:max-w-none truncate">
                     {item.tag}
                   </span>
 
                   {/* Centered 3D Frosted Icon Medallion */}
                   <div
-                    className={`relative z-10 mt-2 w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 backdrop-blur-md border border-white/45 flex items-center justify-center text-white ${item.iconGlow} group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300`}
+                    className={`relative z-10 mt-2 sm:mt-2 w-8 h-8 min-[390px]:w-9 min-[390px]:h-9 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/45 flex items-center justify-center text-white ${item.iconGlow} group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300`}
                   >
-                    <IconComponent className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2] drop-shadow-sm" />
+                    <IconComponent className="w-4 h-4 min-[390px]:w-[18px] min-[390px]:h-[18px] sm:w-7 sm:h-7 stroke-[2.2] drop-shadow-sm" />
                   </div>
 
                   {/* Rising Frosted S-Curve Wave Divider */}
@@ -323,7 +323,7 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
                     viewBox="0 0 240 42"
                     preserveAspectRatio="none"
                     aria-hidden="true"
-                    className="absolute bottom-0 left-0 w-full h-[30px] pointer-events-none block"
+                    className="absolute bottom-0 left-0 w-full h-[13px] sm:h-[30px] pointer-events-none block"
                   >
                     <path
                       d="M0,18 C68,-4 148,42 240,12 L240,42 L0,42 Z"
@@ -333,12 +333,12 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
                 </div>
 
                 {/* BOTTOM FROSTED GLASS WAVE ZONE WITH OUTLINED PILL TITLE */}
-                <div className="relative bg-white/90 backdrop-blur-md px-2.5 pt-1 pb-3.5 flex flex-col items-center justify-center shadow-[inset_0_-6px_12px_rgba(185,28,28,0.05)]">
+                <div className="relative shrink-0 bg-white/90 backdrop-blur-md px-1.5 pt-0.5 pb-1.5 sm:px-2.5 sm:pt-1 sm:pb-3.5 flex flex-col items-center justify-center shadow-[inset_0_-6px_12px_rgba(185,28,28,0.05)]">
                   <div
-                    className={`w-full rounded-full border-[1.5px] ${item.pillBorder} ${item.pillBg} px-2.5 py-1.5 text-center shadow-[inset_0_1px_2px_rgba(255,255,255,0.95),0_2px_6px_-2px_rgba(0,0,0,0.06)] group-hover:scale-[1.03] transition-transform duration-200`}
+                    className={`w-full rounded-full border-[1.5px] ${item.pillBorder} ${item.pillBg} px-1.5 py-[3px] sm:px-2.5 sm:py-1.5 text-center shadow-[inset_0_1px_2px_rgba(255,255,255,0.95),0_2px_6px_-2px_rgba(0,0,0,0.06)] group-hover:scale-[1.03] transition-transform duration-200`}
                   >
                     <span
-                      className={`block font-black text-xs sm:text-[13.5px] tracking-tight leading-tight whitespace-nowrap ${item.pillText}`}
+                      className={`block font-black text-[10px] min-[390px]:text-[10.5px] sm:text-[13.5px] tracking-tight leading-tight whitespace-nowrap truncate ${item.pillText}`}
                     >
                       {item.title}
                     </span>
@@ -348,7 +348,7 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
 
               {/* Clean Live Batch Caption below card */}
               <span
-                className={`mt-2 text-[11px] font-bold whitespace-nowrap ${item.statusColor} opacity-90 group-hover:opacity-100 transition-opacity`}
+                className={`mt-1.5 sm:mt-2 text-[9px] min-[390px]:text-[9.5px] sm:text-[11px] font-bold text-center leading-tight sm:whitespace-nowrap max-w-full ${item.statusColor} opacity-90 group-hover:opacity-100 transition-opacity`}
               >
                 {item.subLabel}
               </span>

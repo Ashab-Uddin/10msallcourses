@@ -583,7 +583,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
           {/* DEDICATED TOGGLE PILL FOR ACADEMIC YEARS / CLASSES */}
           <div className="flex items-center justify-center mb-6 w-full px-1">
             {(level === 'class' || level === 'ssc') && (
-              <div className="sm:hidden grid grid-cols-3 gap-1.5 p-1.5 rounded-xl glass-strong w-full shadow-sm">
+              <div className="sm:hidden grid grid-cols-3 gap-2 p-2 rounded-2xl glass-strong border border-rose-200/70 w-full shadow-sm">
                 {mobileSchoolGridOptions.map((opt) => {
                   const isActive = opt.id === batchOrClass;
                   return (
@@ -595,16 +595,17 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                           onNavigate(opt.path);
                         }
                       }}
-                      className={`px-1.5 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                      aria-pressed={isActive}
+                      className={`px-2 py-2 rounded-xl text-[11px] font-extrabold transition-all duration-200 cursor-pointer active:scale-[0.97] flex flex-col items-center justify-center gap-1 text-center border-[1.5px] ${
                         isActive
-                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-md shadow-red-500/25'
-                          : 'glass-inset text-[#2A0F12] hover:bg-white/90 hover:text-[#B91C1C]'
+                          ? 'border-[#991b1b] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_6px_16px_-4px_rgba(185,28,28,0.45)] ring-2 ring-red-500/20'
+                          : 'border-rose-200/90 bg-white/85 text-[#2A0F12] shadow-2xs hover:border-rose-400 hover:bg-rose-50/70 hover:text-[#B91C1C]'
                       }`}
                     >
                       <span className="leading-tight">{opt.label}</span>
                       {opt.subLabel && (
                         <span
-                          className={`text-[9px] font-semibold px-1.5 py-[1px] rounded leading-tight ${
+                          className={`text-[9px] font-semibold px-1.5 py-[1px] rounded leading-tight transition-colors ${
                             isActive
                               ? 'bg-black/20 text-rose-50'
                               : 'bg-rose-500/10 text-[#6B4C4F]'
@@ -663,24 +664,24 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
       {/* QUICK SECTION / FILTER NAVIGATION STRIP (Scrolls on Mobile, Sticky on Tablet/Desktop) */}
       <section className="max-w-[1240px] mx-auto px-4 sm:px-6 -mt-6 sm:-mt-7 relative z-30 sm:sticky sm:top-[74px]">
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-4 border border-rose-100 shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 border border-rose-100 shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3">
           
           {level === 'hsc' ? (
             /* HSC DEPARTMENT TABS */
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar scroll-smooth w-full md:w-auto">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 sm:overflow-x-auto pb-0.5 sm:pb-1 md:pb-0 no-scrollbar scroll-smooth w-full md:w-auto">
               {/* All */}
               <button
                 type="button"
                 onClick={() => handleDepartmentJump('')}
-                className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+                className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-full text-[10.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1 sm:gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'all'
-                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-md shadow-red-500/20'
-                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
+                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-sm sm:shadow-md shadow-red-500/20'
+                    : 'border-rose-200/80 sm:border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
                 }`}
               >
                 <span>সকল বিভাগ (All)</span>
                 <span
-                  className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                  className={`inline-flex items-center justify-center min-w-[16px] sm:min-w-[20px] h-4 sm:h-5 px-1 sm:px-1.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
                     selectedDept === 'all'
                       ? 'bg-black/15 text-white'
                       : 'bg-slate-200/80 text-slate-600'
@@ -694,16 +695,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               <button
                 type="button"
                 onClick={() => handleDepartmentJump('science')}
-                className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+                className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-full text-[10.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1 sm:gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'science'
-                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-md shadow-red-500/20'
-                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
+                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-sm sm:shadow-md shadow-red-500/20'
+                    : 'border-rose-200/80 sm:border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
                 }`}
               >
-                <Atom className="w-3.5 h-3.5" />
+                <Atom className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 <span>Science (বিজ্ঞান)</span>
                 <span
-                  className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                  className={`inline-flex items-center justify-center min-w-[16px] sm:min-w-[20px] h-4 sm:h-5 px-1 sm:px-1.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
                     selectedDept === 'science'
                       ? 'bg-black/15 text-white'
                       : 'bg-slate-200/80 text-slate-600'
@@ -717,16 +718,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               <button
                 type="button"
                 onClick={() => handleDepartmentJump('business-studies')}
-                className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+                className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-full text-[10.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1 sm:gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'business'
-                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-md shadow-red-500/20'
-                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
+                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-sm sm:shadow-md shadow-red-500/20'
+                    : 'border-rose-200/80 sm:border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
                 }`}
               >
-                <Briefcase className="w-3.5 h-3.5" />
+                <Briefcase className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 <span>Business Studies (ব্যবসায় শিক্ষা)</span>
                 <span
-                  className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                  className={`inline-flex items-center justify-center min-w-[16px] sm:min-w-[20px] h-4 sm:h-5 px-1 sm:px-1.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
                     selectedDept === 'business'
                       ? 'bg-black/15 text-white'
                       : 'bg-slate-200/80 text-slate-600'
@@ -740,16 +741,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               <button
                 type="button"
                 onClick={() => handleDepartmentJump('humanities')}
-                className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+                className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-full text-[10.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1 sm:gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'humanities'
-                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-md shadow-red-500/20'
-                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
+                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-sm sm:shadow-md shadow-red-500/20'
+                    : 'border-rose-200/80 sm:border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
                 }`}
               >
-                <BookOpen className="w-3.5 h-3.5" />
+                <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 <span>Humanities (মানবিক)</span>
                 <span
-                  className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                  className={`inline-flex items-center justify-center min-w-[16px] sm:min-w-[20px] h-4 sm:h-5 px-1 sm:px-1.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
                     selectedDept === 'humanities'
                       ? 'bg-black/15 text-white'
                       : 'bg-slate-200/80 text-slate-600'
@@ -761,19 +762,19 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
             </div>
           ) : level === 'ssc' ? (
             /* SSC SUBJECT / STREAM FILTER TABS */
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar scroll-smooth w-full md:w-auto">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 sm:overflow-x-auto pb-0.5 sm:pb-1 md:pb-0 no-scrollbar scroll-smooth w-full md:w-auto">
               <button
                 type="button"
                 onClick={() => setSelectedDept('all')}
-                className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+                className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-full text-[10.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1 sm:gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'all'
-                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-md shadow-red-500/20'
-                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
+                    ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-sm sm:shadow-md shadow-red-500/20'
+                    : 'border-rose-200/80 sm:border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
                 }`}
               >
                 <span>সকল বিষয় ও কোর্স</span>
                 <span
-                  className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                  className={`inline-flex items-center justify-center min-w-[16px] sm:min-w-[20px] h-4 sm:h-5 px-1 sm:px-1.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
                     selectedDept === 'all'
                       ? 'bg-black/15 text-white'
                       : 'bg-slate-200/80 text-slate-600'
@@ -787,16 +788,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedDept('science')}
-                  className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+                  className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-full text-[10.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1 sm:gap-1.5 border active:scale-[0.97] ${
                     selectedDept === 'science'
-                      ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-md shadow-red-500/20'
-                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
+                      ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-sm sm:shadow-md shadow-red-500/20'
+                      : 'border-rose-200/80 sm:border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
                   }`}
                 >
-                  <Atom className="w-3.5 h-3.5" />
+                  <Atom className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   <span>বিজ্ঞান বিভাগ</span>
                   <span
-                    className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                    className={`inline-flex items-center justify-center min-w-[16px] sm:min-w-[20px] h-4 sm:h-5 px-1 sm:px-1.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
                       selectedDept === 'science'
                         ? 'bg-black/15 text-white'
                         : 'bg-slate-200/80 text-slate-600'
@@ -811,16 +812,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedDept('business')}
-                  className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+                  className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-full text-[10.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1 sm:gap-1.5 border active:scale-[0.97] ${
                     selectedDept === 'business'
-                      ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-md shadow-red-500/20'
-                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
+                      ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-sm sm:shadow-md shadow-red-500/20'
+                      : 'border-rose-200/80 sm:border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
                   }`}
                 >
-                  <Briefcase className="w-3.5 h-3.5" />
+                  <Briefcase className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   <span>ব্যবসায় শিক্ষা</span>
                   <span
-                    className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                    className={`inline-flex items-center justify-center min-w-[16px] sm:min-w-[20px] h-4 sm:h-5 px-1 sm:px-1.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
                       selectedDept === 'business'
                         ? 'bg-black/15 text-white'
                         : 'bg-slate-200/80 text-slate-600'
@@ -835,16 +836,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedDept('humanities')}
-                  className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 border ${
+                  className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-full text-[10.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1 sm:gap-1.5 border active:scale-[0.97] ${
                     selectedDept === 'humanities'
-                      ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-md shadow-red-500/20'
-                    : 'border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
+                      ? 'border-red-600 bg-gradient-to-r from-[#eb1c24] to-[#b91c1c] text-white shadow-sm sm:shadow-md shadow-red-500/20'
+                      : 'border-rose-200/80 sm:border-slate-200/90 bg-white text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/40 shadow-2xs'
                   }`}
                 >
-                  <BookOpen className="w-3.5 h-3.5" />
+                  <BookOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   <span>মানবিক বিভাগ</span>
                   <span
-                    className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                    className={`inline-flex items-center justify-center min-w-[16px] sm:min-w-[20px] h-4 sm:h-5 px-1 sm:px-1.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
                       selectedDept === 'humanities'
                         ? 'bg-black/15 text-white'
                         : 'bg-slate-200/80 text-slate-600'
@@ -858,10 +859,10 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
           ) : (
             /* CLASS 6, 7, 8 - NO DEPARTMENT FILTERS, JUST CLEAN SUBJECT LABEL */
             <div className="flex items-center gap-2">
-              <div className="px-3.5 sm:px-4 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-[#b91c1c] text-xs sm:text-sm font-bold flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-[#eb1c24]" />
+              <div className="px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-full bg-rose-50 border border-rose-200 text-[#b91c1c] text-[11px] sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2">
+                <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#eb1c24]" />
                 <span>{pageDetails.activeName} সকল বিষয় ও কোর্স</span>
-                <span className="bg-[#b91c1c] text-white px-2 py-0.5 rounded-full text-[11px] font-extrabold">
+                <span className="bg-[#b91c1c] text-white px-1.5 sm:px-2 py-[1px] sm:py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold">
                   {toBengaliNumber(filteredBatchCourses.length)}টি
                 </span>
               </div>
@@ -870,13 +871,13 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
           {/* Search box inside filter */}
           <div className="relative w-full md:w-60 shrink-0">
-            <Search className="w-3.5 h-3.5 text-rose-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-rose-400 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="কোর্সের নাম লিখুন..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#eb1c24] outline-none transition"
+              className="w-full pl-7 sm:pl-8 pr-3 py-1 sm:py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] sm:text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#eb1c24] outline-none transition"
             />
           </div>
         </div>
