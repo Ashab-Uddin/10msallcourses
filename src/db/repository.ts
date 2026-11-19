@@ -16,8 +16,13 @@ import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
 import { invalidatePublicPortalCache } from '../lib/cacheInvalidation.ts';
 import {
   DEFAULT_SELECTOR_ICON_IDS,
+  cloneDefaultSelectorIconLabels,
+  normalizeSelectorIconLabels,
   normalizeSelectorIconOrder,
+  type SelectorIconConfig,
   type SelectorIconId,
+  type SelectorIconLabelsMap,
+  type SelectorIconText,
 } from '../lib/selectorIconOrder.ts';
 import {
   RepositoryError,
@@ -47,9 +52,11 @@ import {
   sbGetOfferTimers,
   sbGetPortalSettings,
   sbGetPublicPortalData,
+  sbGetSelectorIconConfig,
   sbGetSelectorIconOrder,
   sbRecordCourseClick,
   sbReorderCoursePosition,
+  sbSaveSelectorIconConfig,
   sbSaveSelectorIconOrder,
   sbSetOfferTimerPaused,
   sbSwapCategoryOrder,
@@ -77,6 +84,7 @@ interface LocalStore {
   settings: SiteSettings;
   offerTimers: OfferTimer[];
   selectorIconOrder?: SelectorIconId[];
+  selectorIconLabels?: SelectorIconLabelsMap;
 }
 
 export function getStorageInfo(): StorageInfo {
@@ -110,6 +118,7 @@ function buildDefaultStore(): LocalStore {
     settings: { ...INITIAL_SETTINGS },
     offerTimers: [],
     selectorIconOrder: [...DEFAULT_SELECTOR_ICON_IDS],
+    selectorIconLabels: cloneDefaultSelectorIconLabels(),
   };
 }
 
@@ -168,6 +177,7 @@ function normalizeStoreShape(raw: Partial<LocalStore> | null | undefined): Local
     settings: raw.settings ? { ...defaults.settings, ...raw.settings } : defaults.settings,
     offerTimers: Array.isArray(raw.offerTimers) ? raw.offerTimers : [],
     selectorIconOrder: normalizeSelectorIconOrder(raw.selectorIconOrder),
+    selectorIconLabels: normalizeSelectorIconLabels(raw.selectorIconLabels),
   };
 }
 
@@ -292,6 +302,7 @@ export const getPublicPortalData = cache(async () => {
     offerTimers,
     hasOfferTimers: allHydratedTimers.length > 0,
     selectorIconOrder: normalizeSelectorIconOrder(store.selectorIconOrder),
+    selectorIconLabels: normalizeSelectorIconLabels(store.selectorIconLabels),
     serverNow: nowIso,
   };
 });
@@ -423,6 +434,7 @@ export async function getAdminOverviewData() {
     settings: currentSettings,
     offerTimers: hydrateOfferTimers(store),
     selectorIconOrder: normalizeSelectorIconOrder(store.selectorIconOrder),
+    selectorIconLabels: normalizeSelectorIconLabels(store.selectorIconLabels),
     storageInfo: getStorageInfo(),
     serverNow: new Date().toISOString(),
   };
@@ -1140,6 +1152,45 @@ export async function updatePortalSettings(input: Record<string, unknown>) {
   invalidatePublicPortalCache();
 
   return updated;
+}
+
+export async function getSelectorIconConfig(): Promise<SelectorIconConfig> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetSelectorIconConfig();
+  }
+
+  const store = await loadStore(true);
+  return {
+    orderedIds: normalizeSelectorIconOrder(store.selectorIconOrder),
+    labels: normalizeSelectorIconLabels(store.selectorIconLabels),
+  };
+}
+
+export async function saveSelectorIconConfig(input: {
+  orderedIds: ReadonlyArray<string>;
+  labels: Partial<Record<string, Partial<SelectorIconText>>>;
+}): Promise<SelectorIconConfig> {
+  const normalizedOrder = normalizeSelectorIconOrder(input.orderedIds);
+  const normalizedLabels = normalizeSelectorIconLabels(input.labels);
+
+  if (isSupabaseDatabaseReady()) {
+    const saved = await sbSaveSelectorIconConfig({
+      orderedIds: normalizedOrder,
+      labels: normalizedLabels,
+    });
+    invalidatePublicPortalCache();
+    return saved;
+  }
+
+  const store = await loadStore(true);
+  store.selectorIconOrder = normalizedOrder;
+  store.selectorIconLabels = normalizedLabels;
+  await persistStore(store);
+  invalidatePublicPortalCache();
+  return {
+    orderedIds: normalizedOrder,
+    labels: normalizedLabels,
+  };
 }
 
 export async function getSelectorIconOrder(): Promise<SelectorIconId[]> {

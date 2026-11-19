@@ -2,19 +2,24 @@
 
 import React, { useMemo } from 'react';
 import { Category } from '../../types.ts';
-import type { SelectorIconId } from '../../lib/selectorIconOrder.ts';
+import type {
+  SelectorIconId,
+  SelectorIconText,
+} from '../../lib/selectorIconOrder.ts';
 import { getOrderedSelectorIcons } from './selectorIconDefinitions.ts';
 
 interface ClassSelectorStripProps {
   onNavigate: (path: string) => void;
   categories?: Category[];
   selectorIconOrder?: SelectorIconId[];
+  selectorIconLabels?: Partial<Record<SelectorIconId, SelectorIconText>>;
 }
 
 export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
   onNavigate,
   categories = [],
   selectorIconOrder,
+  selectorIconLabels,
 }) => {
   const categoryBySlug = useMemo(() => {
     const map = new Map<string, Category>();
@@ -25,8 +30,8 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
   }, [categories]);
 
   const orderedIcons = useMemo(
-    () => getOrderedSelectorIcons(selectorIconOrder),
-    [selectorIconOrder]
+    () => getOrderedSelectorIcons(selectorIconOrder, selectorIconLabels),
+    [selectorIconOrder, selectorIconLabels]
   );
 
   return (

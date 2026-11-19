@@ -21,8 +21,11 @@ import { FloatingContactWidget } from './components/public/FloatingContactWidget
 import { SiteFooter } from './components/public/SiteFooter.tsx';
 import { toBengaliNumber } from './utils/format.ts';
 import {
+  normalizeSelectorIconLabels,
   normalizeSelectorIconOrder,
   type SelectorIconId,
+  type SelectorIconLabelsMap,
+  type SelectorIconText,
 } from './lib/selectorIconOrder.ts';
 import {
   CLASS_BENGALI_ORDINALS,
@@ -61,6 +64,7 @@ export interface AppProps {
   initialOfferTimers?: OfferTimer[];
   initialHasOfferTimers?: boolean;
   initialSelectorIconOrder?: SelectorIconId[];
+  initialSelectorIconLabels?: Partial<Record<SelectorIconId, SelectorIconText>>;
   initialServerNow?: string;
   initialBookCategories?: BookCategory[];
   initialBooks?: Book[];
@@ -215,6 +219,7 @@ export default function App({
   initialOfferTimers = [],
   initialHasOfferTimers = false,
   initialSelectorIconOrder,
+  initialSelectorIconLabels,
   initialServerNow,
   initialBookCategories = [],
   initialBooks = [],
@@ -370,6 +375,9 @@ export default function App({
   const [selectorIconOrder, setSelectorIconOrder] = useState<SelectorIconId[]>(() =>
     normalizeSelectorIconOrder(initialSelectorIconOrder)
   );
+  const [selectorIconLabels, setSelectorIconLabels] = useState<SelectorIconLabelsMap>(() =>
+    normalizeSelectorIconLabels(initialSelectorIconLabels)
+  );
   const [serverNow, setServerNow] = useState<string | undefined>(initialServerNow);
 
   const hasServerPortalProps =
@@ -459,6 +467,9 @@ export default function App({
       }
       if (Array.isArray(data.selectorIconOrder)) {
         setSelectorIconOrder(normalizeSelectorIconOrder(data.selectorIconOrder));
+      }
+      if (data.selectorIconLabels && typeof data.selectorIconLabels === 'object') {
+        setSelectorIconLabels(normalizeSelectorIconLabels(data.selectorIconLabels));
       }
       if (data.settings) {
         setSettings(data.settings);
@@ -1063,6 +1074,7 @@ export default function App({
               onNavigate={navigate}
               categories={orderedCategories}
               selectorIconOrder={selectorIconOrder}
+              selectorIconLabels={selectorIconLabels}
             />
           </section>
 

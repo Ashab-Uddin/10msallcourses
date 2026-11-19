@@ -10,8 +10,11 @@ import {
 import { computeOfferTimerStatus } from '../../lib/offerTimerUtils.ts';
 import {
   DEFAULT_SELECTOR_ICON_IDS,
+  cloneDefaultSelectorIconLabels,
+  normalizeSelectorIconLabels,
   normalizeSelectorIconOrder,
   type SelectorIconId,
+  type SelectorIconLabelsMap,
 } from '../../lib/selectorIconOrder.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
@@ -180,6 +183,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectorIconOrder, setSelectorIconOrder] = useState<SelectorIconId[]>(() => [
     ...DEFAULT_SELECTOR_ICON_IDS,
   ]);
+  const [selectorIconLabels, setSelectorIconLabels] = useState<SelectorIconLabelsMap>(() =>
+    cloneDefaultSelectorIconLabels()
+  );
   const [storageInfo, setStorageInfo] = useState<{
     backend: string;
     persistentOnVercel: boolean;
@@ -345,6 +351,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setOfferTimers(data.offerTimers || []);
       if (Array.isArray(data.selectorIconOrder)) {
         setSelectorIconOrder(normalizeSelectorIconOrder(data.selectorIconOrder));
+      }
+      if (data.selectorIconLabels && typeof data.selectorIconLabels === 'object') {
+        setSelectorIconLabels(normalizeSelectorIconLabels(data.selectorIconLabels));
       }
       setStorageInfo(data.storageInfo || null);
       if (data.serverNow) {
@@ -1109,28 +1118,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </span>
                       )}
                     </button>
-
-                    {item.id === 'settings' && (
-                      <div className="pl-5 pt-0.5">
-                        <button
-                          type="button"
-                          onClick={() => handleTabSwitch('icon_sort')}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11.5px] font-bold transition-all duration-150 cursor-pointer border ${
-                            activeTab === 'icon_sort'
-                              ? 'bg-rose-50 text-[#b91c1c] border-rose-200 shadow-2xs'
-                              : 'text-[#6B4C4F] hover:text-[#b91c1c] hover:bg-rose-50/70 border-transparent'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2 min-w-0">
-                            <ListOrdered className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate">Icon Sort</span>
-                          </span>
-                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-rose-100/80 text-[#b91c1c] tabular-nums">
-                            {toBengaliNumber(selectorIconOrder.length)}
-                          </span>
-                        </button>
-                      </div>
-                    )}
                   </React.Fragment>
                 );
               })}
@@ -2263,12 +2250,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div>
                     <h1 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
                       {activeTab === 'icon_sort'
-                        ? 'সেটিংস — Icon Sort (মেইন সাইট আইকন পজিশন)'
+                        ? 'সেটিংস — Icon Sort (আইকন পজিশন ও নাম ম্যানেজার)'
                         : 'পোর্টাল সেটিংস ও যোগাযোগ (Settings & Direct Contact)'}
                     </h1>
                     <p className="text-xs text-[#6B4C4F] mt-1">
                       {activeTab === 'icon_sort'
-                        ? 'মেইন ওয়েবসাইটের ক্লাস ও কোর্স সিলেক্টর আইকনগুলোর প্রদর্শনের সিরিয়াল নম্বর পরিবর্তন করুন।'
+                        ? 'মেইন ওয়েবসাইটের ক্লাস ও কোর্স সিলেক্টর আইকনগুলোর সিরিয়াল নম্বর, মূল নাম এবং সাব-নাম পরিবর্তন ও প্রিভিউ করুন।'
                         : 'সাইট টাইটেল, ডিরেক্ট কল নম্বর, অফিশিয়াল হোয়াটসঅ্যাপ নম্বর, মেসেঞ্জার লিংক, হোমপেজ টেক্সট এবং Icon Sort নিয়ন্ত্রণ।'}
                     </p>
                   </div>
@@ -2306,7 +2293,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {activeTab === 'icon_sort' ? (
                 <IconSortManager
                   initialOrderedIds={selectorIconOrder}
-                  onOrderSaved={(nextOrder) => setSelectorIconOrder(nextOrder)}
+                  initialLabels={selectorIconLabels}
+                  onConfigSaved={(nextOrder, nextLabels) => {
+                    setSelectorIconOrder(nextOrder);
+                    setSelectorIconLabels(nextLabels);
+                  }}
                   onUnauthorized={handleBookStoreUnauthorized}
                   onDataMutated={onDataMutated}
                   onShowToast={showToast}
@@ -2482,6 +2473,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </button>
                 </div>
               </form>
+
+              {/* Icon Sort Option Card inside Settings Menu */}
+              <div className="glass-strong rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-200/80 text-[#b91c1c] flex items-center justify-center shrink-0">
+                    <ListOrdered className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-black text-[#2A0F12]">
+                        মেইন ওয়েবসাইট আইকন পজিশন ও নাম (Icon Sort)
+                      </h3>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100/80 text-[#b91c1c] tabular-nums">
+                        {toBengaliNumber(selectorIconOrder.length)}টি আইকন
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#6B4C4F] mt-0.5">
+                      হোমপেজের ক্লাস ও কোর্স সিলেক্টর আইকনগুলোর সিরিয়াল পজিশন, মূল নাম ও সাব-নাম এখান থেকে নিয়ন্ত্রণ করুন।
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabSwitch('icon_sort')}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-rose-200 bg-rose-50/90 hover:bg-gradient-to-r hover:from-[#ff5252] hover:to-[#b91c1c] text-[#b91c1c] hover:text-white text-xs font-bold transition cursor-pointer shrink-0"
+                >
+                  <ListOrdered className="w-3.5 h-3.5" />
+                  <span>Icon Sort ওপেন করুন</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
                 </>
               )}
             </div>

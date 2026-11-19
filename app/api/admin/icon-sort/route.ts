@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   RepositoryError,
-  getSelectorIconOrder,
-  saveSelectorIconOrder,
+  getSelectorIconConfig,
+  saveSelectorIconConfig,
 } from '@/src/db/repository';
 import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 import {
   DEFAULT_SELECTOR_ICON_IDS,
+  cloneDefaultSelectorIconLabels,
   isValidSelectorIconId,
-  toSelectorIconPositions,
+  normalizeSelectorIconOrder,
+  toSelectorIconConfigItems,
+  validateSelectorIconTextFields,
   type SelectorIconId,
+  type SelectorIconLabelsMap,
 } from '@/src/lib/selectorIconOrder';
 
 export const dynamic = 'force-dynamic';
 
-function validateIconOrderPayload(
-  body: unknown
-): { ok: true; orderedIds: SelectorIconId[] } | { ok: false; error: string } {
-  const rec = (body && typeof body === 'object' ? body : {}) as {
-    orderedIds?: unknown;
-    positions?: unknown;
-  };
-
+function validateIconOrderPart(
+  rec: { orderedIds?: unknown; positions?: unknown },
+  fallbackOrder: SelectorIconId[]
+): { ok: true; orderedIds: SelectorIconId[]; provided: boolean } | { ok: false; error: string } {
   const expectedCount = DEFAULT_SELECTOR_ICON_IDS.length;
 
   if (Array.isArray(rec.orderedIds)) {
@@ -52,7 +52,7 @@ function validateIconOrderPayload(
       validated.push(rawId);
     }
 
-    return { ok: true, orderedIds: validated };
+    return { ok: true, orderedIds: validated, provided: true };
   }
 
   if (Array.isArray(rec.positions)) {
@@ -101,13 +101,91 @@ function validateIconOrderPayload(
     return {
       ok: true,
       orderedIds: parsedEntries.map((entry) => entry.iconId),
+      provided: true,
     };
   }
 
   return {
-    ok: false,
-    error: 'সঠিক আইকন অর্ডার ডেটা (`orderedIds` বা `positions`) প্রদান করুন।',
+    ok: true,
+    orderedIds: normalizeSelectorIconOrder(fallbackOrder),
+    provided: false,
   };
+}
+
+function validateIconLabelsPart(
+  rec: { labels?: unknown; items?: unknown },
+  existingLabels: SelectorIconLabelsMap
+): { ok: true; labels: SelectorIconLabelsMap; provided: boolean } | { ok: false; error: string } {
+  const mergedLabels: SelectorIconLabelsMap = {
+    ...cloneDefaultSelectorIconLabels(),
+    ...Object.fromEntries(
+      DEFAULT_SELECTOR_ICON_IDS.map((id) => [id, { ...existingLabels[id] }])
+    ),
+  } as SelectorIconLabelsMap;
+
+  const rawSource = rec.labels ?? rec.items;
+  if (rawSource === undefined) {
+    return { ok: true, labels: mergedLabels, provided: false };
+  }
+
+  if (Array.isArray(rawSource)) {
+    for (const entry of rawSource) {
+      if (!entry || typeof entry !== 'object') {
+        return { ok: false, error: 'অবৈধ আইকন টেক্সট ডেটা পাওয়া গেছে।' };
+      }
+      const item = entry as {
+        iconId?: unknown;
+        icon_id?: unknown;
+        id?: unknown;
+        title?: unknown;
+        subLabel?: unknown;
+        sub_label?: unknown;
+      };
+      const rawId = item.iconId ?? item.icon_id ?? item.id;
+      if (!isValidSelectorIconId(rawId)) {
+        return { ok: false, error: 'আইকন টেক্সট আপডেটে অবৈধ আইকন আইডি পাওয়া গেছে।' };
+      }
+      const check = validateSelectorIconTextFields(
+        item.title,
+        item.subLabel ?? item.sub_label
+      );
+      if (!check.valid) {
+        return { ok: false, error: check.error };
+      }
+      mergedLabels[rawId] = { title: check.title, subLabel: check.subLabel };
+    }
+    return { ok: true, labels: mergedLabels, provided: true };
+  }
+
+  if (rawSource && typeof rawSource === 'object') {
+    const labelRecord = rawSource as Record<string, unknown>;
+    const keys = Object.keys(labelRecord);
+    if (keys.length === 0) {
+      return { ok: false, error: 'কমপক্ষে একটি আইকনের নাম ও সাব-নাম প্রদান করুন।' };
+    }
+
+    for (const key of keys) {
+      if (!isValidSelectorIconId(key)) {
+        return { ok: false, error: `অবৈধ আইকন আইডি "${key}" পাওয়া গেছে।` };
+      }
+      const entry = labelRecord[key];
+      if (!entry || typeof entry !== 'object') {
+        return { ok: false, error: 'প্রতিটি আইকনের জন্য বৈধ title এবং subLabel প্রদান করুন।' };
+      }
+      const item = entry as { title?: unknown; subLabel?: unknown; sub_label?: unknown };
+      const check = validateSelectorIconTextFields(
+        item.title,
+        item.subLabel ?? item.sub_label
+      );
+      if (!check.valid) {
+        return { ok: false, error: check.error };
+      }
+      mergedLabels[key] = { title: check.title, subLabel: check.subLabel };
+    }
+    return { ok: true, labels: mergedLabels, provided: true };
+  }
+
+  return { ok: false, error: 'অবৈধ আইকন নাম/সাব-নাম ফরম্যাট প্রদান করা হয়েছে।' };
 }
 
 export async function GET(req: NextRequest) {
@@ -117,12 +195,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const orderedIds = await getSelectorIconOrder();
+    const config = await getSelectorIconConfig();
     return auth.withSessionCookies(
       NextResponse.json(
         {
-          orderedIds,
-          items: toSelectorIconPositions(orderedIds),
+          orderedIds: config.orderedIds,
+          labels: config.labels,
+          items: toSelectorIconConfigItems(config.orderedIds, config.labels),
         },
         {
           headers: { 'Cache-Control': 'private, no-store' },
@@ -135,10 +214,10 @@ export async function GET(req: NextRequest) {
         NextResponse.json({ error: error.message }, { status: error.status })
       );
     }
-    console.error('Failed to load icon order:', error);
+    console.error('Failed to load icon config:', error);
     return auth.withSessionCookies(
       NextResponse.json(
-        { error: 'আইকন পজিশন তালিকা লোড করতে সমস্যা হয়েছে।' },
+        { error: 'আইকন পজিশন ও টেক্সট তালিকা লোড করতে সমস্যা হয়েছে।' },
         { status: 500 }
       )
     );
@@ -153,20 +232,61 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => null);
-    const validated = validateIconOrderPayload(body);
-    if (!validated.ok) {
+    if (!body || typeof body !== 'object') {
       return auth.withSessionCookies(
-        NextResponse.json({ error: validated.error }, { status: 400 })
+        NextResponse.json(
+          { error: 'সঠিক JSON অনুরোধ ডেটা প্রদান করুন।' },
+          { status: 400 }
+        )
       );
     }
 
-    const saved = await saveSelectorIconOrder(validated.orderedIds);
+    const rec = body as {
+      orderedIds?: unknown;
+      positions?: unknown;
+      labels?: unknown;
+      items?: unknown;
+    };
+
+    const existingConfig = await getSelectorIconConfig();
+    const orderResult = validateIconOrderPart(rec, existingConfig.orderedIds);
+    if (!orderResult.ok) {
+      return auth.withSessionCookies(
+        NextResponse.json({ error: orderResult.error }, { status: 400 })
+      );
+    }
+
+    const labelsResult = validateIconLabelsPart(rec, existingConfig.labels);
+    if (!labelsResult.ok) {
+      return auth.withSessionCookies(
+        NextResponse.json({ error: labelsResult.error }, { status: 400 })
+      );
+    }
+
+    if (!orderResult.provided && !labelsResult.provided) {
+      return auth.withSessionCookies(
+        NextResponse.json(
+          {
+            error:
+              'সঠিক আইকন পজিশন (`orderedIds` / `positions`) অথবা নাম/সাব-নাম (`labels`) ডেটা প্রদান করুন।',
+          },
+          { status: 400 }
+        )
+      );
+    }
+
+    const saved = await saveSelectorIconConfig({
+      orderedIds: orderResult.orderedIds,
+      labels: labelsResult.labels,
+    });
+
     return auth.withSessionCookies(
       NextResponse.json(
         {
           ok: true,
-          orderedIds: saved,
-          items: toSelectorIconPositions(saved),
+          orderedIds: saved.orderedIds,
+          labels: saved.labels,
+          items: toSelectorIconConfigItems(saved.orderedIds, saved.labels),
         },
         {
           headers: { 'Cache-Control': 'private, no-store' },
@@ -179,10 +299,10 @@ export async function PUT(req: NextRequest) {
         NextResponse.json({ error: error.message }, { status: error.status })
       );
     }
-    console.error('Failed to save icon order:', error);
+    console.error('Failed to save icon config:', error);
     return auth.withSessionCookies(
       NextResponse.json(
-        { error: 'আইকনের পজিশন সংরক্ষণ করতে ব্যর্থ হয়েছে।' },
+        { error: 'আইকনের পজিশন ও নাম সংরক্ষণ করতে ব্যর্থ হয়েছে।' },
         { status: 500 }
       )
     );

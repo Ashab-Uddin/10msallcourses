@@ -14,8 +14,10 @@ import {
   Gift,
 } from 'lucide-react';
 import {
+  normalizeSelectorIconLabels,
   normalizeSelectorIconOrder,
   type SelectorIconId,
+  type SelectorIconText,
 } from '../../lib/selectorIconOrder.ts';
 
 export interface SelectorIconDefinition {
@@ -247,10 +249,21 @@ export const SELECTOR_ICON_MAP = new Map<SelectorIconId, SelectorIconDefinition>
 );
 
 export function getOrderedSelectorIcons(
-  orderedIds?: ReadonlyArray<string> | null
+  orderedIds?: ReadonlyArray<string> | null,
+  customLabels?: Partial<Record<string, Partial<SelectorIconText>>> | null
 ): SelectorIconDefinition[] {
   const normalized = normalizeSelectorIconOrder(orderedIds);
+  const normalizedLabels = normalizeSelectorIconLabels(customLabels);
   return normalized
-    .map((id) => SELECTOR_ICON_MAP.get(id))
+    .map((id) => {
+      const def = SELECTOR_ICON_MAP.get(id);
+      if (!def) return null;
+      const custom = normalizedLabels[id];
+      return {
+        ...def,
+        title: custom?.title || def.title,
+        subLabel: custom?.subLabel || def.subLabel,
+      };
+    })
     .filter((item): item is SelectorIconDefinition => Boolean(item));
 }

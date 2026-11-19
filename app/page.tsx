@@ -35,6 +35,7 @@ export default async function Page() {
         initialOfferTimers={data.offerTimers}
         initialHasOfferTimers={data.hasOfferTimers}
         initialSelectorIconOrder={data.selectorIconOrder}
+        initialSelectorIconLabels={data.selectorIconLabels}
         initialServerNow={data.serverNow}
         initialBookCategories={bookData.bookCategories}
         initialBooks={bookData.books}
