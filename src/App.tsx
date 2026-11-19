@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import { Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
 import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
+import { MobileCategoryCarousel } from './components/public/MobileCategoryCarousel.tsx';
 import { HeroOfferCountdown } from './components/public/HeroOfferCountdown.tsx';
 import { MobileBottomNav, MobileTab } from './components/public/MobileBottomNav.tsx';
 import { HeaderNav } from './components/public/HeaderNav.tsx';
@@ -1364,17 +1365,17 @@ export default function App({
                   return (
                     <div
                       key={`category-sec-${cat.id}-${cat.slug}`}
-                      className="glass-surface rounded-3xl p-5 sm:p-7 mb-10 relative cv-auto"
+                      className="glass-surface rounded-2xl sm:rounded-3xl p-3 sm:p-7 mb-6 sm:mb-10 relative cv-auto"
                       id={sectionId}
                     >
                       {/* Section Header with Title & "View All" Button */}
-                      <div className="flex items-center justify-between mb-5 gap-3">
-                        <div>
-                          <h3 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight">
+                      <div className="flex items-center justify-between mb-3.5 sm:mb-5 gap-2 sm:gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-lg sm:text-2xl font-black text-[#2A0F12] tracking-tight truncate sm:whitespace-normal">
                             {cat.name}
                           </h3>
                           {cat.subtitle && (
-                            <span className="text-xs text-[#6B4C4F] font-medium block mt-0.5">
+                            <span className="text-[11px] sm:text-xs text-[#6B4C4F] font-medium block mt-0.5 line-clamp-1 sm:line-clamp-none">
                               {cat.subtitle}
                             </span>
                           )}
@@ -1384,22 +1385,30 @@ export default function App({
                           <button
                             type="button"
                             onClick={() => navigate(`/category/${cat.slug}`)}
-                            className="group/va glass-inset hover:bg-gradient-to-r hover:from-[#ff5252] hover:to-[#b91c1c] text-[#B91C1C] hover:text-white font-bold text-xs sm:text-sm px-4 py-2 rounded-full transition-all duration-200 cursor-pointer flex items-center gap-1.5 shadow-xs hover:shadow-md active:scale-95"
+                            className="group/va glass-inset hover:bg-gradient-to-r hover:from-[#ff5252] hover:to-[#b91c1c] hover:border-[#dc2626] text-[#B91C1C] hover:text-white font-bold text-[11px] sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-full transition-all duration-200 cursor-pointer flex items-center gap-1 sm:gap-1.5 shadow-xs hover:shadow-md active:scale-95"
                             title={`${cat.name} এর সকল কোর্স দেখুন`}
                           >
                             <span>View All</span>
                             {catCourses.length > 4 && (
-                              <span className="text-[11px] opacity-80 font-normal">
+                              <span className="text-[10px] sm:text-[11px] opacity-80 font-normal">
                                 ({toBengaliNumber(catCourses.length)})
                               </span>
                             )}
-                            <ChevronRight className="w-4 h-4 transition-transform group-hover/va:translate-x-0.5" />
+                            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover/va:translate-x-0.5" />
                           </button>
                         </div>
                       </div>
 
-                      {/* Exactly 4 cards of identical size in an equal 4-column responsive grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+                      {/* Mobile View: Independent Horizontal 2-Card Carousel/Slider with Left & Right Arrows + Swipe */}
+                      <MobileCategoryCarousel
+                        categorySlug={cat.slug}
+                        categoryName={cat.name}
+                        courses={catCourses}
+                        onEnrollClick={handleEnrollClick}
+                      />
+
+                      {/* Tablet & Desktop View: Equal 2/4-column responsive grid (unchanged) */}
+                      <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
                         {catCourses.slice(0, 4).map((course) => (
                           <div
                             key={`cat-${cat.slug}-course-${course.id}-${course.slug}`}

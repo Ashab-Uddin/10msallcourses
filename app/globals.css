@@ -38,47 +38,49 @@
   padding: 0 20px;
 }
 
-/* Frosted Glass Surfaces */
-.glass-surface {
-  background: var(--glass-bg);
-  backdrop-filter: blur(18px) saturate(165%);
-  -webkit-backdrop-filter: blur(18px) saturate(165%);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-}
+@layer components {
+  /* Frosted Glass Surfaces */
+  .glass-surface {
+    background: var(--glass-bg);
+    backdrop-filter: blur(18px) saturate(165%);
+    -webkit-backdrop-filter: blur(18px) saturate(165%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
 
-.glass-strong {
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(22px) saturate(175%);
-  -webkit-backdrop-filter: blur(22px) saturate(175%);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 14px 40px -12px rgba(185, 28, 28, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88);
-}
+  .glass-strong {
+    background: var(--glass-bg-strong);
+    backdrop-filter: blur(22px) saturate(175%);
+    -webkit-backdrop-filter: blur(22px) saturate(175%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 14px 40px -12px rgba(185, 28, 28, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  }
 
-.glass-inset {
-  background: var(--glass-bg-inset);
-  backdrop-filter: blur(10px) saturate(140%);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.78);
-}
+  .glass-inset {
+    background-color: var(--glass-bg-inset);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.78);
+  }
 
-.glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(18px) saturate(165%);
-  -webkit-backdrop-filter: blur(18px) saturate(165%);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 0.25s ease,
-    border-color 0.25s ease;
-}
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(18px) saturate(165%);
+    -webkit-backdrop-filter: blur(18px) saturate(165%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+      background-color 0.25s ease,
+      border-color 0.25s ease;
+  }
 
-.glass-card:hover {
-  transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.74);
-  border-color: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--glass-shadow-hover);
+  .glass-card:hover {
+    transform: translateY(-4px);
+    background: rgba(255, 255, 255, 0.74);
+    border-color: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--glass-shadow-hover);
+  }
 }
 
 /* Floating Ambient Orbs */

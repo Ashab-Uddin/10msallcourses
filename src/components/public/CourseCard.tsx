@@ -11,12 +11,14 @@ export interface CourseCardProps {
   onSelectCourse?: (slug: string) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   headingLevel?: 'h3' | 'h4';
+  compactMobile?: boolean;
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({
   course,
   onEnrollClick,
   headingLevel = 'h4',
+  compactMobile = false,
 }) => {
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [imageRatioMap, setImageRatioMap] = useState<Record<string, number>>({});
@@ -199,12 +201,18 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   const discountBadge = getDiscountBadge();
 
   return (
-    <div className="glass-card rounded-[22px] flex flex-col h-full group overflow-hidden">
+    <div
+      className={`glass-card ${
+        compactMobile ? 'rounded-2xl sm:rounded-[22px] min-w-0' : 'rounded-[22px]'
+      } flex flex-col h-full group overflow-hidden`}
+    >
         {/* TOP BANNER AREA (MATCHING UPLOADED STRUCTURE EXACTLY) */}
         <div
           onClick={() => handleCardClick('card_banner')}
           className={`relative w-full aspect-video overflow-hidden ${
-            hasValidImage ? 'bg-white' : `${banner.bg} p-3.5`
+            hasValidImage
+              ? 'bg-white'
+              : `${banner.bg} ${compactMobile ? 'p-2 sm:p-3.5' : 'p-3.5'}`
           } select-none ${isClosed ? 'cursor-default' : 'cursor-pointer'} flex-shrink-0 flex flex-col justify-between`}
           title={
             isClosed
@@ -249,21 +257,41 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               />
 
               {/* Center Vertical Badge Stack matching screenshot format */}
-              <div className="relative z-10 text-center my-auto px-1 flex flex-col items-center pb-6">
+              <div
+                className={`relative z-10 text-center my-auto px-1 flex flex-col items-center ${
+                  compactMobile ? 'pb-3 sm:pb-6' : 'pb-6'
+                }`}
+              >
                 {/* 1. Small Black Capsule */}
-                <span className="inline-block bg-black/90 border border-white/20 text-white text-[10px] sm:text-[10.5px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                <span
+                  className={`inline-block bg-black/90 border border-white/20 text-white font-black rounded-full uppercase tracking-wider shadow-sm ${
+                    compactMobile
+                      ? 'text-[8px] sm:text-[10.5px] px-1.5 sm:px-2.5 py-[1px] sm:py-0.5'
+                      : 'text-[10px] sm:text-[10.5px] px-2.5 py-0.5'
+                  }`}
+                >
                   {topBadge}
                 </span>
 
                 {/* 2. White Rounded Rectangle Pill with colored bold text */}
                 <div
-                  className={`inline-block bg-white ${banner.textColor} font-black text-xs sm:text-[13px] px-3.5 py-1 rounded-md mt-1.5 shadow-sm leading-tight line-clamp-1`}
+                  className={`inline-block bg-white ${banner.textColor} font-black rounded-md shadow-sm leading-tight line-clamp-1 ${
+                    compactMobile
+                      ? 'text-[9.5px] sm:text-[13px] px-2 sm:px-3.5 py-0.5 sm:py-1 mt-1 sm:mt-1.5'
+                      : 'text-xs sm:text-[13px] px-3.5 py-1 mt-1.5'
+                  }`}
                 >
                   {middleBadge}
                 </div>
 
                 {/* 3. Subtitle in white */}
-                <div className="text-white font-bold text-[11px] sm:text-xs mt-1 drop-shadow-xs truncate max-w-[240px] opacity-95">
+                <div
+                  className={`text-white font-bold drop-shadow-xs truncate opacity-95 ${
+                    compactMobile
+                      ? 'text-[8.5px] sm:text-xs mt-0.5 sm:mt-1 max-w-[130px] sm:max-w-[240px]'
+                      : 'text-[11px] sm:text-xs mt-1 max-w-[240px]'
+                  }`}
+                >
                   {subTitle}
                 </div>
               </div>
@@ -272,22 +300,44 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
           {/* Top-Left Dynamic Discount Percentage Badge */}
           {computedDiscountPercent > 0 && (
-            <div className="absolute top-2.5 left-2.5 z-20 pointer-events-none">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white text-[10px] sm:text-[11px] font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums">
+            <div
+              className={`absolute z-20 pointer-events-none ${
+                compactMobile ? 'top-1.5 left-1.5 sm:top-2.5 sm:left-2.5' : 'top-2.5 left-2.5'
+              }`}
+            >
+              <span
+                className={`inline-flex items-center rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums ${
+                  compactMobile
+                    ? 'px-1.5 sm:px-2.5 py-[1px] sm:py-0.5 text-[8px] sm:text-[11px]'
+                    : 'px-2.5 py-0.5 text-[10px] sm:text-[11px]'
+                }`}
+              >
                 {toBengaliNumber(computedDiscountPercent)}% ছাড়
               </span>
             </div>
           )}
 
           {/* Top-Right Status Badge (Closed) or Yellow Lightning Bolt ⚡ */}
-          <div className="absolute top-2.5 right-2.5 z-20 pointer-events-none">
+          <div
+            className={`absolute z-20 pointer-events-none ${
+              compactMobile ? 'top-1.5 right-1.5 sm:top-2.5 sm:right-2.5' : 'top-2.5 right-2.5'
+            }`}
+          >
             {isClosed ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-600/95 text-white text-[10px] sm:text-[11px] font-black tracking-tight shadow-md border border-amber-300/60">
+              <span
+                className={`inline-flex items-center rounded-full bg-amber-600/95 text-white font-black tracking-tight shadow-md border border-amber-300/60 ${
+                  compactMobile
+                    ? 'px-1.5 sm:px-2.5 py-[1px] sm:py-0.5 text-[8px] sm:text-[11px]'
+                    : 'px-2.5 py-0.5 text-[10px] sm:text-[11px]'
+                }`}
+              >
                 ভর্তি বন্ধ
               </span>
             ) : (
               <svg
-                className="w-4 h-4 text-amber-400 drop-shadow-sm fill-amber-400"
+                className={`${
+                  compactMobile ? 'w-3 h-3 sm:w-4 sm:h-4' : 'w-4 h-4'
+                } text-amber-400 drop-shadow-sm fill-amber-400`}
                 viewBox="0 0 24 24"
               >
                 <path d="M13 2L3 14h8l-2 8 10-12h-8l2-8z" />
@@ -297,11 +347,25 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
           {/* Bottom Row Inside Banner - Dynamic Live Batch & Discount Badges */}
           {(bottomLeftBadge || discountBadge) && (
-            <div className="absolute bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 right-2.5 sm:right-3 z-20 flex items-center justify-between gap-1.5 pointer-events-none">
+            <div
+              className={`absolute z-20 flex items-center justify-between pointer-events-none ${
+                compactMobile
+                  ? 'bottom-1.5 sm:bottom-3 left-1.5 sm:left-3 right-1.5 sm:right-3 gap-1 sm:gap-1.5'
+                  : 'bottom-2.5 sm:bottom-3 left-2.5 sm:left-3 right-2.5 sm:right-3 gap-1.5'
+              }`}
+            >
               {/* Left: Dynamic Live Batch pill with ⚡ icon (hidden if empty) */}
               {bottomLeftBadge ? (
-                <div className="inline-flex items-center gap-1 bg-black/85 backdrop-blur-md text-white text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-white/20 shadow-sm max-w-[60%] truncate">
-                  <span className="text-amber-400 text-xs shrink-0">⚡</span>
+                <div
+                  className={`inline-flex items-center bg-black/85 backdrop-blur-md text-white font-bold rounded-full border border-white/20 shadow-sm truncate ${
+                    compactMobile
+                      ? 'gap-0.5 sm:gap-1 text-[8px] sm:text-[11px] px-1.5 sm:px-2.5 py-[1px] sm:py-0.5 max-w-[56%] sm:max-w-[60%]'
+                      : 'gap-1 text-[10px] sm:text-[11px] px-2.5 py-0.5 max-w-[60%]'
+                  }`}
+                >
+                  <span className={`text-amber-400 shrink-0 ${compactMobile ? 'text-[9px] sm:text-xs' : 'text-xs'}`}>
+                    ⚡
+                  </span>
                   <span className="truncate">{bottomLeftBadge}</span>
                 </div>
               ) : (
@@ -310,7 +374,13 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
               {/* Right: Solid Green Pill Badge with Discount (hidden if no discount) */}
               {discountBadge && (
-                <div className="bg-[#008744] text-white text-[10px] sm:text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm tracking-tight shrink-0 border border-emerald-400/30">
+                <div
+                  className={`bg-[#008744] text-white font-black rounded-full shadow-sm tracking-tight shrink-0 border border-emerald-400/30 ${
+                    compactMobile
+                      ? 'text-[8px] sm:text-[11px] px-1.5 sm:px-2.5 py-[1px] sm:py-0.5'
+                      : 'text-[10px] sm:text-[11px] px-2.5 py-0.5'
+                  }`}
+                >
                   {discountBadge}
                 </div>
               )}
@@ -319,13 +389,21 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         </div>
 
         {/* CARD BODY CONTENT: STRICTLY MATCHING UPLOADED FORMAT WITH SITE CONSISTENCY */}
-        <div className="p-4 flex-1 flex flex-col justify-between">
+        <div
+          className={`${
+            compactMobile ? 'p-2.5 sm:p-4 min-w-0' : 'p-4'
+          } flex-1 flex flex-col justify-between`}
+        >
           <div>
             {/* Course Title (2-line clamped) */}
             {headingLevel === 'h3' ? (
               <h3
                 onClick={() => handleCardClick('card_title')}
-                className="font-bold text-[#2A0F12] text-sm sm:text-[15px] leading-snug line-clamp-2 h-[2.6rem] hover:text-[#E22B2B] transition-colors cursor-pointer"
+                className={`font-bold text-[#2A0F12] line-clamp-2 hover:text-[#E22B2B] transition-colors cursor-pointer ${
+                  compactMobile
+                    ? 'text-[11.5px] sm:text-[15px] leading-[1.4] sm:leading-snug h-[2.1rem] sm:h-[2.6rem]'
+                    : 'text-sm sm:text-[15px] leading-snug h-[2.6rem]'
+                }`}
                 title={course.title}
               >
                 {course.title}
@@ -333,7 +411,11 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             ) : (
               <h4
                 onClick={() => handleCardClick('card_title')}
-                className="font-bold text-[#2A0F12] text-sm sm:text-[15px] leading-snug line-clamp-2 h-[2.6rem] hover:text-[#E22B2B] transition-colors cursor-pointer"
+                className={`font-bold text-[#2A0F12] line-clamp-2 hover:text-[#E22B2B] transition-colors cursor-pointer ${
+                  compactMobile
+                    ? 'text-[11.5px] sm:text-[15px] leading-[1.4] sm:leading-snug h-[2.1rem] sm:h-[2.6rem]'
+                    : 'text-sm sm:text-[15px] leading-snug h-[2.6rem]'
+                }`}
                 title={course.title}
               >
                 {course.title}
@@ -341,27 +423,53 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             )}
 
             {/* Course Description (2-line clamped) */}
-            <p className="text-xs text-[#6B4C4F] leading-relaxed line-clamp-2 h-[2.1rem] mt-1.5 mb-3">
+            <p
+              className={`text-[#6B4C4F] line-clamp-2 ${
+                compactMobile
+                  ? 'text-[10px] sm:text-xs leading-[1.4] sm:leading-relaxed h-[1.85rem] sm:h-[2.1rem] mt-1 sm:mt-1.5 mb-2 sm:mb-3'
+                  : 'text-xs leading-relaxed h-[2.1rem] mt-1.5 mb-3'
+              }`}
+            >
               {displayDescription}
             </p>
           </div>
 
           <div>
             {/* Price Row: Discounted Price + Strikethrough Original + Green Outlined Badge */}
-            <div className="flex items-center justify-between pt-2.5 pb-3 border-t border-white/75 tabular-nums">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-black text-[#007a3d] tracking-tight">
+            <div
+              className={`flex items-center justify-between border-t border-white/75 tabular-nums ${
+                compactMobile
+                  ? 'flex-wrap sm:flex-nowrap gap-x-1 gap-y-1 pt-1.5 sm:pt-2.5 pb-2 sm:pb-3'
+                  : 'pt-2.5 pb-3'
+              }`}
+            >
+              <div className={`flex items-baseline ${compactMobile ? 'gap-1 sm:gap-2' : 'gap-2'}`}>
+                <span
+                  className={`font-black text-[#007a3d] tracking-tight whitespace-nowrap ${
+                    compactMobile ? 'text-sm sm:text-2xl' : 'text-xl sm:text-2xl'
+                  }`}
+                >
                   {course.discountPrice === 0 ? 'ফ্রি' : `৳${toBengaliNumber(course.discountPrice)}`}
                 </span>
                 {course.originalPrice > course.discountPrice && (
-                  <span className="text-xs text-[#7A5A5D] line-through font-normal">
+                  <span
+                    className={`text-[#7A5A5D] line-through font-normal whitespace-nowrap ${
+                      compactMobile ? 'text-[9.5px] sm:text-xs' : 'text-xs'
+                    }`}
+                  >
                     ৳{toBengaliNumber(course.originalPrice)}
                   </span>
                 )}
               </div>
 
               {savingsAmount > 0 && (
-                <span className="border border-emerald-500/80 text-[#007a3d] bg-emerald-50/90 font-bold text-[11px] sm:text-xs px-2.5 py-0.5 rounded-full whitespace-nowrap shadow-2xs">
+                <span
+                  className={`border border-emerald-500/80 text-[#007a3d] bg-emerald-50/90 font-bold rounded-full whitespace-nowrap shadow-2xs ${
+                    compactMobile
+                      ? 'text-[8.5px] sm:text-xs px-1.5 sm:px-2.5 py-[1px] sm:py-0.5'
+                      : 'text-[11px] sm:text-xs px-2.5 py-0.5'
+                  }`}
+                >
                   ৳{toBengaliNumber(savingsAmount)} ছাড়
                 </span>
               )}
@@ -372,22 +480,34 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               <button
                 type="button"
                 disabled
-                className="w-full bg-slate-100 text-slate-500 border border-slate-200/90 font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed select-none shadow-2xs"
+                className={`w-full bg-slate-100 text-slate-500 border border-slate-200/90 font-bold flex items-center justify-center cursor-not-allowed select-none shadow-2xs ${
+                  compactMobile
+                    ? 'text-[10.5px] sm:text-sm py-1.5 sm:py-2.5 px-2 sm:px-4 rounded-lg sm:rounded-xl gap-1 sm:gap-1.5 whitespace-nowrap'
+                    : 'text-xs sm:text-sm py-2.5 px-4 rounded-xl gap-1.5'
+                }`}
               >
                 <span>ভর্তি বন্ধ রয়েছে</span>
-                <X className="w-4 h-4 text-rose-500" />
+                <X className={`${compactMobile ? 'w-3 h-3 sm:w-4 sm:h-4' : 'w-4 h-4'} text-rose-500 shrink-0`} />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => handleCardClick('card_button')}
-                className="group/btn relative overflow-hidden w-full bg-gradient-to-r from-[#ff5252] via-[#e22b2b] to-[#b91c1c] hover:from-[#eb2026] hover:to-[#991b1b] text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-[0_8px_20px_-8px_rgba(226,43,43,0.65),inset_0_1px_0_rgba(255,255,255,0.35)] hover:shadow-[0_12px_24px_-8px_rgba(185,28,28,0.75)] active:scale-[0.98] transition-all duration-300 cursor-pointer"
+                className={`group/btn relative overflow-hidden w-full bg-gradient-to-r from-[#ff5252] via-[#e22b2b] to-[#b91c1c] hover:from-[#eb2026] hover:to-[#991b1b] text-white font-bold flex items-center justify-center shadow-[0_8px_20px_-8px_rgba(226,43,43,0.65),inset_0_1px_0_rgba(255,255,255,0.35)] hover:shadow-[0_12px_24px_-8px_rgba(185,28,28,0.75)] active:scale-[0.98] transition-all duration-300 cursor-pointer ${
+                  compactMobile
+                    ? 'text-[10.5px] sm:text-sm py-1.5 sm:py-2.5 px-2 sm:px-4 rounded-lg sm:rounded-xl gap-1 sm:gap-2 whitespace-nowrap'
+                    : 'text-xs sm:text-sm py-2.5 px-4 rounded-xl gap-2'
+                }`}
               >
                 <span className="absolute inset-0 w-1/2 h-full bg-white/25 skew-x-[-25deg] -translate-x-full group-hover/btn:translate-x-[350%] transition-transform duration-700 ease-out pointer-events-none" />
                 <span className="relative z-10 font-bold tracking-tight">
                   কোর্সটিতে ভর্তি হোন
                 </span>
-                <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover/btn:translate-x-1 relative z-10" />
+                <ArrowRight
+                  className={`${
+                    compactMobile ? 'w-3 h-3 sm:w-4 sm:h-4' : 'w-4 h-4'
+                  } transition-transform duration-300 group-hover/btn:translate-x-1 relative z-10 shrink-0`}
+                />
               </button>
             )}
           </div>
