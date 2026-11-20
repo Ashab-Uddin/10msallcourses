@@ -59,8 +59,11 @@ interface CourseEditorPageProps {
   authToken?: string;
   course: Course | null; // null means creating a new course
   categories: Category[];
+  existingCourses?: Course[];
   onBackToList: () => void;
   onSave: (courseData: any, id?: number) => Promise<void>;
+  onUnauthorized?: () => void;
+  onShowToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
   whatsappNumber?: string;
   whatsappLink?: string;
 }
@@ -122,8 +125,11 @@ function dedupeCommaKeywords(text: string): string {
 export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   course,
   categories,
+  existingCourses,
   onBackToList,
   onSave,
+  onUnauthorized,
+  onShowToast,
   whatsappNumber,
   whatsappLink,
 }) => {
@@ -746,7 +752,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       {/* Main 2-Column Layout: Form on Left, Sticky Real-Time Preview on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT COLUMN: Course Form */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-7 min-w-0 space-y-6">
           {/* Card 1: Primary Information */}
           <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-4">
             <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
@@ -1486,7 +1492,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
           </div>
 
           {/* Card 4: Dynamic Course Features & Details */}
-          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-5">
+          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-5 min-w-0 overflow-hidden">
             <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <Tag className="w-4 h-4 text-rose-600" />
               <span>কোর্স ফিচার ও বিস্তারিত ম্যানেজমেন্ট (Course Features &amp; Details)</span>
@@ -1499,6 +1505,10 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
               onChange={setCourseFeatures}
               courseId={course?.id}
               courseTitle={title}
+              existingCourses={existingCourses}
+              categories={categories}
+              onUnauthorized={onUnauthorized}
+              onShowToast={onShowToast}
             />
 
             {/* Full Course Description (Displayed inside Show More Modal) */}

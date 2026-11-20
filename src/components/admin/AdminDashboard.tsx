@@ -1325,8 +1325,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <CourseEditorPage
               course={editingCourse}
               categories={categories}
+              existingCourses={courses}
               whatsappNumber={whatsappNumber}
               whatsappLink={whatsappLink}
+              onUnauthorized={handleBookStoreUnauthorized}
+              onShowToast={showToast}
               onBackToList={() => handleTabSwitch('all_courses')}
               onSave={handleSaveCourse}
             />
@@ -2815,15 +2818,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-white/90 shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-rose-100 bg-rose-50/40 shrink-0">
-              <div className="min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-rose-100 bg-rose-50/40 shrink-0">
+              <div className="min-w-0 flex-1 space-y-1.5">
                 <h3 className="text-sm sm:text-base font-black text-[#2A0F12] flex items-center gap-2">
                   <ListChecks className="w-4 h-4 text-[#eb1c24] shrink-0" />
                   <span className="truncate">ফিচার ম্যানেজমেন্ট</span>
                 </h3>
-                <p className="text-[11px] font-bold text-[#6B4C4F] truncate mt-0.5">
-                  {managingFeaturesCourse.title}
-                </p>
+                <div className="flex flex-wrap items-center gap-2 min-w-0 w-full">
+                  <span className="text-[11px] font-bold text-[#6B4C4F] shrink-0">
+                    টার্গেট কোর্স:
+                  </span>
+                  <div className="min-w-0 flex-1 max-w-full sm:max-w-sm">
+                    <select
+                      value={String(managingFeaturesCourse.id)}
+                      onChange={(e) => {
+                        const nextId = Number(e.target.value);
+                        const nextCourse = courses.find((c) => c.id === nextId);
+                        if (nextCourse) {
+                          setManagingFeaturesCourse(nextCourse);
+                        }
+                      }}
+                      aria-label="টার্গেট কোর্স নির্বাচন করুন"
+                      className="w-full min-w-0 max-w-full px-2.5 py-1 rounded-xl border border-rose-200/80 bg-white text-xs font-bold text-[#2A0F12] outline-none focus:border-[#eb1c24] cursor-pointer shadow-2xs truncate"
+                    >
+                      {courses.map((c) => (
+                        <option key={c.id} value={String(c.id)}>
+                          {c.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
@@ -2837,10 +2862,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-5">
               <CourseFeaturesManager
+                key={managingFeaturesCourse.id}
                 mode="api"
                 courseId={managingFeaturesCourse.id}
                 courseTitle={managingFeaturesCourse.title}
                 initialItems={managingFeaturesCourse.courseFeatures}
+                existingCourses={courses}
+                categories={categories}
                 onUnauthorized={handleBookStoreUnauthorized}
                 onShowToast={showToast}
                 onSaved={(nextFeatures) => {

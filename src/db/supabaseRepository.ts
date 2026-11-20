@@ -28,7 +28,9 @@ import {
   MAX_COURSE_FEATURE_TITLE_LENGTH,
   extractActiveFeatureTitles,
   getCourseFeatureItems,
+  hasDuplicateFeatureTitle,
   normalizeCourseFeatureIcon,
+  normalizeFeatureTitleForComparison,
   sortCourseFeatures,
 } from '../lib/courseFeatures.ts';
 import {
@@ -2236,10 +2238,14 @@ export async function sbReplaceCourseFeatures(
   }>
 ): Promise<CourseFeatureItem[]> {
   const supabase = getSupabaseAdminClient();
+  const seenTitles = new Set<string>();
   const cleanItems = rawFeatures
     .map((entry, idx) => {
       const title = String(entry?.title || '').trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH);
       if (!title) return null;
+      const normTitle = normalizeFeatureTitleForComparison(title);
+      if (seenTitles.has(normTitle)) return null;
+      seenTitles.add(normTitle);
       const rawOrder = Number(entry?.sortOrder);
       return {
         title,
@@ -2320,6 +2326,9 @@ export async function sbCreateCourseFeature(
   }
 
   const existing = await sbGetCourseFeatures(courseId);
+  if (hasDuplicateFeatureTitle(existing, title)) {
+    throw new RepositoryError('এই ফিচারটি ইতিমধ্যে এই কোর্সে যুক্ত আছে।', 409);
+  }
   if (existing.length >= MAX_COURSE_FEATURES_PER_COURSE) {
     throw new RepositoryError(
       `একটি কোর্সে সর্বোচ্চ ${toBengaliNumber(MAX_COURSE_FEATURES_PER_COURSE)}টি ফিচার যুক্ত করা যাবে।`,
@@ -2417,6 +2426,12 @@ export async function sbUpdateCourseFeature(
       : target.title;
   if (!nextTitle) {
     throw new RepositoryError('ফিচারের শিরোনাম খালি রাখা যাবে না।', 400);
+  }
+  if (
+    input.title !== undefined &&
+    hasDuplicateFeatureTitle(currentList, nextTitle, featureId)
+  ) {
+    throw new RepositoryError('এই নামের ফিচারটি ইতিমধ্যে এই কোর্সে যুক্ত আছে।', 409);
   }
   const nextIcon =
     input.icon !== undefined
@@ -2601,6 +2616,154 @@ export async function sbReorderCourseFeatures(
 
   await sbSyncLegacyCourseFeaturesColumn(supabase, courseId, normalized);
   return normalized;
+}
+
+export async function sbImportCourseFeaturesFromCourse(
+  targetCourseId: number,
+  sourceCourseId: number,
+  options?: { featureIds?: number[]; selectAll?: boolean }
+): Promise<{
+  addedCount: number;
+  skippedDuplicateCount: number;
+  addedFeatures: CourseFeatureItem[];
+  features: CourseFeatureItem[];
+}> {
+  if (targetCourseId === sourceCourseId) {
+    throw new RepositoryError('একই কোর্স থেকে একই কোর্সে ফিচার ইম্পোর্ট করা যাবে না।', 400);
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const [targetExisting, sourceFeatures] = await Promise.all([
+    sbGetCourseFeatures(targetCourseId),
+    sbGetCourseFeatures(sourceCourseId),
+  ]);
+
+  if (sourceFeatures.length === 0) {
+    throw new RepositoryError('উৎস কোর্সে কোনো ফিচার পাওয়া যায়নি।', 400);
+  }
+
+  const useAll = options?.selectAll === true;
+  const selectedIdSet = new Set(
+    Array.isArray(options?.featureIds)
+      ? options.featureIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
+      : []
+  );
+
+  const selectedSourceFeatures = useAll
+    ? sourceFeatures
+    : sourceFeatures.filter((f) => selectedIdSet.has(f.id));
+
+  if (selectedSourceFeatures.length === 0) {
+    throw new RepositoryError('ইম্পোর্ট করার জন্য অন্তত একটি ফিচার নির্বাচন করুন।', 400);
+  }
+
+  const existingTitleSet = new Set(
+    targetExisting.map((f) => normalizeFeatureTitleForComparison(f.title))
+  );
+
+  const nonDuplicateItems: CourseFeatureItem[] = [];
+  let skippedDuplicateCount = 0;
+
+  for (const item of selectedSourceFeatures) {
+    const normTitle = normalizeFeatureTitleForComparison(item.title);
+    if (!normTitle || existingTitleSet.has(normTitle)) {
+      skippedDuplicateCount += 1;
+      continue;
+    }
+    existingTitleSet.add(normTitle);
+    nonDuplicateItems.push(item);
+  }
+
+  if (nonDuplicateItems.length === 0) {
+    return {
+      addedCount: 0,
+      skippedDuplicateCount,
+      addedFeatures: [],
+      features: targetExisting,
+    };
+  }
+
+  const remainingCapacity = MAX_COURSE_FEATURES_PER_COURSE - targetExisting.length;
+  if (remainingCapacity <= 0) {
+    throw new RepositoryError(
+      `একটি কোর্সে সর্বোচ্চ ${toBengaliNumber(MAX_COURSE_FEATURES_PER_COURSE)}টি ফিচার যুক্ত করা যাবে।`,
+      400
+    );
+  }
+
+  const toImport = nonDuplicateItems.slice(0, remainingCapacity);
+
+  const { data: tableCheck, error: tableErr } = await supabase
+    .from('course_features')
+    .select('id')
+    .eq('course_id', targetCourseId)
+    .limit(1);
+
+  if (tableErr && isMissingCourseFeaturesTableError(tableErr)) {
+    const nowIso = new Date().toISOString();
+    let maxId = targetExisting.reduce((m, f) => Math.max(m, f.id), 0);
+    const addedCopies: CourseFeatureItem[] = toImport.map((item, idx) => {
+      maxId += 1;
+      return {
+        id: maxId,
+        courseId: targetCourseId,
+        title: item.title.trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH),
+        icon: normalizeCourseFeatureIcon(item.icon, item.title, targetExisting.length + idx),
+        sortOrder: targetExisting.length + idx + 1,
+        isActive: item.isActive,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+    });
+
+    const combined = sortCourseFeatures([...targetExisting, ...addedCopies]);
+    const storageMap = await readCourseFeaturesMapFromStorage(supabase, { forceFresh: true });
+    storageMap[String(targetCourseId)] = combined;
+    await writeCourseFeaturesMapToStorage(supabase, storageMap);
+    await sbSyncLegacyCourseFeaturesColumn(supabase, targetCourseId, combined);
+
+    return {
+      addedCount: addedCopies.length,
+      skippedDuplicateCount,
+      addedFeatures: addedCopies,
+      features: combined,
+    };
+  }
+
+  // Preserve existing target course features cleanly if they previously lived only in legacy JSONB
+  if (!tableErr && (!tableCheck || tableCheck.length === 0) && targetExisting.length > 0) {
+    await sbReplaceCourseFeatures(targetCourseId, targetExisting);
+  }
+
+  const insertPayload = toImport.map((item, idx) => ({
+    course_id: targetCourseId,
+    title: item.title.trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH),
+    icon: normalizeCourseFeatureIcon(item.icon, item.title, targetExisting.length + idx),
+    sort_order: targetExisting.length + idx + 1,
+    is_active: item.isActive,
+  }));
+
+  const { data: inserted, error: insErr } = await supabase
+    .from('course_features')
+    .insert(insertPayload)
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (insErr) throw mapPgError(insErr, 'ফিচার ইম্পোর্ট করতে সমস্যা হয়েছে।');
+
+  const addedFeatures = sortCourseFeatures(
+    (inserted || []).map((row) => mapCourseFeatureRow(row as Record<string, unknown>))
+  );
+  const allTargetFeatures = await sbGetCourseFeatures(targetCourseId);
+  await sbSyncLegacyCourseFeaturesColumn(supabase, targetCourseId, allTargetFeatures);
+
+  return {
+    addedCount: addedFeatures.length,
+    skippedDuplicateCount,
+    addedFeatures,
+    features: allTargetFeatures,
+  };
 }
 
 export async function sbCreateNewCategory(input: Record<string, unknown>): Promise<Category> {

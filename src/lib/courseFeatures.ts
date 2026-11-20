@@ -144,6 +144,27 @@ export function sortCourseFeatures(items: ReadonlyArray<CourseFeatureItem>): Cou
     }));
 }
 
+export function normalizeFeatureTitleForComparison(title: string): string {
+  return String(title || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+export function hasDuplicateFeatureTitle(
+  existingItems: ReadonlyArray<{ id?: number; title: string }>,
+  candidateTitle: string,
+  excludeId?: number
+): boolean {
+  const normalizedCandidate = normalizeFeatureTitleForComparison(candidateTitle);
+  if (!normalizedCandidate) return false;
+  return existingItems.some(
+    (item) =>
+      (excludeId === undefined || item.id !== excludeId) &&
+      normalizeFeatureTitleForComparison(item.title) === normalizedCandidate
+  );
+}
+
 export function normalizeCourseFeatureItems(
   rawItems: unknown,
   courseId = 0

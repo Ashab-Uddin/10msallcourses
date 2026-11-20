@@ -17,8 +17,11 @@ import {
   MAX_COURSE_FEATURE_TITLE_LENGTH,
   extractActiveFeatureTitles,
   getCourseFeatureItems,
+  hasDuplicateFeatureTitle,
   normalizeCourseFeatureIcon,
   normalizeCourseFeatureItems,
+  normalizeFeatureTitleForComparison,
+  sortCourseFeatures,
 } from '../lib/courseFeatures.ts';
 import { toBengaliNumber } from '../utils/format.ts';
 import { isSupabaseDatabaseReady } from '../lib/supabase/config.ts';
@@ -67,6 +70,7 @@ import {
   sbGetPublicPortalData,
   sbGetSelectorIconConfig,
   sbGetSelectorIconOrder,
+  sbImportCourseFeaturesFromCourse,
   sbRecordCourseClick,
   sbReorderCourseFeatures,
   sbReorderCoursePosition,
@@ -913,7 +917,16 @@ export async function replaceCourseFeatures(
   if (idx === -1) {
     throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
   }
-  const normalized = normalizeCourseFeatureItems(rawFeatures, courseId);
+  const rawNormalized = normalizeCourseFeatureItems(rawFeatures, courseId);
+  const seenTitles = new Set<string>();
+  const normalized = sortCourseFeatures(
+    rawNormalized.filter((item) => {
+      const norm = normalizeFeatureTitleForComparison(item.title);
+      if (!norm || seenTitles.has(norm)) return false;
+      seenTitles.add(norm);
+      return true;
+    })
+  );
   store.courses[idx] = {
     ...store.courses[idx],
     courseFeatures: normalized,
@@ -944,6 +957,9 @@ export async function createCourseFeature(
     throw new RepositoryError('কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
   }
   const current = getCourseFeatureItems(store.courses[idx], { includeInactive: true });
+  if (hasDuplicateFeatureTitle(current, title)) {
+    throw new RepositoryError('এই ফিচারটি ইতিমধ্যে এই কোর্সে যুক্ত আছে।', 409);
+  }
   if (current.length >= MAX_COURSE_FEATURES_PER_COURSE) {
     throw new RepositoryError(
       `একটি কোর্সে সর্বোচ্চ ${toBengaliNumber(MAX_COURSE_FEATURES_PER_COURSE)}টি ফিচার যুক্ত করা যাবে।`,
@@ -1008,6 +1024,9 @@ export async function updateCourseFeature(
       : target.title;
   if (!nextTitle) {
     throw new RepositoryError('ফিচারের শিরোনাম খালি রাখা যাবে না।', 400);
+  }
+  if (input.title !== undefined && hasDuplicateFeatureTitle(current, nextTitle, featureId)) {
+    throw new RepositoryError('এই নামের ফিচারটি ইতিমধ্যে এই কোর্সে যুক্ত আছে।', 409);
   }
   const nowIso = new Date().toISOString();
   let updatedList = current.map((item) =>
@@ -1117,6 +1136,135 @@ export async function reorderCourseFeatures(
   await persistStore(store);
   invalidatePublicPortalCache();
   return normalized;
+}
+
+export async function importCourseFeaturesFromCourse(
+  targetCourseId: number,
+  sourceCourseId: number,
+  options?: { featureIds?: number[]; selectAll?: boolean }
+): Promise<{
+  addedCount: number;
+  skippedDuplicateCount: number;
+  addedFeatures: CourseFeatureItem[];
+  features: CourseFeatureItem[];
+}> {
+  if (isSupabaseDatabaseReady()) {
+    const result = await sbImportCourseFeaturesFromCourse(
+      targetCourseId,
+      sourceCourseId,
+      options
+    );
+    if (result.addedCount > 0) {
+      invalidatePublicPortalCache();
+    }
+    return result;
+  }
+
+  if (targetCourseId === sourceCourseId) {
+    throw new RepositoryError('একই কোর্স থেকে একই কোর্সে ফিচার ইম্পোর্ট করা যাবে না।', 400);
+  }
+
+  const store = await loadStore(true);
+  const targetIdx = store.courses.findIndex((c) => c.id === targetCourseId);
+  if (targetIdx === -1) {
+    throw new RepositoryError('লক্ষ্য কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+  const sourceCourse = store.courses.find((c) => c.id === sourceCourseId);
+  if (!sourceCourse) {
+    throw new RepositoryError('উৎস কোর্সটি খুঁজে পাওয়া যায়নি।', 404);
+  }
+
+  const targetExisting = getCourseFeatureItems(store.courses[targetIdx], {
+    includeInactive: true,
+  });
+  const sourceFeatures = getCourseFeatureItems(sourceCourse, { includeInactive: true });
+  if (sourceFeatures.length === 0) {
+    throw new RepositoryError('উৎস কোর্সে কোনো ফিচার পাওয়া যায়নি।', 400);
+  }
+
+  const useAll = options?.selectAll === true;
+  const selectedIdSet = new Set(
+    Array.isArray(options?.featureIds)
+      ? options.featureIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
+      : []
+  );
+
+  const selectedSourceFeatures = useAll
+    ? sourceFeatures
+    : sourceFeatures.filter((f) => selectedIdSet.has(f.id));
+
+  if (selectedSourceFeatures.length === 0) {
+    throw new RepositoryError('ইম্পোর্ট করার জন্য অন্তত একটি ফিচার নির্বাচন করুন।', 400);
+  }
+
+  const existingTitleSet = new Set(
+    targetExisting.map((f) => normalizeFeatureTitleForComparison(f.title))
+  );
+
+  const nonDuplicateItems: CourseFeatureItem[] = [];
+  let skippedDuplicateCount = 0;
+
+  for (const item of selectedSourceFeatures) {
+    const normTitle = normalizeFeatureTitleForComparison(item.title);
+    if (!normTitle || existingTitleSet.has(normTitle)) {
+      skippedDuplicateCount += 1;
+      continue;
+    }
+    existingTitleSet.add(normTitle);
+    nonDuplicateItems.push(item);
+  }
+
+  if (nonDuplicateItems.length === 0) {
+    return {
+      addedCount: 0,
+      skippedDuplicateCount,
+      addedFeatures: [],
+      features: targetExisting,
+    };
+  }
+
+  const remainingCapacity = MAX_COURSE_FEATURES_PER_COURSE - targetExisting.length;
+  if (remainingCapacity <= 0) {
+    throw new RepositoryError(
+      `একটি কোর্সে সর্বোচ্চ ${toBengaliNumber(MAX_COURSE_FEATURES_PER_COURSE)}টি ফিচার যুক্ত করা যাবে।`,
+      400
+    );
+  }
+
+  const toImport = nonDuplicateItems.slice(0, remainingCapacity);
+  const nowIso = new Date().toISOString();
+  let maxId = targetExisting.reduce((m, item) => Math.max(m, item.id), 0);
+
+  const addedFeatures: CourseFeatureItem[] = toImport.map((item, idx) => {
+    maxId += 1;
+    return {
+      id: maxId,
+      courseId: targetCourseId,
+      title: item.title.trim().slice(0, MAX_COURSE_FEATURE_TITLE_LENGTH),
+      icon: normalizeCourseFeatureIcon(item.icon, item.title, targetExisting.length + idx),
+      sortOrder: targetExisting.length + idx + 1,
+      isActive: item.isActive,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+  });
+
+  const combined = sortCourseFeatures([...targetExisting, ...addedFeatures]);
+  store.courses[targetIdx] = {
+    ...store.courses[targetIdx],
+    courseFeatures: combined,
+    features: JSON.stringify(extractActiveFeatureTitles(combined)),
+    updatedAt: nowIso,
+  };
+  await persistStore(store);
+  invalidatePublicPortalCache();
+
+  return {
+    addedCount: addedFeatures.length,
+    skippedDuplicateCount,
+    addedFeatures,
+    features: combined,
+  };
 }
 
 export async function reorderCoursePosition(
