@@ -821,6 +821,17 @@ function isDisplayOrderUniqueError(err: PgErrorLike): boolean {
   );
 }
 
+function isCourseSlugUniqueError(err: unknown): boolean {
+  const pg = (err || {}) as PgErrorLike;
+  const combined = `${pg.constraint || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
+  return (
+    combined.includes('courses_slug') ||
+    combined.includes('uq_courses_slug') ||
+    combined.includes('key (slug)') ||
+    (combined.includes('slug') && !isDisplayOrderUniqueError(pg))
+  );
+}
+
 function isMissingTargetMetadataColumnError(err: unknown): boolean {
   const pg = (err || {}) as PgErrorLike;
   const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
@@ -874,6 +885,13 @@ function mapPgError(error: unknown, fallbackMessage: string): RepositoryError {
 
   if (code === '23505') {
     if (isDisplayOrderUniqueError(err)) {
+      const combined = `${err.constraint || ''} ${err.message || ''} ${err.details || ''}`.toLowerCase();
+      if (combined.includes('courses')) {
+        return new RepositoryError(
+          'কোর্সের পজিশন (Serial Number) সংরক্ষণে সংঘাত হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।',
+          409
+        );
+      }
       return new RepositoryError(
         'এই ক্রম নম্বরটি ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।',
         409
@@ -1478,6 +1496,20 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     requestedDisplayOrder = parsedOrder.value;
   }
 
+  let nextAvailableDisplayOrder: number | null = null;
+  const { data: maxOrderRow, error: maxOrderErr } = await supabase
+    .from('courses')
+    .select('display_order')
+    .order('display_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!maxOrderErr) {
+    nextAvailableDisplayOrder = Math.max(1, (Number(maxOrderRow?.display_order) || 0) + 1);
+  } else if (!isMissingCourseDisplayOrderColumnError(maxOrderErr)) {
+    throw mapPgError(maxOrderErr, 'কোর্স ক্রম যাচাই করতে সমস্যা হয়েছে।');
+  }
+
   const insertPayload: Record<string, unknown> = {
     title: title.slice(0, 220),
     slug: slug.slice(0, 220),
@@ -1525,30 +1557,58 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     instructor_icon: String(input.instructorIcon || 'school').trim().slice(0, 50),
     features: serializeFeaturesForJsonb(input.features),
     affiliate_url: typeof input.affiliateUrl === 'string' ? input.affiliateUrl.trim() : '',
+    ...(nextAvailableDisplayOrder !== null ? { display_order: nextAvailableDisplayOrder } : {}),
     is_popular: Boolean(input.isPopular ?? true),
     status: normalizeCourseStatus(input.status, 'active'),
     click_count: 0,
   };
 
-  let { data, error } = await supabase
-    .from('courses')
-    .insert(insertPayload)
-    .select('*')
-    .single();
+  let currentPayload = { ...insertPayload };
+  let data: Record<string, unknown> | null = null;
+  let error: PgErrorLike | null = null;
 
-  if (error && isMissingTargetMetadataColumnError(error)) {
-    const legacyPayload = { ...insertPayload };
-    delete legacyPayload.target_batch;
-    delete legacyPayload.target_groups;
-    ({ data, error } = await supabase
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const res = await supabase
       .from('courses')
-      .insert(legacyPayload)
+      .insert(currentPayload)
       .select('*')
-      .single());
+      .single();
+    data = (res.data as Record<string, unknown> | null) || null;
+    error = (res.error as PgErrorLike | null) || null;
+
+    if (!error) break;
+
+    if (isMissingTargetMetadataColumnError(error)) {
+      delete currentPayload.target_batch;
+      delete currentPayload.target_groups;
+      continue;
+    }
+
+    if (isMissingCourseDisplayOrderColumnError(error)) {
+      delete currentPayload.display_order;
+      continue;
+    }
+
+    if (error.code === '23505' && isDisplayOrderUniqueError(error)) {
+      const { data: freshMax } = await supabase
+        .from('courses')
+        .select('display_order')
+        .order('display_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const base = Math.max(
+        Number(freshMax?.display_order) || 0,
+        Number(currentPayload.display_order) || 0
+      );
+      currentPayload.display_order = base + attempt + 10;
+      continue;
+    }
+
+    break;
   }
 
   if (error) {
-    if (error.code === '23505') {
+    if (error.code === '23505' && isCourseSlugUniqueError(error)) {
       throw new RepositoryError(
         `"${slug}" স্লাগটি ইতিমধ্যে অন্য একটি কোর্সে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
         409
@@ -1781,7 +1841,7 @@ export async function sbUpdateExistingCourse(
   }
 
   if (error) {
-    if (error.code === '23505') {
+    if (error.code === '23505' && isCourseSlugUniqueError(error)) {
       throw new RepositoryError(
         `"${nextSlug}" স্লাগটি ইতিমধ্যে অন্য একটি কোর্সে ব্যবহৃত হচ্ছে।`,
         409
