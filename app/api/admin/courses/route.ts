@@ -22,8 +22,11 @@ import {
 } from '@/src/lib/categoryMatching';
 import {
   deriveCourseSummaryDescription,
+  extractActiveFeatureTitles,
+  MIN_ACTIVE_COURSE_FEATURES,
   normalizeCourseFeatureItems,
 } from '@/src/lib/courseFeatures';
+import { toBengaliNumber } from '@/src/utils/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,9 +130,24 @@ export async function POST(req: NextRequest) {
       ? normalizeCourseFeatureItems(body.features)
       : [];
 
+    const activeFeatureTitles = extractActiveFeatureTitles(normalizedFeatureItems);
+    if (activeFeatureTitles.length < MIN_ACTIVE_COURSE_FEATURES) {
+      return auth.withSessionCookies(
+        NextResponse.json(
+          {
+            error: `কোর্স কার্ডে প্রদর্শনের জন্য ন্যূনতম ${toBengaliNumber(
+              MIN_ACTIVE_COURSE_FEATURES
+            )}টি সক্রিয় (Published) ফিচার যুক্ত করতে হবে।`,
+          },
+          { status: 400 }
+        )
+      );
+    }
+
     body.description = deriveCourseSummaryDescription(
       body?.description || body?.fullDescription,
-      normalizedFeatureItems
+      normalizedFeatureItems,
+      body?.title
     );
 
     const affiliateCheck = validateExternalHttpUrl(body?.affiliateUrl);

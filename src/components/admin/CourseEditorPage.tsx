@@ -209,6 +209,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [draftUploadedFileId, setDraftUploadedFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const featuresSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Batch validation & selection tracking
   const matchedBatches = useMemo(
@@ -583,9 +584,10 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     const normalizedFeatures = sortCourseFeatures(courseFeatures);
     const activeFeatureTitles = extractActiveFeatureTitles(normalizedFeatures);
     if (activeFeatureTitles.length < MIN_ACTIVE_COURSE_FEATURES) {
-      setError(
-        `কোর্স কার্ডে প্রদর্শনের জন্য ন্যূনতম ${toBengaliNumber(MIN_ACTIVE_COURSE_FEATURES)}টি সক্রিয় (Published) ফিচার যুক্ত করতে হবে।`
-      );
+      const msg = `কোর্স কার্ডে প্রদর্শনের জন্য ন্যূনতম ${toBengaliNumber(MIN_ACTIVE_COURSE_FEATURES)}টি সক্রিয় (Published) ফিচার যুক্ত করতে হবে।`;
+      setError(msg);
+      onShowToast?.(msg, 'error');
+      featuresSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     if (!batchValidation.valid) {
@@ -1490,7 +1492,10 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
           </div>
 
           {/* Card 4: Dynamic Course Features & Details */}
-          <div className="glass-strong rounded-3xl p-5 sm:p-6 space-y-5 min-w-0 overflow-hidden">
+          <div
+            ref={featuresSectionRef}
+            className="glass-strong rounded-3xl p-5 sm:p-6 space-y-5 min-w-0 overflow-hidden"
+          >
             <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2 border-b border-rose-200/50 pb-3">
               <Tag className="w-4 h-4 text-rose-600" />
               <span>কোর্স ফিচার ও বিস্তারিত ম্যানেজমেন্ট (Course Features &amp; Details)</span>

@@ -2,6 +2,7 @@ import type { Course, CourseFeatureIconKey, CourseFeatureItem } from '../types.t
 import { parseFeatures } from '../utils/format.ts';
 
 export const CARD_VISIBLE_COURSE_FEATURES = 4;
+export const MIN_ACTIVE_COURSE_FEATURES = 4;
 export const MAX_COURSE_FEATURE_TITLE_LENGTH = 300;
 export const MAX_COURSE_FEATURES_PER_COURSE = 40;
 
@@ -215,7 +216,7 @@ export function normalizeCourseFeatureItems(
 
 export function getCourseFeatureItems(
   course: Pick<Course, 'id' | 'features' | 'courseFeatures'>,
-  options?: { includeInactive?: boolean }
+  options?: { includeInactive?: boolean; fallbackIfEmpty?: boolean }
 ): CourseFeatureItem[] {
   const includeInactive = Boolean(options?.includeInactive);
 
@@ -244,7 +245,8 @@ export function extractActiveFeatureTitles(items: ReadonlyArray<CourseFeatureIte
 
 export function deriveCourseSummaryDescription(
   explicitDescription: string | null | undefined,
-  featureItems: ReadonlyArray<CourseFeatureItem>
+  featureItems: ReadonlyArray<CourseFeatureItem>,
+  courseTitle?: string | null
 ): string {
   const clean = String(explicitDescription || '').trim();
   if (clean) return clean.slice(0, 1000);
@@ -253,7 +255,7 @@ export function deriveCourseSummaryDescription(
   if (activeTitles.length > 0) {
     return activeTitles.slice(0, 3).join(' • ').slice(0, 1000);
   }
-  return '';
+  return String(courseTitle || '').trim().slice(0, 1000);
 }
 
 export function normalizeWhatsAppDigits(rawNumber?: string | null): string {

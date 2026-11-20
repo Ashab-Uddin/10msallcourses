@@ -17,6 +17,13 @@ import {
   validateCourseRating,
   validateCourseStudentCount,
 } from '@/src/lib/courseValidation';
+import {
+  extractActiveFeatureTitles,
+  getCourseFeatureItems,
+  MIN_ACTIVE_COURSE_FEATURES,
+  normalizeCourseFeatureItems,
+} from '@/src/lib/courseFeatures';
+import { toBengaliNumber } from '@/src/utils/format';
 import { deleteImageKitFileByUrl, isManagedImageKitUrl } from '@/src/lib/imagekit';
 
 export const dynamic = 'force-dynamic';
@@ -213,6 +220,34 @@ export async function PUT(
     if (sanitizedBody.status !== undefined) {
       sanitizedBody.status = normalizeCourseStatus(sanitizedBody.status, 'active');
     }
+    if (sanitizedBody.courseFeatures !== undefined || sanitizedBody.features !== undefined) {
+      const normalizedFeatures = Array.isArray(sanitizedBody.courseFeatures)
+        ? normalizeCourseFeatureItems(sanitizedBody.courseFeatures, courseId)
+        : getCourseFeatureItems(
+            {
+              id: courseId,
+              features:
+                typeof sanitizedBody.features === 'string'
+                  ? sanitizedBody.features
+                  : JSON.stringify(Array.isArray(sanitizedBody.features) ? sanitizedBody.features : []),
+            },
+            { includeInactive: true }
+          );
+      const activeFeatureTitles = extractActiveFeatureTitles(normalizedFeatures);
+      if (activeFeatureTitles.length < MIN_ACTIVE_COURSE_FEATURES) {
+        return auth.withSessionCookies(
+          NextResponse.json(
+            {
+              error: `কোর্স কার্ডে প্রদর্শনের জন্য ন্যূনতম ${toBengaliNumber(
+                MIN_ACTIVE_COURSE_FEATURES
+              )}টি সক্রিয় (Published) ফিচার যুক্ত করতে হবে।`,
+            },
+            { status: 400 }
+          )
+        );
+      }
+    }
+
     if (
       sanitizedBody.description !== undefined &&
       !String(sanitizedBody.description || '').trim() &&
