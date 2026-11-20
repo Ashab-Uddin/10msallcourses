@@ -84,18 +84,6 @@ const IconSortManager = dynamic(
   }
 );
 
-const CourseFeaturesManager = dynamic(
-  () => import('./CourseFeaturesManager.tsx').then((m) => m.CourseFeaturesManager),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="p-8 text-center text-xs font-bold text-[#6B4C4F]">
-        ফিচার ম্যানেজার লোড হচ্ছে...
-      </div>
-    ),
-  }
-);
-
 const CourseSortManager = dynamic(
   () => import('./CourseSortManager.tsx').then((m) => m.CourseSortManager),
   {
@@ -136,7 +124,6 @@ import {
   AlarmClock,
   ShoppingBag,
   ListOrdered,
-  ListChecks,
 } from 'lucide-react';
 
 const COURSES_PER_PAGE = 12;
@@ -331,7 +318,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Modals & Editor State
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [previewingCourse, setPreviewingCourse] = useState<Course | null>(null);
-  const [managingFeaturesCourse, setManagingFeaturesCourse] = useState<Course | null>(null);
   const [deleteModalCourse, setDeleteModalCourse] = useState<Course | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -1585,22 +1571,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="w-full overflow-hidden">
+                  <table className="w-full table-fixed text-left text-xs">
                     <thead>
                       <tr className="border-b border-rose-200/50 text-[#6B4C4F] uppercase tracking-wider text-[10px]">
-                        <th className="py-2.5 px-3">কোর্স</th>
-                        <th className="py-2.5 px-3">ক্যাটাগরি</th>
-                        <th className="py-2.5 px-3">মূল্য ও ছাড়</th>
-                        <th className="py-2.5 px-3 text-center">স্ট্যাটাস</th>
-                        <th className="py-2.5 px-3 text-right">অ্যাকশন</th>
+                        <th className="py-2.5 px-2.5 sm:px-3">কোর্স</th>
+                        <th className="w-[100px] sm:w-[130px] py-2.5 px-2 sm:px-3">ক্যাটাগরি</th>
+                        <th className="w-[88px] sm:w-[105px] py-2.5 px-2 sm:px-3">মূল্য ও ছাড়</th>
+                        <th className="w-[74px] sm:w-[88px] py-2.5 px-2 sm:px-3 text-center">স্ট্যাটাস</th>
+                        <th className="w-[68px] sm:w-[76px] py-2.5 px-2 sm:px-3 text-right">অ্যাকশন</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-rose-100/70">
                       {courses.slice(0, 6).map((course) => (
                         <tr key={course.id} className="hover:bg-rose-50/45 transition">
-                          <td className="py-3 px-3">
-                            <div className="flex items-center gap-3">
+                          <td className="py-3 px-2.5 sm:px-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
                               {course.imageUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
@@ -1617,20 +1603,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   10MS
                                 </div>
                               )}
-                              <div className="min-w-0">
-                                <div className="font-bold text-[#2A0F12] truncate max-w-xs sm:max-w-md">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-[#2A0F12] truncate">
                                   {course.title}
                                 </div>
-                                <div className="text-[10px] text-[#6B4C4F] font-mono truncate max-w-xs">
+                                <div className="text-[10px] text-[#6B4C4F] font-mono truncate">
                                   /go/{course.slug}
                                 </div>
                               </div>
                             </div>
                           </td>
-                          <td className="py-3 px-3 font-semibold text-[#2A0F12]/80 whitespace-nowrap">
-                            {categoryNameBySlug.get(course.categorySlug) || course.categorySlug}
+                          <td className="py-3 px-2 sm:px-3 font-semibold text-[#2A0F12]/80">
+                            <span className="line-clamp-2 leading-snug text-[11px]">
+                              {categoryNameBySlug.get(course.categorySlug) || course.categorySlug}
+                            </span>
                           </td>
-                          <td className="py-3 px-3 whitespace-nowrap">
+                          <td className="py-3 px-2 sm:px-3 whitespace-nowrap">
                             <div className="font-mono font-bold text-[#2A0F12] tabular-nums">
                               ৳{toBengaliNumber(course.discountPrice)}
                             </div>
@@ -1640,7 +1628,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <td className="py-3 px-2 sm:px-3 text-center whitespace-nowrap">
                             <span
                               className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
                                 course.status === 'active'
@@ -1987,16 +1975,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <div className="flex flex-wrap items-center justify-end gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => setManagingFeaturesCourse(course)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition cursor-pointer"
-                                  title="কোর্স ফিচার ম্যানেজ করুন"
-                                >
-                                  <ListChecks className="w-3.5 h-3.5" />
-                                  <span>ফিচার</span>
-                                </button>
-
-                                <button
-                                  type="button"
                                   onClick={() => {
                                     setEditingCourse(course);
                                     setActiveTab('course_editor');
@@ -2023,7 +2001,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   }
                                   disabled={isToggling}
                                   aria-label="কোর্স স্ট্যাটাস পরিবর্তন"
-                                  className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer outline-none disabled:opacity-50 ${
+                                  className={`px-2 py-1 rounded-xl border text-[11px] font-bold transition cursor-pointer outline-none disabled:opacity-50 ${
                                     course.status === 'active'
                                       ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
                                       : course.status === 'closed'
@@ -2053,17 +2031,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   )}
                 </div>
 
-                {/* Desktop & Tablet Table */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                {/* Desktop & Tablet Table (Fits cleanly within viewport with zero horizontal scroll) */}
+                <div className="hidden md:block w-full">
+                  <table className="w-full table-fixed text-left text-xs">
                     <thead>
                       <tr className="bg-rose-50/75 border-b border-rose-200/50 text-[#6B4C4F] font-bold uppercase text-[10px] tracking-wider">
-                        <th className="py-3.5 px-4">কোর্স তথ্য</th>
-                        <th className="py-3.5 px-4">ক্যাটাগরি</th>
-                        <th className="py-3.5 px-4">মূল্য ও ছাড়</th>
-                        <th className="py-3.5 px-4 text-center">ক্লিক</th>
-                        <th className="py-3.5 px-4 text-center">স্ট্যাটাস</th>
-                        <th className="py-3.5 px-4 text-right">অ্যাকশন</th>
+                        <th className="py-3 px-2.5 lg:px-3">কোর্স তথ্য</th>
+                        <th className="w-[100px] lg:w-[116px] xl:w-[138px] py-3 px-2 lg:px-2.5">
+                          ক্যাটাগরি
+                        </th>
+                        <th className="w-[90px] lg:w-[102px] xl:w-[116px] py-3 px-2 lg:px-2.5">
+                          মূল্য ও ছাড়
+                        </th>
+                        <th className="w-[56px] lg:w-[64px] xl:w-[70px] py-3 px-1.5 lg:px-2 text-center">
+                          ক্লিক
+                        </th>
+                        <th className="w-[104px] lg:w-[110px] xl:w-[116px] py-3 px-1.5 lg:px-2 text-center">
+                          স্ট্যাটাস
+                        </th>
+                        <th className="w-[88px] lg:w-[94px] xl:w-[100px] py-3 px-2 lg:px-2.5 text-right">
+                          অ্যাকশন
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-rose-100/70">
@@ -2079,8 +2067,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           return (
                             <tr key={course.id} className="hover:bg-rose-50/45 transition">
                               {/* Course Details */}
-                              <td className="py-3.5 px-4">
-                                <div className="flex items-center gap-3">
+                              <td className="py-3 px-2.5 lg:px-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
                                   {course.imageUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
@@ -2088,30 +2076,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       alt={course.title}
                                       loading="lazy"
                                       decoding="async"
-                                      width={48}
-                                      height={32}
-                                      className="w-12 h-8 object-cover rounded-lg border border-rose-100 shrink-0 bg-white"
+                                      width={44}
+                                      height={30}
+                                      className="w-10 h-7 xl:w-11 xl:h-8 object-cover rounded-lg border border-rose-100 shrink-0 bg-white"
                                     />
                                   ) : (
-                                    <div className="w-12 h-8 rounded-lg bg-rose-100 flex items-center justify-center text-[#b91c1c] text-[10px] font-black shrink-0">
+                                    <div className="w-10 h-7 xl:w-11 xl:h-8 rounded-lg bg-rose-100 flex items-center justify-center text-[#b91c1c] text-[9.5px] font-black shrink-0">
                                       10MS
                                     </div>
                                   )}
-                                  <div className="min-w-0">
-                                    <div className="font-bold text-[#2A0F12] truncate max-w-xs sm:max-w-md">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-[#2A0F12] truncate">
                                       {course.title}
                                     </div>
-                                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[#6B4C4F] font-medium">
-                                      <span className="px-1.5 py-0.5 rounded bg-white/80 border border-rose-100 text-[#6B4C4F] font-mono text-[10px]">
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-[#6B4C4F] font-medium min-w-0">
+                                      <span className="px-1.5 py-0.5 rounded bg-white/80 border border-rose-100 text-[#6B4C4F] font-mono text-[9.5px] truncate min-w-0 max-w-[165px] xl:max-w-[235px]">
                                         /go/{course.slug}
                                       </span>
                                       {course.shortBadge && (
-                                        <span className="text-[#b91c1c] font-semibold">
+                                        <span className="text-[#b91c1c] font-semibold truncate max-w-[90px] xl:max-w-[125px] hidden xl:inline">
                                           • {course.shortBadge}
                                         </span>
                                       )}
                                       {course.isPopular && (
-                                        <span className="text-amber-600 font-bold">★ জনপ্রিয়</span>
+                                        <span className="text-amber-600 font-bold shrink-0 whitespace-nowrap">
+                                          ★ জনপ্রিয়
+                                        </span>
                                       )}
                                     </div>
                                   </div>
@@ -2119,17 +2109,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </td>
 
                               {/* Category */}
-                              <td className="py-3.5 px-4 font-semibold text-[#2A0F12]/80 whitespace-nowrap">
-                                {categoryNameBySlug.get(course.categorySlug) || course.categorySlug}
+                              <td className="py-3 px-2 lg:px-2.5 font-semibold text-[#2A0F12]/80">
+                                <span className="line-clamp-2 leading-snug text-[11px] xl:text-xs">
+                                  {categoryNameBySlug.get(course.categorySlug) || course.categorySlug}
+                                </span>
                               </td>
 
                               {/* Pricing */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                <div className="font-mono font-bold text-emerald-700 text-sm tabular-nums">
+                              <td className="py-3 px-2 lg:px-2.5 whitespace-nowrap">
+                                <div className="font-mono font-bold text-emerald-700 text-xs xl:text-sm tabular-nums">
                                   ৳{toBengaliNumber(course.discountPrice)}
                                 </div>
                                 {course.originalPrice > course.discountPrice && (
-                                  <div className="text-[10px] text-[#6B4C4F]/75 line-through font-mono tabular-nums">
+                                  <div className="text-[9.5px] xl:text-[10px] text-[#6B4C4F]/75 line-through font-mono tabular-nums">
                                     ৳{toBengaliNumber(course.originalPrice)} (
                                     {toBengaliNumber(course.discountPercent)}% ছাড়)
                                   </div>
@@ -2137,14 +2129,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </td>
 
                               {/* Click Count */}
-                              <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                                <span className="font-mono font-bold text-[#b91c1c] tabular-nums">
+                              <td className="py-3 px-1.5 lg:px-2 text-center whitespace-nowrap">
+                                <span className="font-mono font-bold text-[#b91c1c] text-[11px] xl:text-xs tabular-nums">
                                   {toBengaliNumber(course.clickCount || 0)} ক্লিক
                                 </span>
                               </td>
 
-                              {/* 3-State Status Selector */}
-                              <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                              {/* 3-State Status Selector (Compact Size) */}
+                              <td className="py-3 px-1.5 lg:px-2 text-center whitespace-nowrap">
                                 <select
                                   value={
                                     course.status === 'active' ||
@@ -2161,7 +2153,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   }
                                   disabled={isToggling}
                                   aria-label={`${course.title} স্ট্যাটাস`}
-                                  className={`px-3 py-1 rounded-full text-[11px] font-extrabold transition cursor-pointer border outline-none disabled:opacity-50 ${
+                                  className={`w-full max-w-[104px] px-2 py-0.5 rounded-full text-[10.5px] font-bold transition cursor-pointer border outline-none disabled:opacity-50 truncate ${
                                     course.status === 'active'
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                                       : course.status === 'closed'
@@ -2188,25 +2180,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </td>
 
                               {/* Actions */}
-                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-1.5">
+                              <td className="py-3 px-2 lg:px-2.5 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
                                   <button
                                     type="button"
                                     onClick={() => setPreviewingCourse(course)}
-                                    className="p-2 rounded-xl text-[#6B4C4F] hover:text-[#2A0F12] hover:bg-white/80 transition cursor-pointer"
+                                    className="p-1.5 rounded-lg text-[#6B4C4F] hover:text-[#2A0F12] hover:bg-white/80 transition cursor-pointer"
                                     title="কার্ড প্রিভিউ দেখুন"
+                                    aria-label="কার্ড প্রিভিউ দেখুন"
                                   >
                                     <Eye className="w-4 h-4" />
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => setManagingFeaturesCourse(course)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 text-[11px] font-bold transition cursor-pointer"
-                                    title="কোর্স ফিচার ম্যানেজ করুন"
-                                  >
-                                    <ListChecks className="w-3.5 h-3.5" />
-                                    <span>ফিচার</span>
                                   </button>
 
                                   <button
@@ -2215,8 +2198,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       setEditingCourse(course);
                                       setActiveTab('course_editor');
                                     }}
-                                    className="p-2 rounded-xl text-[#1E63D6] hover:bg-blue-50 transition cursor-pointer"
+                                    className="p-1.5 rounded-lg text-[#1E63D6] hover:bg-blue-50 transition cursor-pointer"
                                     title="এডিট করুন"
+                                    aria-label="এডিট করুন"
                                   >
                                     <Edit className="w-4 h-4" />
                                   </button>
@@ -2224,8 +2208,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setDeleteModalCourse(course)}
-                                    className="p-2 rounded-xl text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition cursor-pointer"
+                                    className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition cursor-pointer"
                                     title="মুছে ফেলুন"
+                                    aria-label="মুছে ফেলুন"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -2802,124 +2787,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
               >
                 বন্ধ করুন
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Course Features Management Modal */}
-      {managingFeaturesCourse && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
-          onClick={() => setManagingFeaturesCourse(null)}
-        >
-          <div
-            className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-white/90 shadow-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-rose-100 bg-rose-50/40 shrink-0">
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <h3 className="text-sm sm:text-base font-black text-[#2A0F12] flex items-center gap-2">
-                  <ListChecks className="w-4 h-4 text-[#eb1c24] shrink-0" />
-                  <span className="truncate">ফিচার ম্যানেজমেন্ট</span>
-                </h3>
-                <div className="flex flex-wrap items-center gap-2 min-w-0 w-full">
-                  <span className="text-[11px] font-bold text-[#6B4C4F] shrink-0">
-                    টার্গেট কোর্স:
-                  </span>
-                  <div className="min-w-0 flex-1 max-w-full sm:max-w-sm">
-                    <select
-                      value={String(managingFeaturesCourse.id)}
-                      onChange={(e) => {
-                        const nextId = Number(e.target.value);
-                        const nextCourse = courses.find((c) => c.id === nextId);
-                        if (nextCourse) {
-                          setManagingFeaturesCourse(nextCourse);
-                        }
-                      }}
-                      aria-label="টার্গেট কোর্স নির্বাচন করুন"
-                      className="w-full min-w-0 max-w-full px-2.5 py-1 rounded-xl border border-rose-200/80 bg-white text-xs font-bold text-[#2A0F12] outline-none focus:border-[#eb1c24] cursor-pointer shadow-2xs truncate"
-                    >
-                      {courses.map((c) => (
-                        <option key={c.id} value={String(c.id)}>
-                          {c.title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setManagingFeaturesCourse(null)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-rose-50 cursor-pointer shrink-0"
-                aria-label="বন্ধ করুন"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-              <CourseFeaturesManager
-                key={managingFeaturesCourse.id}
-                mode="api"
-                courseId={managingFeaturesCourse.id}
-                courseTitle={managingFeaturesCourse.title}
-                initialItems={managingFeaturesCourse.courseFeatures}
-                existingCourses={courses}
-                categories={categories}
-                onUnauthorized={handleBookStoreUnauthorized}
-                onShowToast={showToast}
-                onSaved={(nextFeatures) => {
-                  const activeTitles = nextFeatures
-                    .filter((f) => f.isActive)
-                    .map((f) => f.title);
-                  const serialized = JSON.stringify(activeTitles);
-                  setCourses((prev) =>
-                    prev.map((c) =>
-                      c.id === managingFeaturesCourse.id
-                        ? { ...c, courseFeatures: nextFeatures, features: serialized }
-                        : c
-                    )
-                  );
-                  setManagingFeaturesCourse((prev) =>
-                    prev
-                      ? { ...prev, courseFeatures: nextFeatures, features: serialized }
-                      : null
-                  );
-                  setPreviewingCourse((prev) =>
-                    prev && prev.id === managingFeaturesCourse.id
-                      ? { ...prev, courseFeatures: nextFeatures, features: serialized }
-                      : prev
-                  );
-                  onDataMutated();
-                }}
-              />
-            </div>
-
-            <div className="px-5 py-3 border-t border-rose-100 bg-white/95 flex items-center justify-between gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  const target =
-                    courses.find((c) => c.id === managingFeaturesCourse.id) ||
-                    managingFeaturesCourse;
-                  setManagingFeaturesCourse(null);
-                  setPreviewingCourse(target);
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 text-[#2A0F12] text-xs font-bold cursor-pointer"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>কার্ড প্রিভিউ দেখুন</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setManagingFeaturesCourse(null)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
-              >
-                সম্পন্ন
               </button>
             </div>
           </div>
