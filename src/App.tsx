@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { AdminOverviewData, Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
 import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
 import { MobileCategoryCarousel } from './components/public/MobileCategoryCarousel.tsx';
+import { PathwaysSection } from './components/public/PathwaysSection.tsx';
 import { HeroOfferCountdown } from './components/public/HeroOfferCountdown.tsx';
 import { MobileBottomNav, MobileTab } from './components/public/MobileBottomNav.tsx';
 import { HeaderNav } from './components/public/HeaderNav.tsx';
@@ -36,9 +36,6 @@ import {
 import {
   AlertCircle,
   ChevronRight,
-  BookOpen,
-  Terminal,
-  Landmark,
   BadgeCheck,
   RefreshCw,
   SearchX,
@@ -1104,162 +1101,7 @@ export default function App({
           </section>
 
           {/* 3 MAIN PATHWAYS (Academic, Skills, Admission) */}
-          <section className="py-10" id="pathways" aria-label="প্রধান লার্নিং পাথওয়ে">
-            <h2 className="sr-only">একাডেমিক, স্কিলস ও এডমিশন প্রোগ্রাম</h2>
-            <div className="wrap">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Academic Pathway */}
-                <div className="glass-card rounded-[24px] overflow-hidden flex flex-col">
-                  <div className="h-28 bg-gradient-to-br from-[#ff5252]/95 via-[#e22b2b]/95 to-[#991b1b]/95 p-5 flex items-center justify-between text-white">
-                    <div>
-                      <span className="text-[11px] font-bold tracking-wider text-rose-100">
-                        স্কুল ও কলেজ
-                      </span>
-                      <h3 className="text-lg font-extrabold text-white mt-0.5">
-                        একাডেমিক পূর্ণাঙ্গ প্রস্তুতি
-                      </h3>
-                    </div>
-                    <BookOpen className="w-9 h-9 text-white/85 shrink-0" aria-hidden="true" />
-                  </div>
-                  <div className="p-5 flex-1 flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs text-[#6B4C4F] leading-relaxed mb-4">
-                        এক্সপার্ট টিচারদের রেগুলার লাইভ ক্লাস, মাস্টারবুক, মডেল টেস্ট ও ডেইলি ডাউট সলভিং নিয়ে সারা বছর A+ অর্জনের পারফেক্ট প্ল্যান।
-                      </p>
-                      <div className="text-xs text-[#5A3E41] font-semibold mb-4">
-                        HSC ২০২৮ · HSC ২০২৭ · ১০ম শ্রেণি · ৬ষ্ঠ–৯ম শ্রেণি
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => navigate('/academic/hsc/hsc-28/')}
-                      className="w-full text-center py-2.5 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb2026] hover:to-[#991b1b] text-white text-xs sm:text-sm font-bold shadow-[0_8px_20px_-8px_rgba(226,43,43,0.65)] transition cursor-pointer"
-                    >
-                      অনলাইন ব্যাচ সমূহ দেখুন →
-                    </button>
-                  </div>
-                </div>
-
-                {/* Skills Pathway */}
-                <div
-                  role="link"
-                  tabIndex={0}
-                  aria-label="দেশসেরা স্কিল প্ল্যাটফর্ম — সকল স্কিলস কোর্স দেখুন"
-                  onClick={() => {
-                    if (typeof window !== 'undefined' && window.getSelection()?.toString()) {
-                      return;
-                    }
-                    navigate('/skills');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault();
-                      navigate('/skills');
-                    }
-                  }}
-                  className="glass-card rounded-[24px] overflow-hidden flex flex-col cursor-pointer group select-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/60"
-                >
-                  <div className="h-28 bg-gradient-to-br from-rose-600/95 via-[#b91c1c]/95 to-[#4c0519]/95 p-5 flex items-center justify-between text-white">
-                    <div>
-                      <span className="text-[11px] font-bold tracking-wider text-rose-100">
-                        ক্যারিয়ার ও ফ্রিল্যান্সিং
-                      </span>
-                      <h3 className="text-lg font-extrabold text-white mt-0.5">
-                        দেশসেরা স্কিল প্ল্যাটফর্ম
-                      </h3>
-                    </div>
-                    <Terminal
-                      className="w-9 h-9 text-white/85 shrink-0 transition-transform duration-200 group-hover:scale-105"
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <div className="p-5 flex-1 flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs text-[#6B4C4F] leading-relaxed mb-4">
-                        দেশসেরা শিক্ষক, ৫ লাখ+ শিক্ষার্থী ও ৭০+ প্রফেশনাল অনলাইন কোর্স! স্পোকেন ইংলিশ, ফ্রিল্যান্সিং ও টেক স্কিলের পূর্ণাঙ্গ ভাণ্ডার।
-                      </p>
-                      <div className="text-xs text-[#5A3E41] font-semibold mb-4">
-                        Spoken English · IELTS Complete · Web Dev · মার্কেটিং
-                      </div>
-                    </div>
-                    <Link
-                      className="w-full text-center py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white text-xs sm:text-sm font-bold shadow-[0_8px_20px_-8px_rgba(37,99,235,0.55)] transition block"
-                      href="/skills"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-                          return;
-                        }
-                        e.preventDefault();
-                        navigate('/skills');
-                      }}
-                    >
-                      সকল স্কিলস কোর্স দেখুন →
-                    </Link>
-                  </div>
-                </div>
-
-                {/* Admission Pathway */}
-                <div
-                  role="link"
-                  tabIndex={0}
-                  aria-label="ভার্সিটি + গুচ্ছ এডমিশন — এডমিশন কোর্সসমূহ দেখুন"
-                  onClick={() => {
-                    if (typeof window !== 'undefined' && window.getSelection()?.toString()) {
-                      return;
-                    }
-                    navigate('/admission');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault();
-                      navigate('/admission');
-                    }
-                  }}
-                  className="glass-card rounded-[24px] overflow-hidden flex flex-col cursor-pointer group select-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/60"
-                >
-                  <div className="h-28 bg-gradient-to-br from-[#be123c]/95 via-[#9f1239]/95 to-[#7f1d1d]/95 p-5 flex items-center justify-between text-white">
-                    <div>
-                      <span className="text-[11px] font-bold tracking-wider text-rose-200">
-                        স্বপ্নের বিশ্ববিদ্যালয়
-                      </span>
-                      <h3 className="text-lg font-extrabold text-white mt-0.5">
-                        ভার্সিটি + গুচ্ছ এডমিশন
-                      </h3>
-                    </div>
-                    <Landmark
-                      className="w-9 h-9 text-white/85 shrink-0 transition-transform duration-200 group-hover:scale-105"
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <div className="p-5 flex-1 flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs text-[#6B4C4F] leading-relaxed mb-4">
-                        বুয়েট, মেডিকেল, ঢাবি ‘ক’, ‘খ’, ‘গ’ ইউনিট এবং গুচ্ছ ভর্তি পরীক্ষার সম্পূর্ণ প্রশ্নব্যাংক সমাধান ও দেশসেরা মক টেস্ট সিরিজ।
-                      </p>
-                      <div className="text-xs text-[#5A3E41] font-semibold mb-4">
-                        Unit A (Science) · Unit B (Arts) · Unit C (Commerce)
-                      </div>
-                    </div>
-                    <Link
-                      className="w-full text-center py-2.5 rounded-full bg-gradient-to-r from-[#be123c] to-[#881337] hover:from-[#e11d48] hover:to-[#9f1239] text-white text-xs sm:text-sm font-bold shadow-[0_8px_20px_-8px_rgba(190,18,60,0.6)] transition block"
-                      href="/admission"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
-                          return;
-                        }
-                        e.preventDefault();
-                        navigate('/admission');
-                      }}
-                    >
-                      এডমিশন কোর্সসমূহ দেখুন →
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+          <PathwaysSection onNavigate={navigate} />
 
           {/* DYNAMIC COURSE SECTIONS & INTERACTIVE FILTER BAR */}
           <section className="py-8" id="courses">
