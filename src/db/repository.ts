@@ -588,11 +588,6 @@ export async function createNewCourse(input: Record<string, unknown>) {
             typeof input.features === 'string'
               ? input.features
               : JSON.stringify(Array.isArray(input.features) ? input.features : []),
-          duration: typeof input.duration === 'string' ? input.duration.trim() : '',
-          instructorInfo: String(
-            input.instructorInfo || '১০ মিনিট স্কুলের শীর্ষ শিক্ষক প্যানেল'
-          ),
-          categorySlug: matchedCategory.slug,
         },
         { includeInactive: true }
       );

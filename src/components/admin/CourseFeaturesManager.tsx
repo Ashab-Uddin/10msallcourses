@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import type { Category, Course, CourseFeatureIconKey, CourseFeatureItem } from '../../types.ts';
 import {
-  buildDefaultCourseFeatureDrafts,
   CARD_VISIBLE_COURSE_FEATURES,
   COURSE_FEATURE_ICON_OPTIONS,
   hasDuplicateFeatureTitle,
@@ -508,49 +507,6 @@ export const CourseFeaturesManager: React.FC<CourseFeaturesManagerProps> = (prop
     }
   };
 
-  const handleLoadDefaults = async () => {
-    const defaults = buildDefaultCourseFeatureDrafts().map((d, idx) => ({
-      ...d,
-      courseId: targetCourseId || 0,
-      id: idx + 1,
-    }));
-
-    setLocalError(null);
-    setLocalSuccess(null);
-    if (!isApiMode) {
-      commitControlled(defaults);
-      return;
-    }
-
-    if (!targetCourseId) return;
-    setBusyId('bulk');
-    try {
-      const res = await fetch(`/api/admin/courses/${targetCourseId}/features`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ features: defaults }),
-      });
-      if (res.status === 401) {
-        onUnauthorized?.();
-        return;
-      }
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'ডিফল্ট ফিচার যুক্ত করা যায়নি।');
-      }
-      const nextList = sortCourseFeatures(data.features || []);
-      setApiItems(nextList);
-      apiOnSaved?.(nextList);
-      onShowToast?.('৪টি ডিফল্ট ফিচার যুক্ত হয়েছে।', 'success');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'ডিফল্ট ফিচার যোগ ব্যর্থ হয়েছে।';
-      setLocalError(msg);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const handleToggleActive = async (item: CourseFeatureItem) => {
     const nextActive = !item.isActive;
     setLocalError(null);
@@ -853,16 +809,6 @@ export const CourseFeaturesManager: React.FC<CourseFeaturesManagerProps> = (prop
               সক্রিয় ফিচার প্রয়োজন (আরও {toBengaliNumber(missingMinimum)}টি সক্রিয় করুন)।
             </span>
           </span>
-          {items.length === 0 && (
-            <button
-              type="button"
-              onClick={() => void handleLoadDefaults()}
-              disabled={busyId !== null}
-              className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 text-[10.5px] font-extrabold shrink-0 cursor-pointer"
-            >
-              ডিফল্ট ৪টি যোগ করুন
-            </button>
-          )}
         </div>
       )}
 
@@ -1164,7 +1110,7 @@ export const CourseFeaturesManager: React.FC<CourseFeaturesManagerProps> = (prop
         <div className="rounded-2xl border border-dashed border-rose-200 bg-white/70 p-6 text-center space-y-2">
           <p className="text-xs font-bold text-[#2A0F12]">কোনো ফিচার এখনো যুক্ত করা হয়নি</p>
           <p className="text-[11px] text-[#6B4C4F]">
-            উপরের ফর্ম থেকে একটি করে ফিচার যোগ করুন, অন্য কোর্স থেকে ইম্পোর্ট করুন অথবা ডিফল্ট ৪টি ফিচার যুক্ত করে এডিট করুন।
+            উপরের ফর্ম থেকে একটি করে ফিচার যোগ করুন অথবা অন্য কোর্স থেকে ইম্পোর্ট করুন।
           </p>
         </div>
       ) : (

@@ -452,7 +452,7 @@ export function buildStructuredData(
                 item: {
                   '@type': 'Course',
                   name: course.title,
-                  description: course.description,
+                  description: course.description || course.title,
                   image:
                     course.imageUrl && course.imageUrl.startsWith('https://')
                       ? course.imageUrl

@@ -1,7 +1,6 @@
 import type { Course, CourseFeatureIconKey, CourseFeatureItem } from '../types.ts';
 import { parseFeatures } from '../utils/format.ts';
 
-export const MIN_ACTIVE_COURSE_FEATURES = 4;
 export const CARD_VISIBLE_COURSE_FEATURES = 4;
 export const MAX_COURSE_FEATURE_TITLE_LENGTH = 300;
 export const MAX_COURSE_FEATURES_PER_COURSE = 40;
@@ -214,46 +213,11 @@ export function normalizeCourseFeatureItems(
   return sortCourseFeatures(normalized);
 }
 
-export function buildDefaultCourseFeatureDrafts(
-  courseLike?: Partial<Pick<Course, 'duration' | 'instructorInfo' | 'categorySlug'>>
-): CourseFeatureItem[] {
-  const defaults = [
-    {
-      title: 'অভিজ্ঞ শিক্ষকদের লাইভ ও রেকর্ডেড ক্লাস',
-      icon: 'laptop' as CourseFeatureIconKey,
-    },
-    {
-      title: 'ডেইলি ও মান্থলি এক্সাম এবং QnA সেশন',
-      icon: 'help' as CourseFeatureIconKey,
-    },
-    {
-      title: 'অধ্যায়ভিত্তিক গোছানো লেকচার শিট ও নোটস',
-      icon: 'file' as CourseFeatureIconKey,
-    },
-    {
-      title: courseLike?.duration?.trim()
-        ? `${courseLike.duration.trim()} মেয়াদ • সম্পূর্ণ গাইডলাইন ও ভর্তি চলমান`
-        : 'সম্পূর্ণ সিলেবাস কভারেজ ও পরীক্ষা পর্যন্ত গাইডলাইন',
-      icon: 'clock' as CourseFeatureIconKey,
-    },
-  ];
-
-  return defaults.map((d, idx) => ({
-    id: idx + 1,
-    courseId: 0,
-    title: d.title,
-    icon: d.icon,
-    sortOrder: idx + 1,
-    isActive: true,
-  }));
-}
-
 export function getCourseFeatureItems(
-  course: Pick<Course, 'id' | 'features' | 'courseFeatures' | 'duration' | 'instructorInfo' | 'categorySlug'>,
-  options?: { includeInactive?: boolean; fallbackIfEmpty?: boolean }
+  course: Pick<Course, 'id' | 'features' | 'courseFeatures'>,
+  options?: { includeInactive?: boolean }
 ): CourseFeatureItem[] {
   const includeInactive = Boolean(options?.includeInactive);
-  const fallbackIfEmpty = options?.fallbackIfEmpty ?? false;
 
   let items: CourseFeatureItem[] = [];
   if (Array.isArray(course.courseFeatures) && course.courseFeatures.length > 0) {
@@ -262,11 +226,6 @@ export function getCourseFeatureItems(
     const legacy = parseFeatures(course.features || '');
     if (legacy.length > 0) {
       items = normalizeCourseFeatureItems(legacy, course.id);
-    } else if (fallbackIfEmpty) {
-      items = buildDefaultCourseFeatureDrafts(course).map((item) => ({
-        ...item,
-        courseId: course.id,
-      }));
     }
   }
 
@@ -285,8 +244,7 @@ export function extractActiveFeatureTitles(items: ReadonlyArray<CourseFeatureIte
 
 export function deriveCourseSummaryDescription(
   explicitDescription: string | null | undefined,
-  featureItems: ReadonlyArray<CourseFeatureItem>,
-  courseTitle?: string
+  featureItems: ReadonlyArray<CourseFeatureItem>
 ): string {
   const clean = String(explicitDescription || '').trim();
   if (clean) return clean.slice(0, 1000);
@@ -295,10 +253,7 @@ export function deriveCourseSummaryDescription(
   if (activeTitles.length > 0) {
     return activeTitles.slice(0, 3).join(' • ').slice(0, 1000);
   }
-  if (courseTitle && courseTitle.trim()) {
-    return `${courseTitle.trim()} — লাইভ ক্লাস, লেকচার শিট ও সম্পূর্ণ পরীক্ষার প্রস্তুতি।`.slice(0, 1000);
-  }
-  return 'অভিজ্ঞ শিক্ষকদের লাইভ ক্লাস, লেকচার শিট ও পূর্ণাঙ্গ পরীক্ষার প্রস্তুতি।';
+  return '';
 }
 
 export function normalizeWhatsAppDigits(rawNumber?: string | null): string {

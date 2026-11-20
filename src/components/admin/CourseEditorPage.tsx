@@ -4,7 +4,6 @@ import React, { useState, useRef, useMemo } from 'react';
 import { Category, Course, CourseFeatureItem } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import {
-  buildDefaultCourseFeatureDrafts,
   deriveCourseSummaryDescription,
   extractActiveFeatureTitles,
   getCourseFeatureItems,
@@ -181,13 +180,12 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const [batchError, setBatchError] = useState<string | null>(null);
   const [courseFeatures, setCourseFeatures] = useState<CourseFeatureItem[]>(() => {
     if (course) {
-      const existing = getCourseFeatureItems(course, {
+      return getCourseFeatureItems(course, {
         includeInactive: true,
         fallbackIfEmpty: false,
       });
-      return existing.length > 0 ? existing : buildDefaultCourseFeatureDrafts(course);
     }
-    return buildDefaultCourseFeatureDrafts();
+    return [];
   });
   const [isPopular, setIsPopular] = useState<boolean>(course?.isPopular ?? true);
   const [status, setStatus] = useState<'active' | 'closed' | 'inactive'>(() => {

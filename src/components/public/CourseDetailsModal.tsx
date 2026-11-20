@@ -249,17 +249,17 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
           </div>
 
           {/* Complete "এই কোর্সে যা যা থাকছে" Compact Feature List */}
-          <div className="rounded-2xl border border-rose-200/70 bg-rose-50/35 p-3 sm:p-3.5 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <h4 className="inline-flex items-center rounded-full bg-gradient-to-r from-[#e22b2b] to-[#b91c1c] text-white text-[11px] font-bold tracking-tight leading-[1.2] px-2.5 py-[3.5px] shadow-[0_2px_8px_-2px_rgba(185,28,28,0.45)]">
-                এই কোর্সে যা যা থাকছে
-              </h4>
-              <span className="text-[11px] font-bold text-[#6B4C4F] tabular-nums">
-                মোট {toBengaliNumber(features.length)}টি সুবিধা
-              </span>
-            </div>
+          {features.length > 0 && (
+            <div className="rounded-2xl border border-rose-200/70 bg-rose-50/35 p-3 sm:p-3.5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="inline-flex items-center rounded-full bg-gradient-to-r from-[#e22b2b] to-[#b91c1c] text-white text-[11px] font-bold tracking-tight leading-[1.2] px-2.5 py-[3.5px] shadow-[0_2px_8px_-2px_rgba(185,28,28,0.45)]">
+                  এই কোর্সে যা যা থাকছে
+                </h4>
+                <span className="text-[11px] font-bold text-[#6B4C4F] tabular-nums">
+                  মোট {toBengaliNumber(features.length)}টি সুবিধা
+                </span>
+              </div>
 
-            {features.length > 0 ? (
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {features.map((feat, idx) => (
                   <li
@@ -273,12 +273,8 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-xs text-[#6B4C4F]">
-                অভিজ্ঞ শিক্ষকদের লাইভ ক্লাস, লেকচার শিট ও পূর্ণাঙ্গ পরীক্ষার প্রস্তুতি।
-              </p>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Full Course Overview / Details */}
           {overviewText && (

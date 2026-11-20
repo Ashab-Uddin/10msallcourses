@@ -120,7 +120,6 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
   const activeFeatures = getCourseFeatureItems(course, {
     includeInactive: false,
-    fallbackIfEmpty: !Array.isArray(course.courseFeatures),
   });
   const visibleFeatures = activeFeatures.slice(0, CARD_VISIBLE_COURSE_FEATURES);
 
@@ -448,107 +447,107 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               </h4>
             )}
 
-            {/* Structured "এই কোর্সে যা যা থাকছে" Feature List (First 4 Active Features) */}
-            <div className={compactMobile ? 'mt-1.5 sm:mt-2' : 'mt-2'}>
-              <div className={compactMobile ? 'mb-1 sm:mb-1.5' : 'mb-1.5'}>
-                <span
-                  className={`inline-flex items-center rounded-full bg-gradient-to-r from-[#e22b2b] to-[#b91c1c] text-white font-bold tracking-tight leading-[1.2] shadow-[0_2px_8px_-2px_rgba(185,28,28,0.45)] max-w-full truncate ${
-                    compactMobile
-                      ? 'text-[9px] sm:text-[11px] px-2 sm:px-2.5 py-[2.5px] sm:py-[3.5px]'
-                      : 'text-[10.5px] sm:text-[11px] px-2.5 py-[3.5px]'
-                  }`}
-                >
-                  এই কোর্সে যা যা থাকছে
-                </span>
-              </div>
+            {/* Structured "এই কোর্সে যা যা থাকছে" Feature List (Only shown when features exist) */}
+            {(visibleFeatures.length > 0 || Boolean(course.fullDescription?.trim())) && (
+              <div className={compactMobile ? 'mt-1.5 sm:mt-2' : 'mt-2'}>
+                {visibleFeatures.length > 0 && (
+                  <>
+                    <div className={compactMobile ? 'mb-1 sm:mb-1.5' : 'mb-1.5'}>
+                      <span
+                        className={`inline-flex items-center rounded-full bg-gradient-to-r from-[#e22b2b] to-[#b91c1c] text-white font-bold tracking-tight leading-[1.2] shadow-[0_2px_8px_-2px_rgba(185,28,28,0.45)] max-w-full truncate ${
+                          compactMobile
+                            ? 'text-[9px] sm:text-[11px] px-2 sm:px-2.5 py-[2.5px] sm:py-[3.5px]'
+                            : 'text-[10.5px] sm:text-[11px] px-2.5 py-[3.5px]'
+                        }`}
+                      >
+                        এই কোর্সে যা যা থাকছে
+                      </span>
+                    </div>
 
-              <div className="relative">
-                <ul
-                  className={
-                    compactMobile
-                      ? 'space-y-0.5 sm:space-y-1'
-                      : 'space-y-1'
-                  }
-                >
-                  {visibleFeatures.length > 0 ? (
-                    visibleFeatures.map((feat, idx) => {
-                      const isLastFaded =
-                        visibleFeatures.length >= 2 && idx === visibleFeatures.length - 1;
-                      return (
-                        <li
-                          key={`${feat.id}-${idx}`}
-                          title={feat.title}
-                          className={`flex items-start text-[#4A2C2F] ${
-                            compactMobile ? 'gap-1.5 sm:gap-2' : 'gap-2'
-                          } ${isLastFaded ? 'feature-last-fade select-none' : ''}`}
-                        >
-                          <span className="text-[#6B4C4F] shrink-0 mt-0.5">
-                            <CourseFeatureIcon
-                              icon={feat.icon}
-                              className={
-                                compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
-                              }
-                            />
-                          </span>
-                          <span
-                            className={`bn-digits-fix font-medium line-clamp-1 ${
-                              compactMobile
-                                ? 'text-[10px] sm:text-[11.5px] leading-snug'
-                                : 'text-[11.5px] leading-snug'
-                            }`}
-                          >
-                            {feat.title}
-                          </span>
-                        </li>
-                      );
-                    })
-                  ) : (
-                    <li
-                      className={`text-[#6B4C4F] italic ${
-                        compactMobile ? 'text-[10px] sm:text-xs' : 'text-xs'
-                      }`}
-                    >
-                      বিস্তারিত জানতে নিচের See More বাটনে ক্লিক করুন।
-                    </li>
-                  )}
-                </ul>
-              </div>
-
-              {/* Compact Borderless See More / See Less Toggle blended with smooth feathered white mist */}
-              <div className="relative z-10 flex items-center justify-center -mt-0.5">
-                {visibleFeatures.length >= 2 && (
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -inset-x-2 -top-4 -bottom-1.5 see-more-soft-glow"
-                  />
+                    <div className="relative">
+                      <ul
+                        className={
+                          compactMobile
+                            ? 'space-y-0.5 sm:space-y-1'
+                            : 'space-y-1'
+                        }
+                      >
+                        {visibleFeatures.map((feat, idx) => {
+                          const isLastFaded =
+                            visibleFeatures.length >= 2 && idx === visibleFeatures.length - 1;
+                          return (
+                            <li
+                              key={`${feat.id}-${idx}`}
+                              title={feat.title}
+                              className={`flex items-start text-[#4A2C2F] ${
+                                compactMobile ? 'gap-1.5 sm:gap-2' : 'gap-2'
+                              } ${isLastFaded ? 'feature-last-fade select-none' : ''}`}
+                            >
+                              <span className="text-[#6B4C4F] shrink-0 mt-0.5">
+                                <CourseFeatureIcon
+                                  icon={feat.icon}
+                                  className={
+                                    compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
+                                  }
+                                />
+                              </span>
+                              <span
+                                className={`bn-digits-fix font-medium line-clamp-1 ${
+                                  compactMobile
+                                    ? 'text-[10px] sm:text-[11.5px] leading-snug'
+                                    : 'text-[11.5px] leading-snug'
+                                }`}
+                              >
+                                {feat.title}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  </>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setIsDetailsOpen((prev) => !prev)}
-                  aria-expanded={isDetailsOpen}
-                  className={`relative z-10 group/see inline-flex items-center justify-center gap-1 rounded-full bg-transparent hover:bg-white/60 font-bold text-[#b91c1c] hover:text-[#eb1c24] transition-all duration-200 cursor-pointer whitespace-nowrap leading-none ${
-                    compactMobile
-                      ? 'text-[10px] sm:text-xs py-0.5 px-2'
-                      : 'text-xs py-0.5 px-2.5'
+
+                {/* Compact Borderless See More / See Less Toggle blended with smooth feathered white mist */}
+                <div
+                  className={`relative z-10 flex items-center justify-center ${
+                    visibleFeatures.length > 0 ? '-mt-0.5' : 'mt-1'
                   }`}
                 >
-                  <span>{isDetailsOpen ? 'See Less' : 'See More'}</span>
-                  {isDetailsOpen ? (
-                    <ChevronUp
-                      className={
-                        compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0' : 'w-3.5 h-3.5 shrink-0'
-                      }
-                    />
-                  ) : (
-                    <ChevronDown
-                      className={`${
-                        compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
-                      } shrink-0 transition-transform duration-200 group-hover/see:translate-y-0.5`}
+                  {visibleFeatures.length >= 2 && (
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute -inset-x-2 -top-4 -bottom-1.5 see-more-soft-glow"
                     />
                   )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsDetailsOpen((prev) => !prev)}
+                    aria-expanded={isDetailsOpen}
+                    className={`relative z-10 group/see inline-flex items-center justify-center gap-1 rounded-full bg-transparent hover:bg-white/60 font-bold text-[#b91c1c] hover:text-[#eb1c24] transition-all duration-200 cursor-pointer whitespace-nowrap leading-none ${
+                      compactMobile
+                        ? 'text-[10px] sm:text-xs py-0.5 px-2'
+                        : 'text-xs py-0.5 px-2.5'
+                    }`}
+                  >
+                    <span>{isDetailsOpen ? 'See Less' : 'See More'}</span>
+                    {isDetailsOpen ? (
+                      <ChevronUp
+                        className={
+                          compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0' : 'w-3.5 h-3.5 shrink-0'
+                        }
+                      />
+                    ) : (
+                      <ChevronDown
+                        className={`${
+                          compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
+                        } shrink-0 transition-transform duration-200 group-hover/see:translate-y-0.5`}
+                      />
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="mt-auto">

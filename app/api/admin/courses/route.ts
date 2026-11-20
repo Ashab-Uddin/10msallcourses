@@ -127,24 +127,9 @@ export async function POST(req: NextRequest) {
       ? normalizeCourseFeatureItems(body.features)
       : [];
 
-    const hasDescriptionOrFeatures =
-      Boolean(String(body?.description || '').trim()) ||
-      Boolean(String(body?.fullDescription || '').trim()) ||
-      normalizedFeatureItems.length > 0;
-
-    if (!hasDescriptionOrFeatures) {
-      return auth.withSessionCookies(
-        NextResponse.json(
-          { error: 'কোর্সের ফিচার তালিকা অথবা বিবরণ পূরণ করা আবশ্যক।' },
-          { status: 400 }
-        )
-      );
-    }
-
     body.description = deriveCourseSummaryDescription(
       body?.description || body?.fullDescription,
-      normalizedFeatureItems,
-      body?.title
+      normalizedFeatureItems
     );
 
     const affiliateCheck = validateExternalHttpUrl(body?.affiliateUrl);
