@@ -555,24 +555,32 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
             {/* Price Row: Discounted Price + Strikethrough Original + Green Outlined Badge */}
             <div
-              className={`flex items-center justify-between border-t border-white/75 tabular-nums ${
+              className={`flex items-center justify-between flex-nowrap border-t border-white/75 tabular-nums ${
                 compactMobile
-                  ? 'flex-wrap sm:flex-nowrap gap-x-1 gap-y-0.5 mt-1 pt-1 sm:pt-1.5 pb-1.5 sm:pb-2'
-                  : 'mt-1 pt-1.5 pb-2'
+                  ? 'gap-1 sm:gap-2 mt-1 pt-1.5 pb-1.5 sm:pt-1.5 sm:pb-2'
+                  : 'gap-2 mt-1 pt-1.5 pb-2'
               }`}
             >
-              <div className={`flex items-baseline ${compactMobile ? 'gap-1 sm:gap-2' : 'gap-2'}`}>
+              <div
+                className={`flex items-baseline min-w-0 ${
+                  compactMobile ? 'gap-0.5 min-[390px]:gap-1 sm:gap-2' : 'gap-2'
+                }`}
+              >
                 <span
-                  className={`font-black text-[#007a3d] tracking-tight whitespace-nowrap ${
-                    compactMobile ? 'text-sm sm:text-2xl' : 'text-xl sm:text-2xl'
+                  className={`font-black text-[#007a3d] whitespace-nowrap leading-none sm:leading-normal shrink-0 ${
+                    compactMobile
+                      ? 'text-[11.5px] min-[390px]:text-[12.5px] sm:text-2xl tracking-tighter sm:tracking-tight'
+                      : 'text-xl sm:text-2xl tracking-tight'
                   }`}
                 >
                   {course.discountPrice === 0 ? 'ফ্রি' : `৳${toBengaliNumber(course.discountPrice)}`}
                 </span>
                 {course.originalPrice > course.discountPrice && (
                   <span
-                    className={`text-[#7A5A5D] line-through font-normal whitespace-nowrap ${
-                      compactMobile ? 'text-[9.5px] sm:text-xs' : 'text-xs'
+                    className={`text-[#7A5A5D] line-through font-normal whitespace-nowrap leading-none sm:leading-normal ${
+                      compactMobile
+                        ? 'text-[8.5px] min-[390px]:text-[9px] sm:text-xs tracking-tighter sm:tracking-normal'
+                        : 'text-xs'
                     }`}
                   >
                     ৳{toBengaliNumber(course.originalPrice)}
@@ -582,9 +590,9 @@ export const CourseCard: React.FC<CourseCardProps> = ({
 
               {savingsAmount > 0 && (
                 <span
-                  className={`border border-emerald-500/80 text-[#007a3d] bg-emerald-50/90 font-bold rounded-full whitespace-nowrap shadow-2xs ${
+                  className={`ml-auto shrink-0 border border-emerald-500/80 text-[#007a3d] bg-emerald-50/90 font-bold rounded-full whitespace-nowrap shadow-2xs ${
                     compactMobile
-                      ? 'text-[8.5px] sm:text-xs px-1.5 sm:px-2.5 py-[1px] sm:py-0.5'
+                      ? 'text-[7.5px] min-[390px]:text-[8px] sm:text-xs leading-tight sm:leading-normal px-1 min-[390px]:px-1.5 sm:px-2.5 py-[1px] sm:py-0.5'
                       : 'text-[11px] sm:text-xs px-2.5 py-0.5'
                   }`}
                 >
