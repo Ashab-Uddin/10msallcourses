@@ -1327,11 +1327,9 @@ export default function App({
                             title={`${cat.name} এর সকল কোর্স দেখুন`}
                           >
                             <span>View All</span>
-                            {catCourses.length > 4 && (
-                              <span className="text-[10px] sm:text-[11px] opacity-80 font-normal">
-                                ({toBengaliNumber(catCourses.length)})
-                              </span>
-                            )}
+                            <span className="text-[10px] sm:text-[11px] opacity-85 font-semibold">
+                              ({toBengaliNumber(catCourses.length)})
+                            </span>
                             <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover/va:translate-x-0.5" />
                           </button>
                         </div>
