@@ -36,7 +36,7 @@ import {
 import {
   AlertCircle,
   ChevronRight,
-  BadgeCheck,
+  GraduationCap,
   RefreshCw,
   SearchX,
   Headphones,
@@ -1107,20 +1107,25 @@ export default function App({
           <section className="py-8" id="courses">
             <div className="wrap">
               {/* Top Section Banner (Frosted Glass-Shade) */}
-              <div className="glass-surface rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 mb-8">
-                <div className="space-y-1 text-center sm:text-left">
+              <div className="glass-surface rounded-3xl p-5 sm:p-8 flex flex-row items-center justify-between gap-4 sm:gap-6 mb-8">
+                <div className="min-w-0 flex-1 space-y-1 text-left">
                   <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#B91C1C] mb-1">
                     <span className="w-2 h-2 rounded-full bg-[#E22B2B] animate-pulse" />
                     সর্বোচ্চ রেটেড ও ট্রেন্ডিং
                   </div>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-[#2A0F12]">
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-[#2A0F12] leading-tight">
                     জনপ্রিয় লাইভ কোর্স ও অনলাইন ব্যাচ
                   </h2>
-                  <p className="text-xs sm:text-sm text-[#6B4C4F] max-w-xl">
+                  <p className="text-xs sm:text-sm text-[#6B4C4F] max-w-xl leading-relaxed">
                     টেন মিনিট স্কুলের শীর্ষ মেন্টরদের পরিচালিত কোর্সসমূহ এক নজরে দেখে সরাসরি ডিসকাউন্টেড মূল্যে নিশ্চিন্তে এনরোল করুন।
                   </p>
                 </div>
-                <BadgeCheck className="w-12 h-12 text-[#E22B2B] shrink-0" aria-hidden="true" />
+                <div
+                  aria-hidden="true"
+                  className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-br from-rose-50 via-white to-red-100/80 border border-rose-200/80 shadow-[0_8px_20px_-8px_rgba(226,43,43,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] flex items-center justify-center"
+                >
+                  <GraduationCap className="w-8 h-8 text-[#E22B2B] stroke-[2]" />
+                </div>
               </div>
 
               {/* Interactive Discovery & Filter Controls (Frosted Glass Strip) */}
