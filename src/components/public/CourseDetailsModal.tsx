@@ -269,7 +269,7 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
                     <span className="mt-[1px] w-4 h-4 rounded-full bg-rose-50 border border-rose-200/70 text-[#d92d2d] flex items-center justify-center shrink-0">
                       <CourseFeatureIcon icon={feat.icon} className="w-2.5 h-2.5" />
                     </span>
-                    <span className="break-words">{feat.title}</span>
+                    <span className="bn-digits-fix break-words">{feat.title}</span>
                   </li>
                 ))}
               </ul>

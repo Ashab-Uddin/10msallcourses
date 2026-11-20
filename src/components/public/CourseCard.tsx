@@ -462,87 +462,99 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                 </span>
               </div>
 
-              <ul
-                className={
-                  compactMobile
-                    ? 'space-y-0.5 sm:space-y-1'
-                    : 'space-y-1'
-                }
-              >
-                {visibleFeatures.length > 0 ? (
-                  visibleFeatures.map((feat, idx) => (
+              <div className="relative">
+                <ul
+                  className={
+                    compactMobile
+                      ? 'space-y-0.5 sm:space-y-1'
+                      : 'space-y-1'
+                  }
+                >
+                  {visibleFeatures.length > 0 ? (
+                    visibleFeatures.map((feat, idx) => {
+                      const isLastFaded =
+                        visibleFeatures.length >= 2 && idx === visibleFeatures.length - 1;
+                      return (
+                        <li
+                          key={`${feat.id}-${idx}`}
+                          title={feat.title}
+                          className={`flex items-start text-[#4A2C2F] ${
+                            compactMobile ? 'gap-1.5 sm:gap-2' : 'gap-2'
+                          } ${isLastFaded ? 'opacity-55 blur-[0.45px] select-none' : ''}`}
+                        >
+                          <span className="text-[#6B4C4F] shrink-0 mt-0.5">
+                            <CourseFeatureIcon
+                              icon={feat.icon}
+                              className={
+                                compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
+                              }
+                            />
+                          </span>
+                          <span
+                            className={`bn-digits-fix font-medium line-clamp-1 ${
+                              compactMobile
+                                ? 'text-[10px] sm:text-[11.5px] leading-snug'
+                                : 'text-[11.5px] leading-snug'
+                            }`}
+                          >
+                            {feat.title}
+                          </span>
+                        </li>
+                      );
+                    })
+                  ) : (
                     <li
-                      key={`${feat.id}-${idx}`}
-                      title={feat.title}
-                      className={`flex items-start text-[#4A2C2F] ${
-                        compactMobile ? 'gap-1.5 sm:gap-2' : 'gap-2'
+                      className={`text-[#6B4C4F] italic ${
+                        compactMobile ? 'text-[10px] sm:text-xs' : 'text-xs'
                       }`}
                     >
-                      <span className="text-[#6B4C4F] shrink-0 mt-0.5">
-                        <CourseFeatureIcon
-                          icon={feat.icon}
-                          className={
-                            compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
-                          }
-                        />
-                      </span>
-                      <span
-                        className={`font-medium line-clamp-1 ${
-                          compactMobile
-                            ? 'text-[10px] sm:text-[11.5px] leading-snug'
-                            : 'text-[11.5px] leading-snug'
-                        }`}
-                      >
-                        {feat.title}
-                      </span>
+                      বিস্তারিত জানতে নিচের See More বাটনে ক্লিক করুন।
                     </li>
-                  ))
-                ) : (
-                  <li
-                    className={`text-[#6B4C4F] italic ${
-                      compactMobile ? 'text-[10px] sm:text-xs' : 'text-xs'
+                  )}
+                </ul>
+
+                {visibleFeatures.length >= 2 && (
+                  <div
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute -bottom-1 inset-x-0 bg-gradient-to-b from-transparent via-white/60 to-white/95 ${
+                      compactMobile ? 'h-6 sm:h-7' : 'h-7'
                     }`}
-                  >
-                    বিস্তারিত জানতে নিচের See More বাটনে ক্লিক করুন।
-                  </li>
+                  />
                 )}
-              </ul>
+              </div>
+
+              {/* Compact Borderless See More / See Less Toggle blended with faded last line */}
+              <div className="relative z-10 flex items-center justify-center -mt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setIsDetailsOpen((prev) => !prev)}
+                  aria-expanded={isDetailsOpen}
+                  className={`group/see inline-flex items-center justify-center gap-1 rounded-full bg-white/80 hover:bg-white shadow-[0_0_12px_5px_rgba(255,255,255,0.9)] font-bold text-[#b91c1c] hover:text-[#eb1c24] transition-all duration-200 cursor-pointer whitespace-nowrap leading-none ${
+                    compactMobile
+                      ? 'text-[10px] sm:text-xs py-0.5 px-2'
+                      : 'text-xs py-0.5 px-2.5'
+                  }`}
+                >
+                  <span>{isDetailsOpen ? 'See Less' : 'See More'}</span>
+                  {isDetailsOpen ? (
+                    <ChevronUp
+                      className={
+                        compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0' : 'w-3.5 h-3.5 shrink-0'
+                      }
+                    />
+                  ) : (
+                    <ChevronDown
+                      className={`${
+                        compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
+                      } shrink-0 transition-transform duration-200 group-hover/see:translate-y-0.5`}
+                    />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className={compactMobile ? 'mt-auto pt-1.5 sm:pt-2' : 'mt-auto pt-2'}>
-            {/* Soft White Blend & See More / See Less Toggle */}
-            <div className="relative flex items-center justify-center pt-0.5">
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute -top-2.5 inset-x-0 h-5 bg-gradient-to-b from-transparent via-white/55 to-white/85"
-              />
-              <button
-                type="button"
-                onClick={() => setIsDetailsOpen((prev) => !prev)}
-                aria-expanded={isDetailsOpen}
-                className={`group/see relative z-10 inline-flex items-center justify-center gap-1 rounded-full bg-white/70 hover:bg-white/95 shadow-[0_0_14px_6px_rgba(255,255,255,0.88)] font-bold text-[#b91c1c] hover:text-[#eb1c24] transition-all duration-200 cursor-pointer whitespace-nowrap ${
-                  compactMobile
-                    ? 'text-[10px] sm:text-xs py-0.5 px-2.5'
-                    : 'text-xs py-0.5 px-3'
-                }`}
-              >
-                <span>{isDetailsOpen ? 'See Less' : 'See More'}</span>
-                {isDetailsOpen ? (
-                  <ChevronUp
-                    className={
-                      compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0' : 'w-3.5 h-3.5 shrink-0'
-                    }
-                  />
-                ) : (
-                  <ChevronDown
-                    className={`${
-                      compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
-                    } shrink-0 transition-transform duration-200 group-hover/see:translate-y-0.5`}
-                  />
-                )}
-              </button>
-            </div>
+          <div className="mt-auto">
 
             {/* Price Row: Discounted Price + Strikethrough Original + Green Outlined Badge */}
             <div

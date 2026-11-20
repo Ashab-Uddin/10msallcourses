@@ -133,6 +133,10 @@
   font-variant-numeric: tabular-nums;
 }
 
+.bn-digits-fix {
+  font-family: 'Noto Sans Bengali', var(--font-hind-siliguri), var(--font-jakarta), 'Hind Siliguri', system-ui, -apple-system, sans-serif;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
