@@ -203,8 +203,14 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
   return { view: 'home' };
 }
 
-if (typeof document !== 'undefined') {
+function cleanFdProcessedAttrs() {
+  if (typeof document === 'undefined') return;
   try {
+    const win = window as Window & { __cleanFdAttrs?: () => void };
+    if (typeof win.__cleanFdAttrs === 'function') {
+      win.__cleanFdAttrs();
+      return;
+    }
     document
       .querySelectorAll('[fdprocessedid]')
       .forEach((el) => el.removeAttribute('fdprocessedid'));
@@ -212,6 +218,8 @@ if (typeof document !== 'undefined') {
     // Ignore DOM cleanup errors
   }
 }
+
+cleanFdProcessedAttrs();
 
 export default function App({
   initialCategories = [],
@@ -226,9 +234,17 @@ export default function App({
   initialBookCategories = [],
   initialBooks = [],
 }: AppProps) {
+  useState(() => {
+    cleanFdProcessedAttrs();
+    return true;
+  });
+
   useEffect(() => {
     const win = window as Window & { __stopFdAttrGuard?: () => void };
-    win.__stopFdAttrGuard?.();
+    const timer = window.setTimeout(() => {
+      win.__stopFdAttrGuard?.();
+    }, 500);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const currentPathname = usePathname() || '/';

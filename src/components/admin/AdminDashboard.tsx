@@ -1047,7 +1047,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     },
     {
       id: 'course_sort' as AdminPageTab,
-      label: 'Course Sort (ড্র্যাগ সাজান)',
+      label: 'Course Sort',
       icon: <ArrowUpDown className="w-4 h-4 shrink-0" />,
     },
     {
@@ -1075,7 +1075,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     },
     {
       id: 'book_add' as AdminPageTab,
-      label: 'Book Add (বুক স্টোর)',
+      label: 'Book Add',
       icon: <ShoppingBag className="w-4 h-4 shrink-0" />,
       badge: bookStats.totalBooks,
     },

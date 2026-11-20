@@ -96,7 +96,7 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = React.memo(({
     },
     {
       id: 'course_sort',
-      label: 'Course Sort (ড্র্যাগ সাজান)',
+      label: 'Course Sort',
       icon: <ArrowUpDown className="w-4 h-4" />,
     },
     {
@@ -124,7 +124,7 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = React.memo(({
     },
     {
       id: 'book_add',
-      label: 'Book Add (বুক স্টোর)',
+      label: 'Book Add',
       icon: <ShoppingBag className="w-4 h-4" />,
       badge: stats.totalBooks,
     },

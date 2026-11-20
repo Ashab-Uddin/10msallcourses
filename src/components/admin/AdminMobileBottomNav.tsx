@@ -146,7 +146,7 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = React.m
   }> = [
     {
       id: 'course_sort',
-      label: 'Course Sort (ড্র্যাগ সাজান)',
+      label: 'Course Sort',
       description: 'ক্যাটাগরি অনুযায়ী কোর্সের পজিশন ড্র্যাগ করে সাজান',
       icon: ArrowUpDown,
     },

@@ -196,7 +196,7 @@ export const AdminFooter: React.FC<AdminFooterProps> = React.memo(({
                   >
                     <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
                     <span>
-                      Book Add (বুক স্টোর)
+                      Book Add
                       {typeof stats.totalBooks === 'number'
                         ? ` (${toBengaliNumber(stats.totalBooks)})`
                         : ''}
