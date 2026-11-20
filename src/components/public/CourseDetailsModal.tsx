@@ -219,6 +219,35 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
             </div>
           </div>
 
+          {/* Discount Message & WhatsApp Direct Support Box */}
+          <div className="rounded-2xl border border-emerald-300/80 bg-gradient-to-r from-emerald-50/90 via-white to-emerald-50/75 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="text-sm font-black text-[#065f46] flex items-center gap-1.5">
+                <MessageCircle className="w-4 h-4 text-[#16a34a] shrink-0" />
+                <span>ডিসকাউন্ট পেতে মেসেজ করো</span>
+              </div>
+              <p className="text-[11px] sm:text-xs text-[#3E2225]">
+                কোর্স ফি বা স্পেশাল প্রোমো/ডিসকাউন্ট সংক্রান্ত যেকোনো তথ্যের জন্য সরাসরি WhatsApp-এ মেসেজ করুন।
+              </p>
+            </div>
+
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white text-xs sm:text-sm font-extrabold shadow-md hover:shadow-lg transition shrink-0 whitespace-nowrap"
+            >
+              <svg
+                className="w-4 h-4 fill-white shrink-0"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm5.78 14.15c-.24.67-1.39 1.28-1.92 1.36-.5.08-1.14.12-3.66-.92-3.22-1.33-5.3-4.57-5.46-4.78-.16-.21-1.3-1.73-1.3-3.3 0-1.57.82-2.34 1.11-2.66.29-.32.64-.4.85-.4.21 0 .43.002.61.01.2.008.47-.076.73.55.27.64.91 2.22.99 2.38.08.16.13.35.03.56-.1.21-.16.34-.31.52-.16.18-.33.4-.47.54-.16.15-.32.32-.14.63.19.31.83 1.37 1.78 2.22 1.22 1.09 2.25 1.42 2.57 1.58.32.16.51.13.7-.08.19-.21.82-.95 1.04-1.28.22-.32.43-.27.73-.16.29.11 1.87.88 2.19 1.04.32.16.53.24.61.37.08.14.08.79-.16 1.46z" />
+              </svg>
+              <span>WhatsApp-এ মেসেজ করুন</span>
+            </a>
+          </div>
+
           {/* Complete "এই কোর্সে যা যা থাকছে" Compact Feature List */}
           <div className="rounded-2xl border border-rose-200/70 bg-rose-50/35 p-3 sm:p-3.5 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -262,35 +291,6 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
               </p>
             </div>
           )}
-
-          {/* Discount Message & WhatsApp Direct Support Box */}
-          <div className="rounded-2xl border border-emerald-300/80 bg-gradient-to-r from-emerald-50/90 via-white to-emerald-50/75 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="text-sm font-black text-[#065f46] flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4 text-[#16a34a] shrink-0" />
-                <span>ডিসকাউন্ট পেতে মেসেজ করো</span>
-              </div>
-              <p className="text-[11px] sm:text-xs text-[#3E2225]">
-                কোর্স ফি বা স্পেশাল প্রোমো/ডিসকাউন্ট সংক্রান্ত যেকোনো তথ্যের জন্য সরাসরি WhatsApp-এ মেসেজ করুন।
-              </p>
-            </div>
-
-            <a
-              href={whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white text-xs sm:text-sm font-extrabold shadow-md hover:shadow-lg transition shrink-0 whitespace-nowrap"
-            >
-              <svg
-                className="w-4 h-4 fill-white shrink-0"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm5.78 14.15c-.24.67-1.39 1.28-1.92 1.36-.5.08-1.14.12-3.66-.92-3.22-1.33-5.3-4.57-5.46-4.78-.16-.21-1.3-1.73-1.3-3.3 0-1.57.82-2.34 1.11-2.66.29-.32.64-.4.85-.4.21 0 .43.002.61.01.2.008.47-.076.73.55.27.64.91 2.22.99 2.38.08.16.13.35.03.56-.1.21-.16.34-.31.52-.16.18-.33.4-.47.54-.16.15-.32.32-.14.63.19.31.83 1.37 1.78 2.22 1.22 1.09 2.25 1.42 2.57 1.58.32.16.51.13.7-.08.19-.21.82-.95 1.04-1.28.22-.32.43-.27.73-.16.29.11 1.87.88 2.19 1.04.32.16.53.24.61.37.08.14.08.79-.16 1.46z" />
-              </svg>
-              <span>WhatsApp-এ মেসেজ করুন</span>
-            </a>
-          </div>
         </div>
 
         {/* Sticky Bottom CTA Footer */}
@@ -301,7 +301,7 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
             className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-[#4A2C2F] text-xs font-bold transition cursor-pointer"
           >
             <ChevronUp className="w-4 h-4" />
-            <span>Show Less · সংক্ষিপ্ত করুন</span>
+            <span>See Less · সংক্ষিপ্ত করুন</span>
           </button>
 
           {isClosed ? (

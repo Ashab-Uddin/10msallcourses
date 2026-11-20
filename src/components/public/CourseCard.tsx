@@ -503,7 +503,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                       compactMobile ? 'text-[10px] sm:text-xs' : 'text-xs'
                     }`}
                   >
-                    বিস্তারিত জানতে নিচের Show More বাটনে ক্লিক করুন।
+                    বিস্তারিত জানতে নিচের See More বাটনে ক্লিক করুন।
                   </li>
                 )}
               </ul>
@@ -511,19 +511,23 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           </div>
 
           <div className={compactMobile ? 'mt-auto pt-1.5 sm:pt-2' : 'mt-auto pt-2'}>
-            {/* Dashed Divider & Show More / Show Less Toggle */}
-            <div className="border-t border-dashed border-rose-200/90 pt-1">
+            {/* Soft White Blend & See More / See Less Toggle */}
+            <div className="relative flex items-center justify-center pt-0.5">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -top-2.5 inset-x-0 h-5 bg-gradient-to-b from-transparent via-white/55 to-white/85"
+              />
               <button
                 type="button"
                 onClick={() => setIsDetailsOpen((prev) => !prev)}
                 aria-expanded={isDetailsOpen}
-                className={`w-full inline-flex items-center justify-center gap-1 rounded-lg font-bold text-[#b91c1c] hover:text-[#eb1c24] hover:bg-rose-50/80 transition-colors cursor-pointer whitespace-nowrap ${
+                className={`group/see relative z-10 inline-flex items-center justify-center gap-1 rounded-full bg-white/70 hover:bg-white/95 shadow-[0_0_14px_6px_rgba(255,255,255,0.88)] font-bold text-[#b91c1c] hover:text-[#eb1c24] transition-all duration-200 cursor-pointer whitespace-nowrap ${
                   compactMobile
-                    ? 'text-[10px] sm:text-xs py-0.5 px-1.5'
-                    : 'text-xs py-0.5 px-2'
+                    ? 'text-[10px] sm:text-xs py-0.5 px-2.5'
+                    : 'text-xs py-0.5 px-3'
                 }`}
               >
-                <span>{isDetailsOpen ? 'Show Less' : 'Show More'}</span>
+                <span>{isDetailsOpen ? 'See Less' : 'See More'}</span>
                 {isDetailsOpen ? (
                   <ChevronUp
                     className={
@@ -532,9 +536,9 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                   />
                 ) : (
                   <ChevronDown
-                    className={
-                      compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0' : 'w-3.5 h-3.5 shrink-0'
-                    }
+                    className={`${
+                      compactMobile ? 'w-3 h-3 sm:w-3.5 sm:h-3.5' : 'w-3.5 h-3.5'
+                    } shrink-0 transition-transform duration-200 group-hover/see:translate-y-0.5`}
                   />
                 )}
               </button>
