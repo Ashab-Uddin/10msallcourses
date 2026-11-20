@@ -137,6 +137,35 @@
   font-family: 'Noto Sans Bengali', var(--font-hind-siliguri), var(--font-jakarta), 'Hind Siliguri', system-ui, -apple-system, sans-serif;
 }
 
+.feature-last-fade {
+  opacity: 0.62;
+  filter: blur(0.25px);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.96) 0%,
+    rgba(0, 0, 0, 0.64) 46%,
+    rgba(0, 0, 0, 0.24) 80%,
+    rgba(0, 0, 0, 0.05) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.96) 0%,
+    rgba(0, 0, 0, 0.64) 46%,
+    rgba(0, 0, 0, 0.24) 80%,
+    rgba(0, 0, 0, 0.05) 100%
+  );
+}
+
+.see-more-soft-glow {
+  background: radial-gradient(
+    ellipse 64% 72% at 50% 62%,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 255, 255, 0.44) 36%,
+    rgba(255, 255, 255, 0.14) 62%,
+    rgba(255, 255, 255, 0) 82%
+  );
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

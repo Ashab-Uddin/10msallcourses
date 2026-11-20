@@ -1129,64 +1129,72 @@ export default function App({
               </div>
 
               {/* Interactive Discovery & Filter Controls (Frosted Glass Strip) */}
-              <div className="glass-surface rounded-2xl p-4 mb-10 flex flex-wrap items-center justify-between gap-3">
-                {/* Category Filter Tabs with Distinct Borders */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCategory('all')}
-                    className={`px-3.5 py-2 rounded-full text-xs font-bold transition cursor-pointer whitespace-nowrap border ${
-                      selectedCategory === 'all'
-                        ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-md shadow-red-500/25'
-                        : 'border-rose-200/90 bg-white/90 text-[#2A0F12] hover:border-[#b91c1c] hover:bg-white hover:text-[#B91C1C] shadow-2xs'
-                    }`}
-                  >
-                    সব ক্যাটাগরি ({toBengaliNumber(courses.length)})
-                  </button>
-                  {orderedCategories.map((cat) => (
+              <div className="glass-surface rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 lg:p-4 mb-5 sm:mb-7 lg:mb-10">
+                <div className="flex flex-nowrap lg:flex-wrap items-center lg:justify-between gap-1.5 sm:gap-2 lg:gap-3 overflow-x-auto lg:overflow-visible no-scrollbar py-0.5 lg:py-0">
+                  {/* Category Filter Tabs with Distinct Borders */}
+                  <div className="flex items-center gap-1.5 shrink-0 lg:shrink lg:overflow-x-auto no-scrollbar">
                     <button
-                      key={cat.slug}
                       type="button"
-                      onClick={() => setSelectedCategory(cat.slug)}
-                      className={`px-3.5 py-2 rounded-full text-xs font-bold transition cursor-pointer whitespace-nowrap border ${
-                        selectedCategory === cat.slug
-                          ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-md shadow-red-500/25'
+                      onClick={() => setSelectedCategory('all')}
+                      className={`px-2.5 py-1 sm:px-3 sm:py-1.5 lg:px-3.5 lg:py-2 rounded-full text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold transition cursor-pointer whitespace-nowrap shrink-0 border ${
+                        selectedCategory === 'all'
+                          ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-sm lg:shadow-md shadow-red-500/25'
                           : 'border-rose-200/90 bg-white/90 text-[#2A0F12] hover:border-[#b91c1c] hover:bg-white hover:text-[#B91C1C] shadow-2xs'
                       }`}
                     >
-                      {cat.name}
+                      সব ক্যাটাগরি ({toBengaliNumber(courses.length)})
                     </button>
-                  ))}
-                </div>
+                    {orderedCategories.map((cat) => (
+                      <button
+                        key={cat.slug}
+                        type="button"
+                        onClick={() => setSelectedCategory(cat.slug)}
+                        className={`px-2.5 py-1 sm:px-3 sm:py-1.5 lg:px-3.5 lg:py-2 rounded-full text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold transition cursor-pointer whitespace-nowrap shrink-0 border ${
+                          selectedCategory === cat.slug
+                            ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-sm lg:shadow-md shadow-red-500/25'
+                            : 'border-rose-200/90 bg-white/90 text-[#2A0F12] hover:border-[#b91c1c] hover:bg-white hover:text-[#B91C1C] shadow-2xs'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                  </div>
 
-                {/* Popular Toggle & Filter Reset (সকল মূল্য সীমা Dropdown Removed) */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setOnlyPopular(!onlyPopular)}
-                    className={`px-3.5 py-2 rounded-full text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
-                      onlyPopular
-                        ? 'border-amber-400 bg-amber-100/90 text-amber-900 shadow-xs'
-                        : 'border-slate-200/90 bg-white/90 text-[#2A0F12] hover:border-amber-400 hover:bg-white shadow-2xs'
-                    }`}
-                  >
-                    ★ জনপ্রিয় কোর্স
-                  </button>
+                  {/* Subtle Mobile/Tablet Divider */}
+                  <span
+                    aria-hidden="true"
+                    className="w-px h-4 bg-rose-200/80 shrink-0 lg:hidden"
+                  />
 
-                  {isFilteringActive && (
+                  {/* Popular Toggle & Filter Reset */}
+                  <div className="flex items-center gap-1.5 shrink-0 lg:flex-wrap lg:gap-2.5">
                     <button
                       type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setSelectedCategory('all');
-                        setPriceFilter('all');
-                        setOnlyPopular(false);
-                      }}
-                      className="text-xs font-bold text-[#B91C1C] hover:underline px-3 py-1.5 rounded-full border border-rose-200 bg-rose-50 hover:bg-rose-100 cursor-pointer whitespace-nowrap transition shadow-2xs"
+                      onClick={() => setOnlyPopular(!onlyPopular)}
+                      className={`px-2.5 py-1 sm:px-3 sm:py-1.5 lg:px-3.5 lg:py-2 rounded-full text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold border transition cursor-pointer whitespace-nowrap shrink-0 ${
+                        onlyPopular
+                          ? 'border-amber-400 bg-amber-100/90 text-amber-900 shadow-xs'
+                          : 'border-slate-200/90 bg-white/90 text-[#2A0F12] hover:border-amber-400 hover:bg-white shadow-2xs'
+                      }`}
                     >
-                      ফিল্টার রিসেট ✕
+                      ★ জনপ্রিয় কোর্স
                     </button>
-                  )}
+
+                    {isFilteringActive && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSelectedCategory('all');
+                          setPriceFilter('all');
+                          setOnlyPopular(false);
+                        }}
+                        className="text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold text-[#B91C1C] hover:underline px-2.5 py-1 sm:px-2.5 sm:py-1.5 lg:px-3 lg:py-1.5 rounded-full border border-rose-200 bg-rose-50 hover:bg-rose-100 cursor-pointer whitespace-nowrap shrink-0 transition shadow-2xs"
+                      >
+                        ফিল্টার রিসেট ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

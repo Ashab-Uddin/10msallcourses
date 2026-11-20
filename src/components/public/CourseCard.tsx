@@ -452,7 +452,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             <div className={compactMobile ? 'mt-1.5 sm:mt-2' : 'mt-2'}>
               <div className={compactMobile ? 'mb-1 sm:mb-1.5' : 'mb-1.5'}>
                 <span
-                  className={`inline-flex items-center rounded-full bg-gradient-to-r from-[#ff6b6b] to-[#f24c4c] text-white font-bold tracking-tight leading-[1.2] shadow-[0_2px_6px_-2px_rgba(242,76,76,0.32)] max-w-full truncate ${
+                  className={`inline-flex items-center rounded-full bg-gradient-to-r from-[#e22b2b] to-[#b91c1c] text-white font-bold tracking-tight leading-[1.2] shadow-[0_2px_8px_-2px_rgba(185,28,28,0.45)] max-w-full truncate ${
                     compactMobile
                       ? 'text-[9px] sm:text-[11px] px-2 sm:px-2.5 py-[2.5px] sm:py-[3.5px]'
                       : 'text-[10.5px] sm:text-[11px] px-2.5 py-[3.5px]'
@@ -480,7 +480,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                           title={feat.title}
                           className={`flex items-start text-[#4A2C2F] ${
                             compactMobile ? 'gap-1.5 sm:gap-2' : 'gap-2'
-                          } ${isLastFaded ? 'opacity-55 blur-[0.45px] select-none' : ''}`}
+                          } ${isLastFaded ? 'feature-last-fade select-none' : ''}`}
                         >
                           <span className="text-[#6B4C4F] shrink-0 mt-0.5">
                             <CourseFeatureIcon
@@ -512,24 +512,21 @@ export const CourseCard: React.FC<CourseCardProps> = ({
                     </li>
                   )}
                 </ul>
+              </div>
 
+              {/* Compact Borderless See More / See Less Toggle blended with smooth feathered white mist */}
+              <div className="relative z-10 flex items-center justify-center -mt-0.5">
                 {visibleFeatures.length >= 2 && (
                   <div
                     aria-hidden="true"
-                    className={`pointer-events-none absolute -bottom-1 inset-x-0 bg-gradient-to-b from-transparent via-white/60 to-white/95 ${
-                      compactMobile ? 'h-6 sm:h-7' : 'h-7'
-                    }`}
+                    className="pointer-events-none absolute -inset-x-2 -top-4 -bottom-1.5 see-more-soft-glow"
                   />
                 )}
-              </div>
-
-              {/* Compact Borderless See More / See Less Toggle blended with faded last line */}
-              <div className="relative z-10 flex items-center justify-center -mt-0.5">
                 <button
                   type="button"
                   onClick={() => setIsDetailsOpen((prev) => !prev)}
                   aria-expanded={isDetailsOpen}
-                  className={`group/see inline-flex items-center justify-center gap-1 rounded-full bg-white/80 hover:bg-white shadow-[0_0_12px_5px_rgba(255,255,255,0.9)] font-bold text-[#b91c1c] hover:text-[#eb1c24] transition-all duration-200 cursor-pointer whitespace-nowrap leading-none ${
+                  className={`relative z-10 group/see inline-flex items-center justify-center gap-1 rounded-full bg-transparent hover:bg-white/60 font-bold text-[#b91c1c] hover:text-[#eb1c24] transition-all duration-200 cursor-pointer whitespace-nowrap leading-none ${
                     compactMobile
                       ? 'text-[10px] sm:text-xs py-0.5 px-2'
                       : 'text-xs py-0.5 px-2.5'
