@@ -20,6 +20,10 @@ import {
   type SelectorIconId,
   type SelectorIconLabelsMap,
 } from '../../lib/selectorIconOrder.ts';
+import {
+  normalizeCategoryCourseOrders,
+  type CategoryCourseOrdersMap,
+} from '../../lib/courseSorting.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
@@ -91,6 +95,18 @@ const CourseFeaturesManager = dynamic(
     ),
   }
 );
+
+const CourseSortManager = dynamic(
+  () => import('./CourseSortManager.tsx').then((m) => m.CourseSortManager),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-strong rounded-3xl p-10 text-center text-sm font-bold text-[#6B4C4F]">
+        কোর্স পজিশন ম্যানেজার লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
 import {
   LayoutDashboard,
   BookOpen,
@@ -111,6 +127,7 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowDown,
+  ArrowUpDown,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
@@ -130,6 +147,8 @@ function preloadTabChunk(tab: AdminPageTab): void {
   preloadedTabs.add(tab);
   if (tab === 'add_course' || tab === 'course_editor') {
     void import('./CourseEditorPage.tsx').catch(() => preloadedTabs.delete(tab));
+  } else if (tab === 'course_sort') {
+    void import('./CourseSortManager.tsx').catch(() => preloadedTabs.delete(tab));
   } else if (tab === 'book_add' || tab === 'book_store' || tab === 'book_categories') {
     void import('./BookStoreAdminManager.tsx').catch(() => preloadedTabs.delete(tab));
   } else if (tab === 'offer_timers') {
@@ -154,6 +173,7 @@ interface AdminDashboardProps {
 export type AdminPageTab =
   | 'overview'
   | 'all_courses'
+  | 'course_sort'
   | 'add_course'
   | 'active_courses'
   | 'inactive_courses'
@@ -178,6 +198,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   // Determine initial tab from currentPath
   const getTabFromPath = (p: string): AdminPageTab => {
+    if (p.includes('/admin/courses/sort')) return 'course_sort';
     if (p.includes('/admin/courses/new')) return 'add_course';
     if (p.includes('/admin/courses/active')) return 'active_courses';
     if (p.includes('/admin/courses/inactive')) return 'inactive_courses';
@@ -233,6 +254,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     initialData?.selectorIconLabels && typeof initialData.selectorIconLabels === 'object'
       ? normalizeSelectorIconLabels(initialData.selectorIconLabels)
       : cloneDefaultSelectorIconLabels()
+  );
+  const [categoryCourseOrders, setCategoryCourseOrders] = useState<CategoryCourseOrdersMap>(() =>
+    normalizeCategoryCourseOrders(initialData?.categoryCourseOrders)
   );
   const [storageInfo, setStorageInfo] = useState<{
     backend: string;
@@ -376,6 +400,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const pathMap: Record<string, string> = {
         overview: '/admin/overview',
         all_courses: '/admin/courses',
+        course_sort: '/admin/courses/sort',
         add_course: '/admin/courses/new',
         active_courses: '/admin/courses/active',
         inactive_courses: '/admin/courses/inactive',
@@ -426,6 +451,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
     if (data.selectorIconLabels && typeof data.selectorIconLabels === 'object') {
       setSelectorIconLabels(normalizeSelectorIconLabels(data.selectorIconLabels));
+    }
+    if (data.categoryCourseOrders && typeof data.categoryCourseOrders === 'object') {
+      setCategoryCourseOrders(normalizeCategoryCourseOrders(data.categoryCourseOrders));
     }
     setStorageInfo(data.storageInfo || null);
     if (data.serverNow) {
@@ -1018,6 +1046,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       badge: stats.totalCourses,
     },
     {
+      id: 'course_sort' as AdminPageTab,
+      label: 'Course Sort (ড্র্যাগ সাজান)',
+      icon: <ArrowUpDown className="w-4 h-4 shrink-0" />,
+    },
+    {
       id: 'add_course' as AdminPageTab,
       label: 'Add New Course',
       icon: <PlusCircle className="w-4 h-4 shrink-0" />,
@@ -1296,6 +1329,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               whatsappLink={whatsappLink}
               onBackToList={() => handleTabSwitch('all_courses')}
               onSave={handleSaveCourse}
+            />
+          ) : activeTab === 'course_sort' ? (
+            /* ===================================================== */
+            /* VIEW 1B: DYNAMIC DRAG & DROP COURSE POSITION MANAGER  */
+            /* ===================================================== */
+            <CourseSortManager
+              categories={categories}
+              courses={courses}
+              initialCategoryCourseOrders={categoryCourseOrders}
+              initialCategorySlug={filterCat !== 'all' ? filterCat : undefined}
+              onOrderSaved={({ categoryCourseOrders: nextOrders, courses: nextCourses }) => {
+                setCategoryCourseOrders(nextOrders);
+                setCourses(nextCourses);
+              }}
+              onUnauthorized={handleBookStoreUnauthorized}
+              onDataMutated={onDataMutated}
+              onShowToast={showToast}
             />
           ) : activeTab === 'overview' ? (
             /* ===================================================== */
@@ -1660,14 +1710,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleTabSwitch('add_course')}
-                  className="w-full sm:w-auto justify-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer shrink-0"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>নতুন কোর্স যোগ করুন</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleTabSwitch('course_sort')}
+                    onMouseEnter={() => preloadTabChunk('course_sort')}
+                    className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 rounded-xl border border-rose-200/90 bg-white hover:bg-rose-50 hover:border-[#eb1c24] text-[#b91c1c] font-bold text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer shrink-0"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                    <span>কোর্স সাজান (Drag &amp; Drop)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTabSwitch('add_course')}
+                    className="flex-1 sm:flex-initial justify-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer shrink-0"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>নতুন কোর্স যোগ করুন</span>
+                  </button>
+                </div>
               </div>
 
               {/* Inactive notice if in inactive tab */}

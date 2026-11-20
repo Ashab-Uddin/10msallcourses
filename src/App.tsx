@@ -34,6 +34,11 @@ import {
   courseMatchesCategorySlug,
 } from './lib/categoryMatching.ts';
 import {
+  normalizeCategoryCourseOrders,
+  sortCoursesForCategory,
+  type CategoryCourseOrdersMap,
+} from './lib/courseSorting.ts';
+import {
   AlertCircle,
   ChevronRight,
   GraduationCap,
@@ -60,6 +65,7 @@ export interface AppProps {
   initialHasOfferTimers?: boolean;
   initialSelectorIconOrder?: SelectorIconId[];
   initialSelectorIconLabels?: Partial<Record<SelectorIconId, SelectorIconText>>;
+  initialCategoryCourseOrders?: CategoryCourseOrdersMap;
   initialServerNow?: string;
   initialBookCategories?: BookCategory[];
   initialBooks?: Book[];
@@ -215,6 +221,7 @@ export default function App({
   initialHasOfferTimers = false,
   initialSelectorIconOrder,
   initialSelectorIconLabels,
+  initialCategoryCourseOrders,
   initialServerNow,
   initialBookCategories = [],
   initialBooks = [],
@@ -381,6 +388,9 @@ export default function App({
   const [selectorIconLabels, setSelectorIconLabels] = useState<SelectorIconLabelsMap>(() =>
     normalizeSelectorIconLabels(initialSelectorIconLabels)
   );
+  const [categoryCourseOrders, setCategoryCourseOrders] = useState<CategoryCourseOrdersMap>(() =>
+    normalizeCategoryCourseOrders(initialCategoryCourseOrders)
+  );
   const [serverNow, setServerNow] = useState<string | undefined>(initialServerNow);
 
   const hasServerPortalProps =
@@ -473,6 +483,9 @@ export default function App({
       }
       if (data.selectorIconLabels && typeof data.selectorIconLabels === 'object') {
         setSelectorIconLabels(normalizeSelectorIconLabels(data.selectorIconLabels));
+      }
+      if (data.categoryCourseOrders && typeof data.categoryCourseOrders === 'object') {
+        setCategoryCourseOrders(normalizeCategoryCourseOrders(data.categoryCourseOrders));
       }
       if (data.settings) {
         setSettings(data.settings);
@@ -889,6 +902,7 @@ export default function App({
             categorySlug={route.slug}
             categories={orderedCategories}
             courses={courses}
+            categoryCourseOrders={categoryCourseOrders}
             onBack={() => navigate('/')}
             onEnrollClick={handleEnrollClick}
             onSelectCategory={(slug) => navigate(`/category/${slug}`)}
@@ -954,6 +968,7 @@ export default function App({
             sectionHash={route.sectionHash || currentHash}
             courses={courses}
             categories={orderedCategories}
+            categoryCourseOrders={categoryCourseOrders}
             onNavigate={navigate}
             onEnrollClick={handleEnrollClick}
           />
@@ -989,7 +1004,7 @@ export default function App({
     priceFilter !== 'all' ||
     onlyPopular;
 
-  const filteredCourses = courses.filter((c) => {
+  const rawFilteredCourses = courses.filter((c) => {
     const q = searchQuery.toLowerCase().trim();
     const activeFeatureTitles = Array.isArray(c.courseFeatures)
       ? c.courseFeatures
@@ -1025,6 +1040,11 @@ export default function App({
 
     return matchesSearch && matchesCategory && matchesPrice && matchesPopular;
   });
+
+  const filteredCourses =
+    selectedCategory !== 'all'
+      ? sortCoursesForCategory(rawFilteredCourses, selectedCategory, categoryCourseOrders)
+      : rawFilteredCourses;
 
   // =========================================================
   // PUBLIC HEADER & HOMEPAGE VIEW
@@ -1271,8 +1291,10 @@ export default function App({
               ) : (
                 /* DEFAULT CATEGORY-WISE SECTIONS (Frosted Glass Container) */
                 orderedCategories.map((cat) => {
-                  const catCourses = courses.filter((c) =>
-                    courseMatchesCategorySlug(c, cat.slug)
+                  const catCourses = sortCoursesForCategory(
+                    courses.filter((c) => courseMatchesCategorySlug(c, cat.slug)),
+                    cat.slug,
+                    categoryCourseOrders
                   );
                   if (catCourses.length === 0) return null;
 

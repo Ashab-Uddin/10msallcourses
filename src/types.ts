@@ -178,6 +178,7 @@ export interface AdminOverviewData {
   offerTimers: OfferTimer[];
   selectorIconOrder?: string[];
   selectorIconLabels?: Record<string, { title?: string; subLabel?: string }>;
+  categoryCourseOrders?: Record<string, number[]>;
   storageInfo?: {
     backend: string;
     persistentOnVercel: boolean;

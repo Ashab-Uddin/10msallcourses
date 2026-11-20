@@ -9,6 +9,10 @@ import {
   resolveCourseDepartments,
 } from '../../lib/categoryMatching.ts';
 import {
+  sortCoursesForCategory,
+  type CategoryCourseOrdersMap,
+} from '../../lib/courseSorting.ts';
+import {
   Search,
   Sparkles,
   BookOpen,
@@ -29,6 +33,7 @@ interface AcademicPageProps {
   batchOrClass: string; // e.g. 'ssc-27', 'ssc-28', 'hsc-26', 'hsc-27', 'hsc-28', 'class5', 'class6', 'class7', 'class8', 'class9', 'class10'
   courses: Course[];
   categories?: Category[];
+  categoryCourseOrders?: CategoryCourseOrdersMap;
   onNavigate: (path: string, options?: { noScroll?: boolean }) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   sectionHash?: string;
@@ -46,6 +51,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   batchOrClass,
   courses,
   categories = [],
+  categoryCourseOrders,
   onNavigate,
   onEnrollClick,
   sectionHash,
@@ -170,9 +176,17 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   }, [level, batchOrClass, categories]);
 
   // Filter courses strictly respecting Course Category first, then exact Target Batch / Class metadata
+  // and preserve admin's saved category-wise drag & drop sort order.
   const batchCourses = useMemo(() => {
-    return courses.filter((c) => courseMatchesAcademicBatch(c, batchOrClass));
-  }, [batchOrClass, courses]);
+    const matched = courses.filter((c) => courseMatchesAcademicBatch(c, batchOrClass));
+    const sortCategorySlug =
+      level === 'hsc'
+        ? 'hsc'
+        : level === 'ssc'
+          ? 'school'
+          : `class-${parseInt(batchOrClass.replace('class', ''), 10) || 6}`;
+    return sortCoursesForCategory(matched, sortCategorySlug, categoryCourseOrders);
+  }, [batchOrClass, courses, level, categoryCourseOrders]);
 
   // Only HSC has the 3 dedicated department sections (Science, Business Studies, Humanities)
   const hasDepartments = level === 'hsc';

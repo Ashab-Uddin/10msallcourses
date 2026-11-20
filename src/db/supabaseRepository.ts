@@ -53,6 +53,13 @@ import {
   sortCoursesByOrder,
   type StorageInfo,
 } from './repositoryShared.ts';
+import {
+  normalizeCategoryCourseOrders,
+  normalizeCategorySortSlug,
+  normalizeOrderedCourseIds,
+  rebalancePrimaryCategoryDisplaySlots,
+  type CategoryCourseOrdersMap,
+} from '../lib/courseSorting.ts';
 
 interface PgErrorLike {
   code?: string;
@@ -65,8 +72,11 @@ const FALLBACK_COURSE_ORDER_FILE = path.resolve(process.cwd(), 'data', 'course-o
 const SELECTOR_ICON_CONFIG_BUCKET = 'portal-config';
 const SELECTOR_ICON_CONFIG_OBJECT = 'selector-icon-order.json';
 const COURSE_FEATURES_CONFIG_OBJECT = 'course-features.json';
+const CATEGORY_COURSE_ORDERS_OBJECT = 'category-course-orders.json';
 const COURSE_FEATURES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_FEATURES_STORAGE_CACHE_TTL_MS = 30 * 1000;
+const CATEGORY_ORDERS_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
+const CATEGORY_ORDERS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 
 let courseFeaturesTableMissingUntil = 0;
 let cachedCourseFeaturesStorage: {
@@ -74,6 +84,13 @@ let cachedCourseFeaturesStorage: {
   expiresAt: number;
 } | null = null;
 let inFlightCourseFeaturesStorageRead: Promise<Record<string, CourseFeatureItem[]>> | null = null;
+
+let categoryOrdersTableMissingUntil = 0;
+let cachedCategoryOrdersStorage: {
+  data: CategoryCourseOrdersMap;
+  expiresAt: number;
+} | null = null;
+let inFlightCategoryOrdersStorageRead: Promise<CategoryCourseOrdersMap> | null = null;
 
 function cloneCourseFeaturesStorageMap(
   map: Record<string, CourseFeatureItem[]>
@@ -605,6 +622,178 @@ function readFallbackCourseOrderIds(): number[] {
   }
 }
 
+function isMissingCategoryCourseOrdersError(err: unknown): boolean {
+  const pg = (err || {}) as PgErrorLike;
+  const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
+  return (
+    (pg.code === '42P01' ||
+      pg.code === '42883' ||
+      pg.code === 'PGRST202' ||
+      pg.code === 'PGRST204' ||
+      pg.code === 'PGRST205' ||
+      msg.includes('schema cache') ||
+      msg.includes('does not exist')) &&
+    (msg.includes('category_course_orders') || msg.includes('save_category_course_positions'))
+  );
+}
+
+function cloneCategoryOrdersMap(map: CategoryCourseOrdersMap): CategoryCourseOrdersMap {
+  const cloned: CategoryCourseOrdersMap = {};
+  for (const [slug, ids] of Object.entries(map)) {
+    cloned[slug] = [...ids];
+  }
+  return cloned;
+}
+
+async function readCategoryCourseOrdersFromStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  options?: { bypassCache?: boolean }
+): Promise<CategoryCourseOrdersMap> {
+  if (
+    !options?.bypassCache &&
+    cachedCategoryOrdersStorage &&
+    Date.now() < cachedCategoryOrdersStorage.expiresAt
+  ) {
+    return cloneCategoryOrdersMap(cachedCategoryOrdersStorage.data);
+  }
+
+  if (!options?.bypassCache && inFlightCategoryOrdersStorageRead) {
+    const shared = await inFlightCategoryOrdersStorageRead;
+    return cloneCategoryOrdersMap(shared);
+  }
+
+  const reader = (async (): Promise<CategoryCourseOrdersMap> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(SELECTOR_ICON_CONFIG_BUCKET)
+        .download(CATEGORY_COURSE_ORDERS_OBJECT);
+      if (error || !data) {
+        cachedCategoryOrdersStorage = {
+          data: {},
+          expiresAt: Date.now() + CATEGORY_ORDERS_STORAGE_CACHE_TTL_MS,
+        };
+        return {};
+      }
+      const text = await data.text();
+      const parsed = JSON.parse(text) as { orders?: unknown };
+      const normalized = normalizeCategoryCourseOrders(parsed?.orders ?? parsed);
+      cachedCategoryOrdersStorage = {
+        data: normalized,
+        expiresAt: Date.now() + CATEGORY_ORDERS_STORAGE_CACHE_TTL_MS,
+      };
+      return normalized;
+    } catch {
+      return {};
+    } finally {
+      inFlightCategoryOrdersStorageRead = null;
+    }
+  })();
+
+  if (!options?.bypassCache) {
+    inFlightCategoryOrdersStorageRead = reader;
+  }
+
+  const result = await reader;
+  return cloneCategoryOrdersMap(result);
+}
+
+async function writeCategoryCourseOrdersToStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  orders: CategoryCourseOrdersMap
+): Promise<void> {
+  const normalized = normalizeCategoryCourseOrders(orders);
+  const payload = Buffer.from(
+    JSON.stringify(
+      {
+        orders: normalized,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
+
+  const attemptUpload = async () =>
+    supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .upload(CATEGORY_COURSE_ORDERS_OBJECT, payload, {
+        upsert: true,
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: '0',
+      });
+
+  const first = await attemptUpload();
+  if (!first.error) {
+    cachedCategoryOrdersStorage = {
+      data: normalized,
+      expiresAt: Date.now() + CATEGORY_ORDERS_STORAGE_CACHE_TTL_MS,
+    };
+    return;
+  }
+
+  const errMsg = String(first.error.message || '').toLowerCase();
+  if (errMsg.includes('not found') || errMsg.includes('bucket')) {
+    const { error: createErr } = await supabase.storage.createBucket(
+      SELECTOR_ICON_CONFIG_BUCKET,
+      { public: false }
+    );
+    if (createErr && !String(createErr.message || '').toLowerCase().includes('already exists')) {
+      throw new RepositoryError('কোর্স পজিশন স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
+    }
+    const retry = await attemptUpload();
+    if (!retry.error) {
+      cachedCategoryOrdersStorage = {
+        data: normalized,
+        expiresAt: Date.now() + CATEGORY_ORDERS_STORAGE_CACHE_TTL_MS,
+      };
+      return;
+    }
+    console.error('[supabaseRepository] Category orders storage retry failed:', retry.error);
+  } else {
+    console.error('[supabaseRepository] Category orders storage upload failed:', first.error);
+  }
+
+  throw new RepositoryError('ক্যাটাগরি অনুযায়ী কোর্সের ক্রম সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
+}
+
+export async function sbFetchCategoryCourseOrders(
+  supabaseClient?: ReturnType<typeof getSupabaseAdminClient>
+): Promise<CategoryCourseOrdersMap> {
+  const supabase = supabaseClient || getSupabaseAdminClient();
+
+  if (Date.now() < categoryOrdersTableMissingUntil) {
+    return readCategoryCourseOrdersFromStorage(supabase);
+  }
+
+  const { data, error } = await supabase
+    .from('category_course_orders')
+    .select('category_slug, course_id, sort_order')
+    .order('category_slug', { ascending: true })
+    .order('sort_order', { ascending: true })
+    .order('course_id', { ascending: true });
+
+  if (error) {
+    if (isMissingCategoryCourseOrdersError(error)) {
+      categoryOrdersTableMissingUntil = Date.now() + CATEGORY_ORDERS_TABLE_MISSING_TTL_MS;
+      return readCategoryCourseOrdersFromStorage(supabase);
+    }
+    throw mapPgError(error, 'ক্যাটাগরি ভিত্তিক কোর্স ক্রম লোড করতে সমস্যা হয়েছে।');
+  }
+
+  const map: CategoryCourseOrdersMap = {};
+  for (const row of (data || []) as Array<Record<string, unknown>>) {
+    const slug = normalizeCategorySortSlug(String(row.category_slug || ''));
+    const courseId = Number(row.course_id);
+    if (!slug || !Number.isInteger(courseId) || courseId <= 0) continue;
+    if (!map[slug]) map[slug] = [];
+    if (!map[slug].includes(courseId)) {
+      map[slug].push(courseId);
+    }
+  }
+  return map;
+}
+
 function writeFallbackCourseOrderIds(orderedIds: number[]): void {
   if (process.env.VERCEL === '1') return;
   try {
@@ -879,30 +1068,38 @@ export function getSupabaseStorageInfo(): StorageInfo {
 async function sbFetchPublicPortalBase() {
   const supabase = getSupabaseAdminClient();
 
-  const [catRes, courseRes, settingsRes, timerRes, selectorIconConfig, featuresMap] =
-    await Promise.all([
-      supabase
-        .from('categories')
-        .select('*')
-        .eq('status', 'active')
-        .order('display_order', { ascending: true })
-        .order('id', { ascending: true }),
-      // Approved Option 2: Public visitors see `active` and `closed` courses only; `inactive` is hidden.
-      supabase
-        .from('courses')
-        .select('*')
-        .in('status', ['active', 'closed'])
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false }),
-      supabase.from('website_settings').select('*').eq('id', 1).maybeSingle(),
-      supabase
-        .from('offer_timers')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false }),
-      sbGetSelectorIconConfig(),
-      sbFetchCourseFeaturesMap(supabase),
-    ]);
+  const [
+    catRes,
+    courseRes,
+    settingsRes,
+    timerRes,
+    selectorIconConfig,
+    featuresMap,
+    categoryCourseOrders,
+  ] = await Promise.all([
+    supabase
+      .from('categories')
+      .select('*')
+      .eq('status', 'active')
+      .order('display_order', { ascending: true })
+      .order('id', { ascending: true }),
+    // Approved Option 2: Public visitors see `active` and `closed` courses only; `inactive` is hidden.
+    supabase
+      .from('courses')
+      .select('*')
+      .in('status', ['active', 'closed'])
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }),
+    supabase.from('website_settings').select('*').eq('id', 1).maybeSingle(),
+    supabase
+      .from('offer_timers')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }),
+    sbGetSelectorIconConfig(),
+    sbFetchCourseFeaturesMap(supabase),
+    sbFetchCategoryCourseOrders(supabase),
+  ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড করতে সমস্যা হয়েছে।');
   if (courseRes.error) throw mapPgError(courseRes.error, 'কোর্স লোড করতে সমস্যা হয়েছে।');
@@ -929,12 +1126,13 @@ async function sbFetchPublicPortalBase() {
     allHydratedTimers,
     selectorIconOrder: selectorIconConfig.orderedIds,
     selectorIconLabels: selectorIconConfig.labels,
+    categoryCourseOrders,
   };
 }
 
 const getCachedSupabasePortalBase = unstable_cache(
   async () => sbFetchPublicPortalBase(),
-  ['sb-public-portal-base-v3'],
+  ['sb-public-portal-base-v4'],
   {
     tags: [CACHE_TAG_PUBLIC_PORTAL],
     revalidate: 60,
@@ -949,6 +1147,7 @@ export async function sbGetPublicPortalData() {
     allHydratedTimers,
     selectorIconOrder,
     selectorIconLabels,
+    categoryCourseOrders,
   } = await getCachedSupabasePortalBase();
 
   const nowMs = Date.now();
@@ -970,6 +1169,7 @@ export async function sbGetPublicPortalData() {
     hasOfferTimers: allHydratedTimers.length > 0,
     selectorIconOrder: normalizeSelectorIconOrder(selectorIconOrder),
     selectorIconLabels: normalizeSelectorIconLabels(selectorIconLabels),
+    categoryCourseOrders: normalizeCategoryCourseOrders(categoryCourseOrders),
     serverNow: nowIso,
   };
 }
@@ -1114,6 +1314,7 @@ export async function sbGetAdminOverviewData() {
     selectorIconConfig,
     featuresMap,
     booksRes,
+    categoryCourseOrders,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -1136,6 +1337,7 @@ export async function sbGetAdminOverviewData() {
     sbGetSelectorIconConfig(),
     sbFetchCourseFeaturesMap(supabase),
     supabase.from('books').select('status'),
+    sbFetchCategoryCourseOrders(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
@@ -1203,6 +1405,7 @@ export async function sbGetAdminOverviewData() {
     offerTimers,
     selectorIconOrder: selectorIconConfig.orderedIds,
     selectorIconLabels: selectorIconConfig.labels,
+    categoryCourseOrders: normalizeCategoryCourseOrders(categoryCourseOrders),
     storageInfo: getSupabaseStorageInfo(),
     serverNow: new Date().toISOString(),
   };
@@ -1783,6 +1986,129 @@ export async function sbSwapCourseOrder(
   const normalized = swapped.map((c, idx) => ({ ...c, displayOrder: idx + 1 }));
 
   return sbPersistNormalizedCourses(normalized, hasDbColumn);
+}
+
+export async function sbSaveCategoryCourseOrder(
+  categorySlug: string,
+  orderedCourseIds: ReadonlyArray<number>
+): Promise<{
+  categorySlug: string;
+  orderedCourseIds: number[];
+  categoryCourseOrders: CategoryCourseOrdersMap;
+  courses: Course[];
+}> {
+  const supabase = getSupabaseAdminClient();
+  const normalizedSlug = normalizeCategorySortSlug(categorySlug);
+  if (!normalizedSlug) {
+    throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+  }
+
+  const cleanIds = normalizeOrderedCourseIds(orderedCourseIds);
+  if (cleanIds.length === 0) {
+    throw new RepositoryError('কমপক্ষে একটি বৈধ কোর্স নির্বাচন করা আবশ্যক।', 400);
+  }
+  if (cleanIds.length !== orderedCourseIds.length) {
+    throw new RepositoryError('কোর্সের তালিকায় ডুপ্লিকেট বা অবৈধ আইডি পাওয়া গেছে।', 400);
+  }
+
+  // Look up matching category_id if it exists in public.categories
+  const { data: catRow } = await supabase
+    .from('categories')
+    .select('id, slug')
+    .eq('slug', normalizedSlug)
+    .maybeSingle();
+  const categoryId = catRow?.id ? Number(catRow.id) : null;
+
+  // Primary Path: Atomic transactional RPC (`0016_category_course_sorting.sql`)
+  const { error: rpcErr } = await supabase.rpc('save_category_course_positions', {
+    p_category_slug: normalizedSlug,
+    p_category_id: categoryId,
+    p_course_ids: cleanIds,
+  });
+
+  if (!rpcErr) {
+    categoryOrdersTableMissingUntil = 0;
+    const [allCourses, categoryCourseOrders] = await Promise.all([
+      sbGetAdminCoursesList(),
+      sbFetchCategoryCourseOrders(supabase),
+    ]);
+    return {
+      categorySlug: normalizedSlug,
+      orderedCourseIds: categoryCourseOrders[normalizedSlug] || cleanIds,
+      categoryCourseOrders,
+      courses: allCourses,
+    };
+  }
+
+  if (!isMissingCategoryCourseOrdersError(rpcErr)) {
+    const rpcMsg = `${rpcErr.code || ''} ${rpcErr.message || ''}`.toLowerCase();
+    if (rpcErr.code === 'P0002' || rpcMsg.includes('not found')) {
+      throw new RepositoryError('তালিকার এক বা একাধিক কোর্স ডাটাবেসে পাওয়া যায়নি।', 404);
+    }
+    throw mapPgError(rpcErr, 'ক্যাটাগরি অনুযায়ী কোর্সের পজিশন সংরক্ষণ করতে সমস্যা হয়েছে।');
+  }
+
+  // Seamless Cloud-Persistent Fallback (works immediately even before running migration 0016):
+  // 1. Validate all courses exist
+  // 2. Persist independent per-category map to Supabase Storage (`portal-config/category-course-orders.json`)
+  // 3. Rebalance ONLY this category's primary `courses.display_order` slots among themselves (zero impact on other categories)
+  categoryOrdersTableMissingUntil = Date.now() + CATEGORY_ORDERS_TABLE_MISSING_TTL_MS;
+  const { courses: allCourses, hasDbColumn } = await sbFetchAllOrderedCourses();
+  const existingIds = new Set(allCourses.map((c) => c.id));
+  for (const id of cleanIds) {
+    if (!existingIds.has(id)) {
+      throw new RepositoryError('তালিকার এক বা একাধিক কোর্স ডাটাবেসে পাওয়া যায়নি।', 404);
+    }
+  }
+
+  const currentOrders = await readCategoryCourseOrdersFromStorage(supabase, { bypassCache: true });
+  const nextOrders: CategoryCourseOrdersMap = {
+    ...currentOrders,
+    [normalizedSlug]: cleanIds,
+  };
+  await writeCategoryCourseOrdersToStorage(supabase, nextOrders);
+
+  const { updatedCourses, changedCoursePairs } = rebalancePrimaryCategoryDisplaySlots(
+    allCourses,
+    normalizedSlug,
+    cleanIds
+  );
+
+  if (changedCoursePairs.length > 0) {
+    if (!hasDbColumn) {
+      writeFallbackCourseOrderIds(updatedCourses.map((c) => c.id));
+    } else {
+      // Safe two-pass update strictly on the affected primary-category courses only
+      const baseOffset = 2000000;
+      for (let i = 0; i < changedCoursePairs.length; i += 1) {
+        const pair = changedCoursePairs[i];
+        const { error: tempErr } = await supabase
+          .from('courses')
+          .update({ display_order: baseOffset + i + 1 })
+          .eq('id', pair.id);
+        if (tempErr && !isMissingCourseDisplayOrderColumnError(tempErr)) {
+          throw mapPgError(tempErr, 'কোর্সের ক্রম হালনাগাদ করতে সমস্যা হয়েছে।');
+        }
+      }
+      for (const pair of changedCoursePairs) {
+        const { error: finalErr } = await supabase
+          .from('courses')
+          .update({ display_order: pair.displayOrder })
+          .eq('id', pair.id);
+        if (finalErr && !isMissingCourseDisplayOrderColumnError(finalErr)) {
+          throw mapPgError(finalErr, 'কোর্সের ক্রম হালনাগাদ করতে সমস্যা হয়েছে।');
+        }
+      }
+    }
+  }
+
+  const hydratedCourses = await sbGetAdminCoursesList();
+  return {
+    categorySlug: normalizedSlug,
+    orderedCourseIds: cleanIds,
+    categoryCourseOrders: nextOrders,
+    courses: hydratedCourses,
+  };
 }
 
 export async function sbDeleteCourseById(

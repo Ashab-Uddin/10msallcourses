@@ -7,12 +7,17 @@ import {
   courseMatchesCategorySlug,
   resolveCourseDepartments,
 } from '../../lib/categoryMatching.ts';
+import {
+  sortCoursesForCategory,
+  type CategoryCourseOrdersMap,
+} from '../../lib/courseSorting.ts';
 import { Search, Sparkles } from 'lucide-react';
 
 interface CategoryPageProps {
   categorySlug: string;
   categories: Category[];
   courses: Course[];
+  categoryCourseOrders?: CategoryCourseOrdersMap;
   onBack: () => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   onSelectCategory: (slug: string) => void;
@@ -23,6 +28,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   categorySlug,
   categories,
   courses,
+  categoryCourseOrders,
   onBack,
   onEnrollClick,
 }) => {
@@ -125,8 +131,10 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     { id: 'humanities', label: 'মানবিক বিভাগ' },
   ];
 
-  const categoryCourses = courses.filter((c) =>
-    courseMatchesCategorySlug(c, currentCategory.slug)
+  const categoryCourses = sortCoursesForCategory(
+    courses.filter((c) => courseMatchesCategorySlug(c, currentCategory.slug)),
+    currentCategory.slug,
+    categoryCourseOrders
   );
 
   const filteredCourses = categoryCourses.filter((c) => {

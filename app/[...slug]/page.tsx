@@ -60,6 +60,7 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
         initialHasOfferTimers={data.hasOfferTimers}
         initialSelectorIconOrder={data.selectorIconOrder}
         initialSelectorIconLabels={data.selectorIconLabels}
+        initialCategoryCourseOrders={data.categoryCourseOrders}
         initialServerNow={data.serverNow}
         initialBookCategories={bookData.bookCategories}
         initialBooks={bookData.books}

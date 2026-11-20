@@ -71,6 +71,7 @@ import {
   sbReorderCourseFeatures,
   sbReorderCoursePosition,
   sbReplaceCourseFeatures,
+  sbSaveCategoryCourseOrder,
   sbSaveSelectorIconConfig,
   sbSaveSelectorIconOrder,
   sbSetOfferTimerPaused,
@@ -82,6 +83,13 @@ import {
   sbUpdateOfferTimer,
   sbUpdatePortalSettings,
 } from './supabaseRepository.ts';
+import {
+  normalizeCategoryCourseOrders,
+  normalizeCategorySortSlug,
+  normalizeOrderedCourseIds,
+  rebalancePrimaryCategoryDisplaySlots,
+  type CategoryCourseOrdersMap,
+} from '../lib/courseSorting.ts';
 import { getAdminBookStoreData } from './bookRepository.ts';
 
 export {
@@ -102,6 +110,7 @@ interface LocalStore {
   offerTimers: OfferTimer[];
   selectorIconOrder?: SelectorIconId[];
   selectorIconLabels?: SelectorIconLabelsMap;
+  categoryCourseOrders?: CategoryCourseOrdersMap;
 }
 
 export function getStorageInfo(): StorageInfo {
@@ -331,6 +340,7 @@ export const getPublicPortalData = cache(async () => {
     hasOfferTimers: allHydratedTimers.length > 0,
     selectorIconOrder: normalizeSelectorIconOrder(store.selectorIconOrder),
     selectorIconLabels: normalizeSelectorIconLabels(store.selectorIconLabels),
+    categoryCourseOrders: normalizeCategoryCourseOrders(store.categoryCourseOrders),
     serverNow: nowIso,
   };
 });
@@ -486,6 +496,7 @@ export async function getAdminOverviewData() {
     offerTimers: hydrateOfferTimers(store),
     selectorIconOrder: normalizeSelectorIconOrder(store.selectorIconOrder),
     selectorIconLabels: normalizeSelectorIconLabels(store.selectorIconLabels),
+    categoryCourseOrders: normalizeCategoryCourseOrders(store.categoryCourseOrders),
     storageInfo: getStorageInfo(),
     serverNow: new Date().toISOString(),
   };
@@ -1172,6 +1183,67 @@ export async function swapCourseOrder(firstId: number, secondId: number): Promis
   invalidatePublicPortalCache();
 
   return store.courses;
+}
+
+export async function saveCategoryCourseOrder(
+  categorySlug: string,
+  orderedCourseIds: ReadonlyArray<number>
+): Promise<{
+  categorySlug: string;
+  orderedCourseIds: number[];
+  categoryCourseOrders: CategoryCourseOrdersMap;
+  courses: Course[];
+}> {
+  if (isSupabaseDatabaseReady()) {
+    const result = await sbSaveCategoryCourseOrder(categorySlug, orderedCourseIds);
+    invalidatePublicPortalCache();
+    return result;
+  }
+
+  const normalizedSlug = normalizeCategorySortSlug(categorySlug);
+  if (!normalizedSlug) {
+    throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+  }
+
+  const cleanIds = normalizeOrderedCourseIds(orderedCourseIds);
+  if (cleanIds.length === 0) {
+    throw new RepositoryError('কমপক্ষে একটি বৈধ কোর্স নির্বাচন করা আবশ্যক।', 400);
+  }
+  if (cleanIds.length !== orderedCourseIds.length) {
+    throw new RepositoryError('কোর্সের তালিকায় ডুপ্লিকেট বা অবৈধ আইডি পাওয়া গেছে।', 400);
+  }
+
+  const store = await loadStore(true);
+  const existingIds = new Set(store.courses.map((c) => c.id));
+  for (const id of cleanIds) {
+    if (!existingIds.has(id)) {
+      throw new RepositoryError('তালিকার এক বা একাধিক কোর্স ডাটাবেসে পাওয়া যায়নি।', 404);
+    }
+  }
+
+  const currentOrders = normalizeCategoryCourseOrders(store.categoryCourseOrders);
+  const nextOrders: CategoryCourseOrdersMap = {
+    ...currentOrders,
+    [normalizedSlug]: cleanIds,
+  };
+  store.categoryCourseOrders = nextOrders;
+
+  const { updatedCourses } = rebalancePrimaryCategoryDisplaySlots(
+    normalizeContiguousCourseOrder(store.courses),
+    normalizedSlug,
+    cleanIds
+  );
+  store.courses = updatedCourses;
+
+  await persistStore(store);
+  invalidatePublicPortalCache();
+
+  return {
+    categorySlug: normalizedSlug,
+    orderedCourseIds: cleanIds,
+    categoryCourseOrders: nextOrders,
+    courses: store.courses,
+  };
 }
 
 export async function deleteCourseById(

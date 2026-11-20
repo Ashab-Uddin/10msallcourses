@@ -18,6 +18,7 @@ import {
   LogOut,
   X,
   ListOrdered,
+  ArrowUpDown,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
@@ -39,6 +40,7 @@ interface AdminMobileBottomNavProps {
 }
 
 const MORE_MENU_TABS: AdminPageTab[] = [
+  'course_sort',
   'active_courses',
   'inactive_courses',
   'book_store',
@@ -142,6 +144,12 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = React.m
     icon: React.ComponentType<{ className?: string }>;
     badge?: number;
   }> = [
+    {
+      id: 'course_sort',
+      label: 'Course Sort (ড্র্যাগ সাজান)',
+      description: 'ক্যাটাগরি অনুযায়ী কোর্সের পজিশন ড্র্যাগ করে সাজান',
+      icon: ArrowUpDown,
+    },
     {
       id: 'active_courses',
       label: 'Active Courses',

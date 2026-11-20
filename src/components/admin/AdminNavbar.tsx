@@ -17,6 +17,7 @@ import {
   ExternalLink,
   AlarmClock,
   ShoppingBag,
+  ArrowUpDown,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
@@ -92,6 +93,11 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = React.memo(({
       label: 'All Courses',
       icon: <BookOpen className="w-4 h-4" />,
       badge: stats.totalCourses,
+    },
+    {
+      id: 'course_sort',
+      label: 'Course Sort (ড্র্যাগ সাজান)',
+      icon: <ArrowUpDown className="w-4 h-4" />,
     },
     {
       id: 'add_course',
@@ -252,6 +258,21 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = React.memo(({
             >
               {toBengaliNumber(stats.totalCourses)}
             </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNavClick('course_sort')}
+            className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'course_sort' ? activePillClass : inactivePillClass
+            }`}
+          >
+            <ArrowUpDown
+              className={`w-3.5 h-3.5 ${
+                activeTab === 'course_sort' ? 'text-[#eb1c24]' : 'text-[#6B4C4F]'
+              }`}
+            />
+            <span>Course Sort</span>
           </button>
 
           <button
