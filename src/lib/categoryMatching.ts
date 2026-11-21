@@ -210,6 +210,9 @@ export function courseMatchesClass(course: Course, classNum: JuniorClassNumber):
   if (course.categorySlug === dedicatedSlug) {
     return resolvedBatch === null || resolvedBatch === dedicatedSlug;
   }
+  if (course.categorySlug === 'free-course' && resolvedBatch === dedicatedSlug) {
+    return true;
+  }
   if (course.categorySlug !== 'school') {
     return false;
   }

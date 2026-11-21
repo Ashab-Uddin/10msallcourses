@@ -12,6 +12,8 @@ import {
   sortCoursesForCategory,
   type CategoryCourseOrdersMap,
 } from '../../lib/courseSorting.ts';
+import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
+import { JuniorClassSection } from './JuniorClassSection.tsx';
 import {
   Search,
   Sparkles,
@@ -92,6 +94,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   };
 
   const [searchQuery, setSearchQuery] = useState('');
+
+  const parsedJuniorClass =
+    level === 'class' ? parseInt(batchOrClass.replace('class', ''), 10) : 0;
+  const juniorClassNum: JuniorClassNumber5To8 =
+    parsedJuniorClass === 5 ||
+    parsedJuniorClass === 6 ||
+    parsedJuniorClass === 7 ||
+    parsedJuniorClass === 8
+      ? parsedJuniorClass
+      : 6;
 
   // Define toggle buttons per academic level
   const toggleOptions: ToggleOption[] = useMemo(() => {
@@ -237,7 +249,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
     );
   }, [humanitiesCourses, searchQuery]);
 
-  // Filtered batch courses for classes without departments (Class 6 - 8)
+  // Filtered batch courses fallback (HSC/SSC)
   const filteredBatchCourses = useMemo(() => {
     let list = batchCourses;
     if (selectedDept !== 'all') {
@@ -251,6 +263,19 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
     }
     return list;
   }, [batchCourses, selectedDept, searchQuery]);
+
+  if (level === 'class') {
+    return (
+      <JuniorClassSection
+        classNum={juniorClassNum}
+        courses={batchCourses}
+        breadcrumbParentLabel="স্কুল"
+        onNavigateHome={() => onNavigate('/')}
+        onSwitchClass={(targetNum) => onNavigate(`/class-${targetNum}`)}
+        onEnrollClick={onEnrollClick}
+      />
+    );
+  }
 
   // Switch department tab smoothly with ZERO page scrolling (in-place tab state)
   const handleDepartmentJump = (dept: 'science' | 'business-studies' | 'humanities' | '') => {
@@ -317,7 +342,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
           {/* DEDICATED TOGGLE PILL FOR ACADEMIC YEARS / CLASSES */}
           <div className="flex items-center justify-center mb-6 w-full px-1">
-            {(level === 'class' || level === 'ssc') && (
+            {level === 'ssc' && (
               <div className="sm:hidden grid grid-cols-3 gap-2 p-2 rounded-2xl glass-strong border border-rose-200/70 w-full shadow-sm">
                 {mobileSchoolGridOptions.map((opt) => {
                   const isActive = opt.id === batchOrClass;
@@ -357,7 +382,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
 
             <div
               className={`${
-                level === 'class' || level === 'ssc' ? 'hidden sm:flex' : 'flex'
+                level === 'ssc' ? 'hidden sm:flex' : 'flex'
               } items-center gap-1.5 sm:gap-2.5 p-1.5 sm:p-2 rounded-2xl glass-strong max-w-full overflow-x-auto no-scrollbar scroll-smooth justify-start sm:justify-center mx-auto shadow-sm`}
             >
               {toggleOptions.map((opt) => {
@@ -621,7 +646,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               )}
             </div>
           ) : (
-            /* CLASS 6, 7, 8 - NO DEPARTMENT FILTERS, JUST CLEAN SUBJECT LABEL */
+            /* CLASS 5 - CLEAN SUBJECT LABEL */
             <div className="flex items-center gap-2">
               <div className="px-2.5 sm:px-4 py-1 sm:py-1.5 rounded-full bg-rose-50 border border-rose-200 text-[#b91c1c] text-[11px] sm:text-sm font-bold flex items-center gap-1.5 sm:gap-2">
                 <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#eb1c24]" />
@@ -789,13 +814,13 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
           )}
         </div>
       ) : (
-        /* STANDARD COURSES GRID FOR CLASSES WITHOUT DEPARTMENTS (Class 6 - 8) */
+        /* STANDARD COURSES GRID FOR LEVELS WITHOUT DEPARTMENTS (e.g. SSC) */
         <section className="max-w-[1240px] mx-auto px-4 sm:px-6 pt-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight flex items-center gap-2">
+              <h2 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight flex items-center gap-2 flex-wrap">
                 <span>{pageDetails.activeName} সকল কোর্স ও অনলাইন ব্যাচ</span>
-                <span className="text-xs font-extrabold text-[#B91C1C] glass-inset px-2.5 py-0.5 rounded-full">
+                <span className="text-xs font-extrabold text-[#B91C1C] glass-inset px-2.5 py-0.5 rounded-full tabular-nums bn-digits-fix">
                   {toBengaliNumber(filteredBatchCourses.length)}টি কোর্স
                 </span>
               </h2>
@@ -803,11 +828,27 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
           </div>
 
           {filteredBatchCourses.length === 0 ? (
-            <div className="glass-surface rounded-3xl p-12 text-center space-y-4 max-w-xl mx-auto">
+            <div className="glass-surface rounded-3xl p-8 sm:p-12 text-center space-y-4 max-w-xl mx-auto">
               <div className="w-16 h-16 rounded-2xl glass-inset text-[#E22B2B] flex items-center justify-center mx-auto">
                 <BookOpen className="w-8 h-8" />
               </div>
-              <h3 className="text-base font-bold text-[#2A0F12]">এই ক্যাটাগরিতে কোনো কোর্স পাওয়া যায়নি</h3>
+              <div className="space-y-1.5">
+                <h3 className="text-base font-bold text-[#2A0F12]">
+                  এই ক্যাটাগরিতে কোনো কোর্স পাওয়া যায়নি
+                </h3>
+                <p className="text-xs text-[#6B4C4F] leading-relaxed">
+                  সার্চ বা বিভাগ ফিল্টার পরিবর্তন করে পুনরায় চেষ্টা করুন।
+                </p>
+              </div>
+              {searchQuery.trim() !== '' && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold shadow-md shadow-red-500/20 hover:opacity-95 transition cursor-pointer"
+                >
+                  <span>সব কোর্স দেখুন</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">

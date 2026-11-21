@@ -1310,12 +1310,8 @@ export default function App({
                       <button
                         key={cat.slug}
                         type="button"
-                        onClick={() => setSelectedCategory(cat.slug)}
-                        className={`px-2.5 py-1 sm:px-3 sm:py-1.5 lg:px-3.5 lg:py-2 rounded-full text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold transition cursor-pointer whitespace-nowrap shrink-0 border ${
-                          selectedCategory === cat.slug
-                            ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-sm lg:shadow-md shadow-red-500/25'
-                            : 'border-rose-200/90 bg-white/90 text-[#2A0F12] hover:border-[#b91c1c] hover:bg-white hover:text-[#B91C1C] shadow-2xs'
-                        }`}
+                        onClick={() => navigate(`/category/${encodeURIComponent(cat.slug)}`)}
+                        className="px-2.5 py-1 sm:px-3 sm:py-1.5 lg:px-3.5 lg:py-2 rounded-full text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold transition cursor-pointer whitespace-nowrap shrink-0 border border-rose-200/90 bg-white/90 text-[#2A0F12] hover:border-[#b91c1c] hover:bg-white hover:text-[#B91C1C] shadow-2xs"
                       >
                         {cat.name}
                       </button>

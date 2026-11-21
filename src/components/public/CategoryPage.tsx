@@ -11,6 +11,8 @@ import {
   sortCoursesForCategory,
   type CategoryCourseOrdersMap,
 } from '../../lib/courseSorting.ts';
+import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
+import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { Search, Sparkles } from 'lucide-react';
 
 interface CategoryPageProps {
@@ -31,6 +33,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   categoryCourseOrders,
   onBack,
   onEnrollClick,
+  onSelectCategory,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [priceFilter, setPriceFilter] = useState('all');
@@ -137,6 +140,21 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     categoryCourseOrders
   );
 
+  const juniorClassMatch = currentCategory.slug.match(/^class-([5-8])$/);
+  if (juniorClassMatch) {
+    const juniorClassNum = Number(juniorClassMatch[1]) as JuniorClassNumber5To8;
+    return (
+      <JuniorClassSection
+        classNum={juniorClassNum}
+        courses={categoryCourses}
+        breadcrumbParentLabel="কোর্স ক্যাটালগ"
+        onNavigateHome={onBack}
+        onSwitchClass={(targetNum) => onSelectCategory(`class-${targetNum}`)}
+        onEnrollClick={onEnrollClick}
+      />
+    );
+  }
+
   const filteredCourses = categoryCourses.filter((c) => {
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
@@ -201,42 +219,67 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
             </p>
           )}
 
-          <div className="mt-4 flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#E22B2B] text-white">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#E22B2B] text-white tabular-nums bn-digits-fix">
               {toBengaliNumber(filteredCourses.length)}টি কোর্স পাওয়া গেছে
             </span>
           </div>
+
         </div>
       </div>
 
       {/* Search & Batch/Group Filter Controls */}
       <div className="flex flex-col gap-3 mb-6">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-[#7A5A5D] absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="কোর্স খুঁজুন..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-rose-200/90 bg-white/90 text-xs sm:text-sm text-[#2A0F12] placeholder-[#7A5A5D] focus:bg-white focus:border-[#E22B2B] outline-none transition shadow-2xs"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-[#7A5A5D] absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="কোর্স খুঁজুন..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-rose-200/90 bg-white/90 text-xs sm:text-sm text-[#2A0F12] placeholder-[#7A5A5D] focus:bg-white focus:border-[#E22B2B] outline-none transition shadow-2xs"
+              />
+            </div>
+
+            {showBatchAndGroupFilters && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {batchOptions.map((opt) => {
+                  const active = batchFilter === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setBatchFilter(opt.id)}
+                      aria-pressed={active}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
+                        active
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-xs'
+                          : 'bg-white/90 text-[#2A0F12] border-rose-200/90 hover:border-[#E22B2B] hover:text-[#B91C1C]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {showBatchAndGroupFilters && (
             <div className="flex flex-wrap items-center gap-1.5">
-              {batchOptions.map((opt) => {
-                const active = batchFilter === opt.id;
+              {groupOptions.map((opt) => {
+                const active = groupFilter === opt.id;
                 return (
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setBatchFilter(opt.id)}
+                    onClick={() => setGroupFilter(opt.id)}
                     aria-pressed={active}
                     className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
                       active
-                        ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-xs'
-                        : 'bg-white/90 text-[#2A0F12] border-rose-200/90 hover:border-[#E22B2B] hover:text-[#B91C1C]'
+                        ? 'bg-[#2A0F12] text-white border-[#2A0F12] shadow-xs'
+                        : 'bg-white/85 text-[#4A2528] border-rose-200/80 hover:border-[#E22B2B] hover:text-[#B91C1C]'
                     }`}
                   >
                     {opt.label}
@@ -245,30 +288,6 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
               })}
             </div>
           )}
-        </div>
-
-        {showBatchAndGroupFilters && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {groupOptions.map((opt) => {
-              const active = groupFilter === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setGroupFilter(opt.id)}
-                  aria-pressed={active}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
-                    active
-                      ? 'bg-[#2A0F12] text-white border-[#2A0F12] shadow-xs'
-                      : 'bg-white/85 text-[#4A2528] border-rose-200/80 hover:border-[#E22B2B] hover:text-[#B91C1C]'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Courses Grid */}
@@ -288,7 +307,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
                 setBatchFilter('all');
                 setGroupFilter('all');
               }}
-              className="mt-2 px-5 py-2 rounded-full bg-[#E22B2B] text-white text-xs font-bold hover:bg-[#B91C1C] transition cursor-pointer"
+              className="mt-2 px-5 py-2 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold hover:opacity-95 transition cursor-pointer shadow-sm"
             >
               ফিল্টার রিসেট করুন
             </button>
