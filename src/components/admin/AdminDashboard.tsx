@@ -28,6 +28,7 @@ import {
   courseMatchesCategorySlug,
   getCourseCategorySlugs,
 } from '../../lib/categoryMatching.ts';
+import { buildReadableCourseShareUrl } from '../../lib/courseSlug.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
@@ -356,7 +357,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleCopyCourseShareLink = useCallback(
     async (course: Course) => {
       if (typeof window === 'undefined') return;
-      const shareUrl = `${window.location.origin}/courses/${encodeURIComponent(course.slug)}`;
+      const shareUrl = buildReadableCourseShareUrl(window.location.origin, course.slug);
 
       let copied = false;
       if (navigator.clipboard?.writeText) {

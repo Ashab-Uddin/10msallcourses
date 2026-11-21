@@ -1,3 +1,5 @@
+import { generateUnicodeCourseSlug } from '../lib/courseSlug.ts';
+
 export class RepositoryError extends Error {
   status: number;
   constructor(message: string, status = 400) {
@@ -14,13 +16,7 @@ export interface StorageInfo {
 }
 
 export function normalizeSlug(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u0980-\u09FF\s_-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+  return generateUnicodeCourseSlug(raw);
 }
 
 export function parseSafePrice(value: unknown): { valid: boolean; value: number } {

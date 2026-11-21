@@ -41,6 +41,11 @@ import {
   type CategoryCourseOrdersMap,
 } from './lib/courseSorting.ts';
 import {
+  buildReadableCoursePath,
+  decodeCourseSlug,
+  generateUnicodeCourseSlug,
+} from './lib/courseSlug.ts';
+import {
   AlertCircle,
   ChevronRight,
   GraduationCap,
@@ -197,13 +202,7 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
   // Dedicated shared course landing page: /courses/:slug
   if (clean.startsWith('/courses/')) {
     const rawSlug = clean.slice('/courses/'.length).split('/')[0] || '';
-    let decodedSlug = rawSlug;
-    try {
-      decodedSlug = decodeURIComponent(rawSlug);
-    } catch {
-      decodedSlug = rawSlug;
-    }
-    const cleanCourseSlug = decodedSlug.trim();
+    const cleanCourseSlug = decodeCourseSlug(rawSlug);
     if (cleanCourseSlug) {
       return { view: 'course', slug: cleanCourseSlug };
     }
@@ -599,9 +598,13 @@ export default function App({
   const activeCourseSlug = route.view === 'course' ? route.slug : null;
   const matchedSharedCourse = useMemo(() => {
     if (!activeCourseSlug) return undefined;
+    const normalizedQuerySlug = generateUnicodeCourseSlug(activeCourseSlug);
     const exactOrCaseMatch =
       courses.find((c) => c.slug === activeCourseSlug) ||
-      courses.find((c) => c.slug.toLowerCase() === activeCourseSlug.toLowerCase());
+      courses.find((c) => c.slug.toLowerCase() === activeCourseSlug.toLowerCase()) ||
+      (normalizedQuerySlug
+        ? courses.find((c) => generateUnicodeCourseSlug(c.slug) === normalizedQuerySlug)
+        : undefined);
     if (exactOrCaseMatch) return exactOrCaseMatch;
     return fallbackSharedCourses[activeCourseSlug] ?? undefined;
   }, [activeCourseSlug, courses, fallbackSharedCourses]);
@@ -631,6 +634,22 @@ export default function App({
       cancelled = true;
     };
   }, [activeCourseSlug, matchedSharedCourse, loading]);
+
+  // Keep browser address bar showing clean readable Bengali Unicode URL
+  useEffect(() => {
+    if (typeof window === 'undefined' || route.view !== 'course' || !matchedSharedCourse) {
+      return;
+    }
+    const readablePath = buildReadableCoursePath(matchedSharedCourse.slug);
+    const currentBrowserPath = window.location.pathname;
+    if (currentBrowserPath.includes('%') || currentBrowserPath.replace(/\/+$/, '') !== readablePath) {
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${readablePath}${window.location.search || ''}${window.location.hash || ''}`
+      );
+    }
+  }, [route.view, matchedSharedCourse]);
 
   // Sync browser document.title for all dynamic academic routes and catalog views
   useEffect(() => {

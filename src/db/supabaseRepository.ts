@@ -42,6 +42,7 @@ import {
   syncTargetStudentsMetadata,
 } from '../lib/courseValidation.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
+import { decodeCourseSlug, generateUnicodeCourseSlug } from '../lib/courseSlug.ts';
 import { parseFeatures, toBengaliNumber } from '../utils/format.ts';
 import {
   RepositoryError,
@@ -1665,10 +1666,11 @@ export async function sbGetPublicPortalData() {
 
 export async function sbGetCourseBySlug(slug: string): Promise<Course | null> {
   const supabase = getSupabaseAdminClient();
-  const cleanSlug = slug.trim();
+  const rawSlug = (slug || '').trim();
+  const cleanSlug = decodeCourseSlug(rawSlug) || rawSlug;
   if (!cleanSlug) return null;
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('courses')
     .select('*')
     .eq('slug', cleanSlug)
@@ -1676,6 +1678,36 @@ export async function sbGetCourseBySlug(slug: string): Promise<Course | null> {
     .maybeSingle();
 
   if (error) throw mapPgError(error, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
+
+  if (!data && rawSlug && rawSlug !== cleanSlug) {
+    const rawRes = await supabase
+      .from('courses')
+      .select('*')
+      .eq('slug', rawSlug)
+      .in('status', ['active', 'closed'])
+      .maybeSingle();
+    if (rawRes.error) throw mapPgError(rawRes.error, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
+    data = rawRes.data;
+  }
+
+  if (!data) {
+    const normalizedTarget = generateUnicodeCourseSlug(cleanSlug);
+    const { data: candidates, error: listErr } = await supabase
+      .from('courses')
+      .select('*')
+      .in('status', ['active', 'closed']);
+    if (listErr) throw mapPgError(listErr, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
+    const lowerClean = cleanSlug.toLowerCase();
+    data =
+      ((candidates || []) as Array<Record<string, unknown>>).find((row) => {
+        const candidateSlug = String(row.slug || '').trim();
+        return (
+          candidateSlug.toLowerCase() === lowerClean ||
+          (normalizedTarget && generateUnicodeCourseSlug(candidateSlug) === normalizedTarget)
+        );
+      }) || null;
+  }
+
   if (!data) return null;
   const mapped = mapCourseRow(data as Record<string, unknown>);
   const [featuresMap, categoriesMap, catRowsRes] = await Promise.all([
@@ -2149,11 +2181,16 @@ export async function sbUpdateExistingCourse(
 
   let nextSlug = existing.slug;
   if (input.slug !== undefined) {
-    const candidateSlug = normalizeSlug(String(input.slug || ''));
-    if (!candidateSlug) {
-      throw new RepositoryError('কোর্সের বৈধ স্লাগ প্রদান করুন।', 400);
+    const rawIncoming = String(input.slug || '').trim();
+    if (rawIncoming === existing.slug) {
+      nextSlug = existing.slug;
+    } else {
+      const candidateSlug = normalizeSlug(rawIncoming);
+      if (!candidateSlug) {
+        throw new RepositoryError('কোর্সের বৈধ স্লাগ প্রদান করুন।', 400);
+      }
+      nextSlug = candidateSlug.slice(0, 220);
     }
-    nextSlug = candidateSlug.slice(0, 220);
   }
 
   let nextCategoryId = existing.categoryId;

@@ -12,6 +12,7 @@ import {
 import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
 import { computeDiscountPercent, syncTargetStudentsMetadata } from '../lib/courseValidation.ts';
 import { getCourseCategorySlugs } from '../lib/categoryMatching.ts';
+import { decodeCourseSlug, generateUnicodeCourseSlug } from '../lib/courseSlug.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import {
   MAX_COURSE_FEATURES_PER_COURSE,
@@ -356,10 +357,24 @@ export async function getCourseBySlug(slug: string): Promise<Course | null> {
   }
 
   const store = await loadStore();
-  const cleanSlug = slug.trim();
-  const found = store.courses.find(
-    (c) => c.slug === cleanSlug && (c.status === 'active' || c.status === 'closed')
-  );
+  const rawSlug = slug.trim();
+  const cleanSlug = decodeCourseSlug(rawSlug) || rawSlug;
+  const normalizedTarget = generateUnicodeCourseSlug(cleanSlug);
+  const found =
+    store.courses.find(
+      (c) =>
+        (c.status === 'active' || c.status === 'closed') &&
+        (c.slug === cleanSlug ||
+          c.slug === rawSlug ||
+          c.slug.toLowerCase() === cleanSlug.toLowerCase())
+    ) ||
+    (normalizedTarget
+      ? store.courses.find(
+          (c) =>
+            (c.status === 'active' || c.status === 'closed') &&
+            generateUnicodeCourseSlug(c.slug) === normalizedTarget
+        )
+      : undefined);
   if (!found) return null;
   return {
     ...found,
@@ -725,20 +740,25 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
 
   let nextSlug = existing.slug;
   if (input.slug !== undefined) {
-    const candidateSlug = normalizeSlug(String(input.slug || ''));
-    if (!candidateSlug) {
-      throw new RepositoryError('কোর্সের বৈধ স্লাগ প্রদান করুন।', 400);
-    }
-    const duplicate = store.courses.find(
-      (c) => c.id !== id && c.slug.toLowerCase() === candidateSlug.toLowerCase()
-    );
-    if (duplicate) {
-      throw new RepositoryError(
-        `"${candidateSlug}" স্লাগটি ইতিমধ্যে "${duplicate.title}" কোর্সে ব্যবহৃত হচ্ছে।`,
-        409
+    const rawIncoming = String(input.slug || '').trim();
+    if (rawIncoming === existing.slug) {
+      nextSlug = existing.slug;
+    } else {
+      const candidateSlug = normalizeSlug(rawIncoming);
+      if (!candidateSlug) {
+        throw new RepositoryError('কোর্সের বৈধ স্লাগ প্রদান করুন।', 400);
+      }
+      const duplicate = store.courses.find(
+        (c) => c.id !== id && c.slug.toLowerCase() === candidateSlug.toLowerCase()
       );
+      if (duplicate) {
+        throw new RepositoryError(
+          `"${candidateSlug}" স্লাগটি ইতিমধ্যে "${duplicate.title}" কোর্সে ব্যবহৃত হচ্ছে।`,
+          409
+        );
+      }
+      nextSlug = candidateSlug;
     }
-    nextSlug = candidateSlug;
   }
 
   let nextCategoryId = existing.categoryId;

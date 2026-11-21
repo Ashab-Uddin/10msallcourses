@@ -8,6 +8,7 @@ import {
   courseMatchesClass,
   type JuniorClassNumber,
 } from '@/src/lib/categoryMatching';
+import { decodeCourseSlug, generateUnicodeCourseSlug } from '@/src/lib/courseSlug';
 
 export const DEFAULT_PUBLIC_SITE_URL = 'https://10msallcourse.com';
 export const DEFAULT_SITE_NAME = '10ms All Courses';
@@ -427,20 +428,23 @@ function resolveRouteSeo(
 
   if (clean.startsWith('/courses/')) {
     const rawSlug = clean.slice('/courses/'.length).split('/')[0] || '';
-    let decodedSlug = rawSlug;
-    try {
-      decodedSlug = decodeURIComponent(rawSlug);
-    } catch {
-      decodedSlug = rawSlug;
-    }
-    const targetSlug = decodedSlug.trim();
-    const matchedCourse = courses.find(
-      (c) =>
-        isPublicVisibleCourse(c) &&
-        (c.slug === targetSlug ||
-          c.slug === rawSlug ||
-          c.slug.toLowerCase() === targetSlug.toLowerCase())
-    );
+    const targetSlug = decodeCourseSlug(rawSlug);
+    const normalizedTarget = generateUnicodeCourseSlug(targetSlug);
+    const matchedCourse =
+      courses.find(
+        (c) =>
+          isPublicVisibleCourse(c) &&
+          (c.slug === targetSlug ||
+            c.slug === rawSlug ||
+            c.slug.toLowerCase() === targetSlug.toLowerCase())
+      ) ||
+      (normalizedTarget
+        ? courses.find(
+            (c) =>
+              isPublicVisibleCourse(c) &&
+              generateUnicodeCourseSlug(c.slug) === normalizedTarget
+          )
+        : undefined);
     if (matchedCourse) {
       const effectiveBaseUrl = normalizePublicOrigin(baseUrlOverride) || getSiteBaseUrl();
       const title = buildCourseOgTitle(matchedCourse);

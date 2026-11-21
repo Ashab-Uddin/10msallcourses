@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { permanentRedirect } from 'next/navigation';
 import App from '@/src/App';
 import { getCourseBySlug, getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
+import { decodeCourseSlug, generateUnicodeCourseSlug } from '@/src/lib/courseSlug';
 import {
   buildCourseSeoMetadata,
   buildStructuredData,
@@ -16,22 +18,13 @@ interface CoursePageProps {
   params: Promise<{ slug: string }>;
 }
 
-function decodeCourseSlug(rawSlug: string): string {
-  const trimmed = (rawSlug || '').trim();
-  if (!trimmed) return '';
-  try {
-    return decodeURIComponent(trimmed).trim();
-  } catch {
-    return trimmed;
-  }
-}
-
 function isPublicVisibleCourse(course: Course): boolean {
   return course.status === 'active' || course.status === 'closed';
 }
 
 function findMatchingCourse(courses: Course[], rawSlug: string, decodedSlug: string): Course | null {
   const lowerDecoded = decodedSlug.toLowerCase();
+  const normalizedTarget = generateUnicodeCourseSlug(decodedSlug);
   return (
     courses.find(
       (c) =>
@@ -39,7 +32,14 @@ function findMatchingCourse(courses: Course[], rawSlug: string, decodedSlug: str
         (c.slug === decodedSlug ||
           c.slug === rawSlug ||
           c.slug.toLowerCase() === lowerDecoded)
-    ) ?? null
+    ) ??
+    (normalizedTarget
+      ? courses.find(
+          (c) =>
+            isPublicVisibleCourse(c) &&
+            generateUnicodeCourseSlug(c.slug) === normalizedTarget
+        ) ?? null
+      : null)
   );
 }
 
@@ -75,6 +75,10 @@ export default async function CoursePage({ params }: CoursePageProps) {
   let matchedCourse = findMatchingCourse(data.courses, slug, decodedSlug);
   if (!matchedCourse && decodedSlug) {
     matchedCourse = await getCourseBySlug(decodedSlug).catch(() => null);
+  }
+
+  if (matchedCourse && decodedSlug && decodedSlug !== matchedCourse.slug) {
+    permanentRedirect(`/courses/${encodeURIComponent(matchedCourse.slug)}`);
   }
 
   const initialCourses =

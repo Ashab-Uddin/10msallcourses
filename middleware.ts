@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isSameOriginMutation } from './src/lib/csrf';
+import { decodeCourseSlug } from './src/lib/courseSlug';
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
+
+  // 301 Redirect malformed/double-encoded or trailing-slash legacy course URLs to clean canonical path
+  if (pathname.startsWith('/courses/')) {
+    const rawSegment = pathname.slice('/courses/'.length);
+    const hasTrailingSlash = rawSegment.endsWith('/') && rawSegment.length > 1;
+    const cleanRawSegment = rawSegment.replace(/\/+$/, '');
+    const isDoubleEncoded = /%25[0-9a-fA-F]{2}/.test(cleanRawSegment);
+
+    if (isDoubleEncoded || hasTrailingSlash) {
+      const decoded = decodeCourseSlug(cleanRawSegment);
+      if (decoded) {
+        const canonicalPath = `/courses/${encodeURIComponent(decoded)}${search || ''}`;
+        return NextResponse.redirect(new URL(canonicalPath, req.url), 301);
+      }
+    }
+    return NextResponse.next();
+  }
 
   if (pathname.startsWith('/api/admin') && MUTATING_METHODS.has(req.method.toUpperCase())) {
     if (!isSameOriginMutation(req)) {
@@ -30,5 +48,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/admin/:path*'],
+  matcher: ['/admin/:path*', '/api/admin/:path*', '/courses/:path*'],
 };

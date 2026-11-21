@@ -57,6 +57,10 @@ import {
 } from 'lucide-react';
 
 import { validateExternalHttpUrl } from '../../lib/affiliateUrl.ts';
+import {
+  generateUnicodeCourseSlug,
+  sanitizeEditableUnicodeSlug,
+} from '../../lib/courseSlug.ts';
 
 interface CourseEditorPageProps {
   authToken?: string;
@@ -458,12 +462,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const handleTitleChange = (val: string) => {
     setTitle(val);
     if (!course) {
-      const autoSlug = val
-        .toLowerCase()
-        .replace(/[^a-z0-9\u0980-\u09FF\s-]/g, '')
-        .trim()
-        .replace(/\s+/g, '-');
-      setSlug(autoSlug);
+      setSlug(generateUnicodeCourseSlug(val));
     }
   };
 
@@ -768,9 +767,15 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       title
     );
 
+    const trimmedSlug = slug.trim();
+    const resolvedFinalSlug =
+      course && trimmedSlug === course.slug
+        ? course.slug
+        : generateUnicodeCourseSlug(trimmedSlug) || trimmedSlug;
+
     const payload = {
       title: title.trim(),
-      slug: slug.trim(),
+      slug: resolvedFinalSlug,
       categoryId: matchedCat ? matchedCat.id : null,
       categoryIds: selectedCategoryIds,
       categorySlug: primaryCategorySlug,
@@ -920,7 +925,14 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   type="text"
                   required
                   value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                  onChange={(e) => setSlug(sanitizeEditableUnicodeSlug(e.target.value))}
+                  onBlur={() => {
+                    if (course && slug.trim() === course.slug) return;
+                    const cleaned = generateUnicodeCourseSlug(slug);
+                    if (cleaned && cleaned !== slug) {
+                      setSlug(cleaned);
+                    }
+                  }}
                   placeholder="hsc-28-online-batch"
                   className={`w-full px-3.5 py-2.5 rounded-r-xl border text-xs font-mono text-slate-800 bg-white outline-none shadow-2xs transition ${
                     conflictingSlugCourse
