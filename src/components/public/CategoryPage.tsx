@@ -15,6 +15,7 @@ import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { Hsc28ScienceCategoryPage } from './categories/Hsc28ScienceCategoryPage.tsx';
+import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
 import { Search, Sparkles } from 'lucide-react';
 
 interface CategoryPageProps {
@@ -218,28 +219,31 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
 
       {/* Warm Frosted Category Header Card */}
       <div className="glass-surface rounded-3xl p-6 sm:p-8 mb-8 relative overflow-hidden">
-        <div className="max-w-2xl relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-inset text-[#B91C1C] text-xs font-bold mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>ক্যাটাগরি পেজ</span>
+        <div className="relative flex items-center justify-between gap-6">
+          <div className="max-w-2xl relative z-10 min-w-0">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-inset text-[#B91C1C] text-xs font-bold mb-3">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>ক্যাটাগরি পেজ</span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-black text-[#2A0F12] mb-2 tracking-tight">
+              {currentCategory.name}
+            </h1>
+
+            {currentCategory.subtitle && (
+              <p className="text-xs sm:text-sm text-[#6B4C4F] font-normal leading-relaxed">
+                {currentCategory.subtitle}
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#E22B2B] text-white tabular-nums bn-digits-fix">
+                {toBengaliNumber(filteredCourses.length)}টি কোর্স পাওয়া গেছে
+              </span>
+            </div>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black text-[#2A0F12] mb-2 tracking-tight">
-            {currentCategory.name}
-          </h1>
-
-          {currentCategory.subtitle && (
-            <p className="text-xs sm:text-sm text-[#6B4C4F] font-normal leading-relaxed">
-              {currentCategory.subtitle}
-            </p>
-          )}
-
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#E22B2B] text-white tabular-nums bn-digits-fix">
-              {toBengaliNumber(filteredCourses.length)}টি কোর্স পাওয়া গেছে
-            </span>
-          </div>
-
+          <ScienceBackdropAccent variant="science" />
         </div>
       </div>
 

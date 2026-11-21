@@ -7,7 +7,6 @@ import {
   deriveCourseSummaryDescription,
   extractActiveFeatureTitles,
   getCourseFeatureItems,
-  MIN_ACTIVE_COURSE_FEATURES,
   sortCourseFeatures,
 } from '../../lib/courseFeatures.ts';
 import {
@@ -205,7 +204,6 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     if (course) {
       return getCourseFeatureItems(course, {
         includeInactive: true,
-        fallbackIfEmpty: false,
       });
     }
     return [];
@@ -628,8 +626,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       gradientTheme,
       description: deriveCourseSummaryDescription(
         description || fullDescription,
-        normalizedFeatures,
-        title
+        normalizedFeatures
       ),
       fullDescription: fullDescription.trim() || null,
       imageUrl: imageUrl.trim() || null,
@@ -707,13 +704,6 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     }
     const normalizedFeatures = sortCourseFeatures(courseFeatures);
     const activeFeatureTitles = extractActiveFeatureTitles(normalizedFeatures);
-    if (activeFeatureTitles.length < MIN_ACTIVE_COURSE_FEATURES) {
-      const msg = `কোর্স কার্ডে প্রদর্শনের জন্য ন্যূনতম ${toBengaliNumber(MIN_ACTIVE_COURSE_FEATURES)}টি সক্রিয় (Published) ফিচার যুক্ত করতে হবে।`;
-      setError(msg);
-      onShowToast?.(msg, 'error');
-      featuresSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
     if (!batchValidation.valid) {
       const msg =
         batchValidation.error || 'একটি কোর্সে শুধুমাত্র একটি ব্যাচ কীওয়ার্ড নির্বাচন করা যাবে।';
@@ -763,8 +753,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
     const resolvedSummaryDescription = deriveCourseSummaryDescription(
       description || fullDescription,
-      normalizedFeatures,
-      title
+      normalizedFeatures
     );
 
     const trimmedSlug = slug.trim();

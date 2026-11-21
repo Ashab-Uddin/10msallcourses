@@ -29,7 +29,6 @@ import {
   inferCourseFeatureIcon,
   MAX_COURSE_FEATURE_TITLE_LENGTH,
   MAX_COURSE_FEATURES_PER_COURSE,
-  MIN_ACTIVE_COURSE_FEATURES,
   normalizeFeatureTitleForComparison,
   sortCourseFeatures,
 } from '../../lib/courseFeatures.ts';
@@ -760,7 +759,6 @@ export const CourseFeaturesManager: React.FC<CourseFeaturesManagerProps> = (prop
     }
   };
 
-  const missingMinimum = Math.max(0, MIN_ACTIVE_COURSE_FEATURES - activeItems.length);
   const selectedSourceCourse = availableSourceCourses.find(
     (c) => String(c.id) === selectedSourceCourseId
   );
@@ -779,13 +777,12 @@ export const CourseFeaturesManager: React.FC<CourseFeaturesManagerProps> = (prop
         <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] font-extrabold tabular-nums">
           <span
             className={`px-2.5 py-0.5 rounded-full border ${
-              missingMinimum === 0
+              activeItems.length > 0
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                : 'bg-amber-50 text-amber-800 border-amber-300'
+                : 'bg-slate-50 text-slate-600 border-slate-200'
             }`}
           >
-            সক্রিয়: {toBengaliNumber(activeItems.length)} / ন্যূনতম{' '}
-            {toBengaliNumber(MIN_ACTIVE_COURSE_FEATURES)}টি
+            সক্রিয়: {toBengaliNumber(activeItems.length)}টি
           </span>
           <span className="px-2.5 py-0.5 rounded-full bg-rose-50 text-[#b91c1c] border border-rose-200">
             মোট: {toBengaliNumber(items.length)}টি
@@ -799,19 +796,6 @@ export const CourseFeaturesManager: React.FC<CourseFeaturesManagerProps> = (prop
         কোর্স কার্ডে প্রদর্শিত হবে এবং <strong>Show More</strong> বাটনে ক্লিক করলে সকল
         সক্রিয় ফিচার ও কোর্সের বিস্তারিত দেখা যাবে। ড্র্যাগ (⇅) করে বা ↑↓ বাটনে সিরিয়াল সাজাতে পারবেন।
       </p>
-
-      {/* Minimum Active Feature Notice */}
-      {missingMinimum > 0 && (
-        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold flex flex-wrap items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 min-w-0">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              পাবলিক কার্ডের জন্য ন্যূনতম {toBengaliNumber(MIN_ACTIVE_COURSE_FEATURES)}টি
-              সক্রিয় ফিচার প্রয়োজন (আরও {toBengaliNumber(missingMinimum)}টি সক্রিয় করুন)।
-            </span>
-          </span>
-        </div>
-      )}
 
       {localError && (
         <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold flex items-center justify-between gap-2">

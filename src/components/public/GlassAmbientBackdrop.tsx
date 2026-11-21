@@ -2,24 +2,25 @@
 
 import React from 'react';
 import {
-  GraduationCap,
-  BookOpen,
-  PenTool,
-  Lightbulb,
+  Activity,
   Atom,
-  Calculator,
+  BookOpen,
   Compass,
-  Award,
-  Trophy,
-  Code2,
+  Dna,
   FlaskConical,
-  Ruler,
-  ArrowUpRight,
-  MoveUpRight,
-  TrendingUp,
-  CornerRightUp,
+  FlaskRound,
+  GraduationCap,
+  Lightbulb,
+  Magnet,
+  Microscope,
+  Orbit,
+  Pi,
+  Sigma,
   Sparkles,
-  Target,
+  TestTube2,
+  TestTubes,
+  Waves,
+  Zap,
 } from 'lucide-react';
 
 export const GlassAmbientBackdrop: React.FC = React.memo(() => {
@@ -63,12 +64,12 @@ export const GlassAmbientBackdrop: React.FC = React.memo(() => {
         }}
       />
 
-      {/* 3. Subtle Curved Dashed Trajectory Arcs & Orbital Rings */}
+      {/* 3. Subtle Curved Dashed Orbital & Trajectory Rings */}
       <div className="absolute -top-24 left-[14%] w-[420px] h-[420px] rounded-full border border-dashed border-[#E22B2B]/12" />
       <div className="hidden md:block absolute top-[22%] -right-28 w-[520px] h-[520px] rounded-full border border-dashed border-[#B91C1C]/10" />
       <div className="hidden lg:block absolute bottom-[8%] -left-28 w-[460px] h-[460px] rounded-full border border-dashed border-rose-500/12" />
 
-      {/* 4. Decorative Flowing Dashed Learning Paths (Background Curves) */}
+      {/* 4. Decorative Flowing Dashed Wave & Molecular Curves */}
       <svg
         className="absolute inset-0 w-full h-full opacity-[0.14] text-[#B91C1C]"
         viewBox="0 0 1440 900"
@@ -105,111 +106,145 @@ export const GlassAmbientBackdrop: React.FC = React.memo(() => {
         />
       </svg>
 
-      {/* 5. Floating Glass Educational Elements, Arrows & Academic Motifs */}
-      {/* Top-Left Hero Flank: Graduation Cap + Upward Arrow */}
-      <div className="absolute top-[11%] left-[4%] sm:left-[7%] -rotate-12 flex items-center gap-2">
-        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/30 backdrop-blur-none border border-white/55 shadow-[0_8px_24px_-10px_rgba(185,28,28,0.16)] flex items-center justify-center text-[#B91C1C]/30">
-          <GraduationCap className="w-7 h-7 sm:w-8 sm:h-8 stroke-[1.6]" />
-        </div>
-        <ArrowUpRight className="w-6 h-6 text-[#E22B2B]/25 -mt-6" />
-      </div>
+      {/* 5. Science, Physics & Chemistry Floating Glass Elements (Optimized for Tablet & Laptop) */}
 
-      {/* Top-Right Hero Flank: Open Book + Growth Arrow */}
-      <div className="absolute top-[13%] right-[4%] sm:right-[7%] rotate-12 flex items-center gap-2">
-        <TrendingUp className="w-6 h-6 text-[#B91C1C]/22 -mb-6" />
-        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/30 backdrop-blur-none border border-white/55 shadow-[0_8px_24px_-10px_rgba(185,28,28,0.16)] flex items-center justify-center text-[#B91C1C]/30">
-          <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 stroke-[1.6]" />
-        </div>
-      </div>
-
-      {/* Upper-Mid Left: A+ Grade & PenTool */}
-      <div className="hidden md:flex absolute top-[28%] left-[2.5%] -rotate-6 items-center gap-2">
-        <div className="px-3 py-1.5 rounded-xl bg-white/28 backdrop-blur-none border border-white/50 text-[#B91C1C]/30 font-black text-base tracking-tight">
-          A+
-        </div>
-        <PenTool className="w-5 h-5 text-[#E22B2B]/20 rotate-45" />
-      </div>
-
-      {/* Upper-Mid Right: Lightbulb + Sparkles */}
-      <div className="hidden md:flex absolute top-[29%] right-[3%] rotate-6 items-center gap-1.5">
-        <Sparkles className="w-4 h-4 text-amber-600/25 -mt-4" />
-        <div className="w-11 h-11 rounded-2xl bg-white/28 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/28">
-          <Lightbulb className="w-6 h-6 stroke-[1.6]" />
-        </div>
-      </div>
-
-      {/* Center-Left: Science & Math (Atom, Flask, Pi formula) */}
-      <div className="absolute top-[47%] left-[3%] sm:left-[5%] rotate-6 flex flex-col items-start gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-11 h-11 rounded-2xl bg-white/25 backdrop-blur-none border border-white/45 flex items-center justify-center text-[#B91C1C]/26">
-            <Atom className="w-6 h-6 stroke-[1.5]" />
+      {/* Top-Left Flank: Bohr Atom Ring + Formula */}
+      <div className="absolute top-[10%] left-[3%] sm:left-[5%] -rotate-6 flex items-center gap-2.5">
+        <div className="relative w-14 h-14 flex items-center justify-center">
+          <div className="hidden md:block absolute inset-0 rounded-full border border-dashed border-[#E22B2B]/20" />
+          <div className="w-11 h-11 rounded-2xl bg-white/34 border border-white/60 shadow-[0_8px_24px_-10px_rgba(185,28,28,0.16)] flex items-center justify-center text-[#B91C1C]/32">
+            <Atom className="w-6 h-6 stroke-[1.6]" />
           </div>
-          <MoveUpRight className="w-5 h-5 text-[#E22B2B]/20" />
         </div>
-        <span className="hidden sm:inline-block text-xs font-extrabold tracking-wider text-[#B91C1C]/20 bg-white/25 border border-white/40 px-2.5 py-0.5 rounded-full">
-          ∑ · π · E=mc²
+        <span className="hidden md:inline-block text-[11px] font-extrabold tracking-wide text-[#B91C1C]/26 bg-white/30 border border-white/55 px-2.5 py-0.5 rounded-full -mt-5">
+          F = ma
         </span>
       </div>
 
-      {/* Center-Right: Engineering & Tech (Calculator, Code, Ruler) */}
-      <div className="absolute top-[50%] right-[3%] sm:right-[5%] -rotate-6 flex flex-col items-end gap-3">
-        <div className="flex items-center gap-2">
-          <CornerRightUp className="w-5 h-5 text-[#E22B2B]/22" />
-          <div className="w-11 h-11 rounded-2xl bg-white/25 backdrop-blur-none border border-white/45 flex items-center justify-center text-[#B91C1C]/26">
-            <Code2 className="w-6 h-6 stroke-[1.5]" />
+      {/* Top-Right Flank: Chemistry Flask + Molecular H2O Pill */}
+      <div className="absolute top-[12%] right-[3%] sm:right-[5%] rotate-6 flex items-center gap-2">
+        <span className="hidden md:inline-block text-[11px] font-extrabold tracking-wide text-[#B91C1C]/26 bg-white/30 border border-white/55 px-2.5 py-0.5 rounded-full -mb-5">
+          H₂O · O₂
+        </span>
+        <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white/34 border border-white/60 shadow-[0_8px_24px_-10px_rgba(185,28,28,0.16)] flex items-center justify-center text-[#B91C1C]/32">
+          <FlaskConical className="w-6 h-6 stroke-[1.6]" />
+        </div>
+      </div>
+
+      {/* Upper-Mid Left (Tablet & Laptop): Physics Magnet + Waves */}
+      <div className="hidden md:flex absolute top-[27%] left-[2%] -rotate-6 items-center gap-2">
+        <div className="w-10 h-10 rounded-2xl bg-white/30 border border-white/55 flex items-center justify-center text-[#B91C1C]/28">
+          <Magnet className="w-5 h-5 stroke-[1.6]" />
+        </div>
+        <Waves className="w-5 h-5 text-[#E22B2B]/22" />
+        <span className="hidden xl:inline-block text-[10.5px] font-bold tracking-wider text-[#B91C1C]/24 bg-white/25 border border-white/45 px-2 py-0.5 rounded-full">
+          v = fλ
+        </span>
+      </div>
+
+      {/* Upper-Mid Right (Tablet & Laptop): Benzene Ring Geometry + Lightbulb */}
+      <div className="hidden md:flex absolute top-[28%] right-[2.5%] rotate-6 items-center gap-2">
+        <div className="relative w-10 h-10 hidden xl:flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-[#E22B2B]/14"
+            style={{
+              clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)',
+            }}
+          />
+          <div
+            className="w-9 h-9 bg-white/38 flex items-center justify-center text-[#B91C1C]/26"
+            style={{
+              clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)',
+            }}
+          >
+            <Sparkles className="w-4 h-4 stroke-[1.5]" />
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-1.5 text-[#B91C1C]/22">
-          <Calculator className="w-5 h-5 stroke-[1.5]" />
-          <Ruler className="w-5 h-5 stroke-[1.5] rotate-45" />
+        <div className="w-10 h-10 rounded-2xl bg-white/30 border border-white/55 flex items-center justify-center text-[#B91C1C]/28">
+          <Lightbulb className="w-5 h-5 stroke-[1.6]" />
         </div>
       </div>
 
-      {/* Lower-Mid Left: Geometry Compass & Chemistry Flask */}
-      <div className="hidden sm:flex absolute top-[69%] left-[5%] -rotate-12 items-center gap-2.5">
-        <div className="w-11 h-11 rounded-2xl bg-white/26 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/25">
-          <Compass className="w-6 h-6 stroke-[1.5]" />
+      {/* Center-Left (All + Enhanced for Tablet & Laptop): Orbit, Energy & Physics Formula */}
+      <div className="absolute top-[46%] left-[2.5%] sm:left-[4%] rotate-6 flex flex-col items-start gap-2.5">
+        <div className="flex items-center gap-2">
+          <div className="w-11 h-11 rounded-2xl bg-white/28 border border-white/50 flex items-center justify-center text-[#B91C1C]/28">
+            <Orbit className="w-6 h-6 stroke-[1.5]" />
+          </div>
+          <Zap className="w-4 h-4 text-[#E22B2B]/22" />
         </div>
-        <FlaskConical className="w-5 h-5 text-[#E22B2B]/20" />
-      </div>
-
-      {/* Lower-Mid Right: Target Goal & Arrow */}
-      <div className="hidden sm:flex absolute top-[71%] right-[5%] rotate-12 items-center gap-2">
-        <ArrowUpRight className="w-5 h-5 text-[#E22B2B]/22" />
-        <div className="w-11 h-11 rounded-2xl bg-white/26 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/25">
-          <Target className="w-6 h-6 stroke-[1.5]" />
-        </div>
-      </div>
-
-      {/* Bottom Flanks: Trophy & Certificate Award */}
-      <div className="absolute bottom-[10%] left-[4%] sm:left-[8%] rotate-12 flex items-center gap-2">
-        <div className="w-12 h-12 rounded-2xl bg-white/28 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/26">
-          <Trophy className="w-6 h-6 stroke-[1.6]" />
-        </div>
-        <ArrowUpRight className="w-5 h-5 text-[#E22B2B]/22 -mt-5" />
-      </div>
-
-      <div className="absolute bottom-[11%] right-[4%] sm:right-[8%] -rotate-12 flex items-center gap-2">
-        <span className="hidden md:inline-block text-[11px] font-black tracking-widest text-[#B91C1C]/20 bg-white/25 border border-white/40 px-2.5 py-0.5 rounded-full">
-          {'</>'}
+        <span className="hidden md:inline-block text-[11px] font-extrabold tracking-wider text-[#B91C1C]/24 bg-white/28 border border-white/45 px-2.5 py-0.5 rounded-full">
+          E = mc² · λ = h/p
         </span>
-        <div className="w-12 h-12 rounded-2xl bg-white/28 backdrop-blur-none border border-white/50 flex items-center justify-center text-[#B91C1C]/26">
-          <Award className="w-6 h-6 stroke-[1.6]" />
+      </div>
+
+      {/* Center-Right (All + Enhanced for Tablet & Laptop): DNA, Test Tubes & Gas Law */}
+      <div className="absolute top-[48%] right-[2.5%] sm:right-[4%] -rotate-6 flex flex-col items-end gap-2.5">
+        <div className="flex items-center gap-2">
+          <TestTubes className="w-5 h-5 text-[#E22B2B]/22" />
+          <div className="w-11 h-11 rounded-2xl bg-white/28 border border-white/50 flex items-center justify-center text-[#B91C1C]/28">
+            <Dna className="w-6 h-6 stroke-[1.5]" />
+          </div>
+        </div>
+        <div className="hidden md:flex items-center gap-1.5">
+          <span className="text-[11px] font-extrabold tracking-wider text-[#B91C1C]/24 bg-white/28 border border-white/45 px-2.5 py-0.5 rounded-full">
+            C₆H₆ · PV = nRT
+          </span>
         </div>
       </div>
 
-      {/* Subtle Inner Center Accent Marks (visible smoothly behind translucent glass cards) */}
+      {/* Lower-Mid Left (Tablet & Laptop): Microscope + TestTube2 + Compass */}
+      <div className="hidden md:flex absolute top-[67%] left-[3.5%] -rotate-6 items-center gap-2">
+        <div className="w-11 h-11 rounded-2xl bg-white/28 border border-white/52 flex items-center justify-center text-[#B91C1C]/26">
+          <Microscope className="w-5 h-5 stroke-[1.5]" />
+        </div>
+        <TestTube2 className="w-5 h-5 text-[#E22B2B]/22 rotate-12" />
+        <Compass className="hidden xl:block w-4 h-4 text-[#B91C1C]/20" />
+      </div>
+
+      {/* Lower-Mid Right (Tablet & Laptop): FlaskRound + Activity Wave + Sigma/Pi */}
+      <div className="hidden md:flex absolute top-[69%] right-[3.5%] rotate-6 items-center gap-2">
+        <div className="hidden xl:flex items-center gap-1 text-[#B91C1C]/22">
+          <Sigma className="w-4 h-4 stroke-[1.6]" />
+          <Pi className="w-4 h-4 stroke-[1.6]" />
+        </div>
+        <Activity className="w-5 h-5 text-[#E22B2B]/22" />
+        <div className="w-11 h-11 rounded-2xl bg-white/28 border border-white/52 flex items-center justify-center text-[#B91C1C]/26">
+          <FlaskRound className="w-5 h-5 stroke-[1.5]" />
+        </div>
+      </div>
+
+      {/* Bottom Flanks: Graduation / Thermodynamics & Organic Chemistry Motifs */}
+      <div className="absolute bottom-[10%] left-[4%] sm:left-[6%] rotate-6 flex items-center gap-2">
+        <div className="w-11 h-11 rounded-2xl bg-white/30 border border-white/52 flex items-center justify-center text-[#B91C1C]/26">
+          <GraduationCap className="w-6 h-6 stroke-[1.6]" />
+        </div>
+        <span className="hidden md:inline-block text-[10.5px] font-extrabold tracking-wider text-[#B91C1C]/22 bg-white/25 border border-white/45 px-2.5 py-0.5 rounded-full">
+          ΔG = ΔH - TΔS
+        </span>
+      </div>
+
+      <div className="absolute bottom-[11%] right-[4%] sm:right-[6%] -rotate-6 flex items-center gap-2">
+        <span className="hidden md:inline-block text-[10.5px] font-extrabold tracking-wider text-[#B91C1C]/22 bg-white/25 border border-white/45 px-2.5 py-0.5 rounded-full">
+          v = u + at
+        </span>
+        <div className="w-11 h-11 rounded-2xl bg-white/30 border border-white/52 flex items-center justify-center text-[#B91C1C]/26">
+          <BookOpen className="w-6 h-6 stroke-[1.6]" />
+        </div>
+      </div>
+
+      {/* Subtle Inner Center Watermarks (peek softly behind frosted glass on Laptop+) */}
       <div className="hidden lg:block absolute top-[21%] left-[26%] text-[#B91C1C]/12 rotate-12">
-        <ArrowUpRight className="w-7 h-7 stroke-[1.5]" />
+        <Atom className="w-7 h-7 stroke-[1.4]" />
       </div>
       <div className="hidden lg:block absolute top-[20%] right-[25%] text-[#B91C1C]/12 -rotate-12">
-        <GraduationCap className="w-7 h-7 stroke-[1.4]" />
+        <FlaskConical className="w-7 h-7 stroke-[1.4]" />
       </div>
       <div className="hidden lg:block absolute top-[58%] left-[22%] text-[#B91C1C]/10 rotate-6">
-        <BookOpen className="w-8 h-8 stroke-[1.3]" />
+        <Dna className="w-8 h-8 stroke-[1.3]" />
       </div>
       <div className="hidden lg:block absolute top-[56%] right-[24%] text-[#B91C1C]/10 -rotate-6">
-        <TrendingUp className="w-8 h-8 stroke-[1.3]" />
+        <Orbit className="w-8 h-8 stroke-[1.3]" />
       </div>
     </div>
   );

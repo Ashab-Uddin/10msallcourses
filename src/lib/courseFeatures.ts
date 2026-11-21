@@ -221,7 +221,7 @@ export function getCourseFeatureItems(
   const includeInactive = Boolean(options?.includeInactive);
 
   let items: CourseFeatureItem[] = [];
-  if (Array.isArray(course.courseFeatures) && course.courseFeatures.length > 0) {
+  if (Array.isArray(course.courseFeatures)) {
     items = normalizeCourseFeatureItems(course.courseFeatures, course.id);
   } else {
     const legacy = parseFeatures(course.features || '');

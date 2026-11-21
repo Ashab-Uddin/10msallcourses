@@ -55,38 +55,6 @@ export const HSC28_ALL_FILTERS: ReadonlyArray<Hsc28ScienceFilterOption> = [
   ...HSC28_SUBJECT_FILTERS,
 ];
 
-function extractCourseFeaturesText(course: Course): string {
-  const parts: string[] = [];
-
-  if (Array.isArray(course.courseFeatures)) {
-    for (const item of course.courseFeatures) {
-      if (item && item.isActive && item.title) {
-        parts.push(item.title);
-      }
-    }
-  }
-
-  if (typeof course.features === 'string' && course.features.trim()) {
-    const raw = course.features.trim();
-    if (raw.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          for (const entry of parsed) {
-            if (typeof entry === 'string') parts.push(entry);
-          }
-        }
-      } catch {
-        parts.push(raw);
-      }
-    } else {
-      parts.push(raw);
-    }
-  }
-
-  return parts.join(' ');
-}
-
 /**
  * Primary metadata string built strictly from authoritative identity fields
  * (excludes marketing description & feature bullets to prevent copy-paste leaks across subjects).
@@ -247,70 +215,30 @@ export function courseMatchesHsc28ScienceFilter(
 }
 
 export function toggleHsc28ScienceFilter(
-  currentFilters: Hsc28ScienceFilterId[],
+  currentFilter: Hsc28ScienceFilterId | 'all',
   clickedId: Hsc28ScienceFilterId | 'all'
-): Hsc28ScienceFilterId[] {
-  if (clickedId === 'all') {
-    return [];
+): Hsc28ScienceFilterId | 'all' {
+  if (clickedId === 'all' || currentFilter === clickedId) {
+    return 'all';
   }
-  if (currentFilters.includes(clickedId)) {
-    return currentFilters.filter((id) => id !== clickedId);
-  }
-  return [...currentFilters, clickedId];
+  return clickedId;
 }
 
 /**
- * Multi-filter combination logic:
- * - Within Type group (`বান্ডেল`, `নির্দিষ্ট`): OR (shows courses matching any selected type)
- * - Within Subject group (`PCMB`, `বায়োলজি`, ..., `ICT`): OR (shows courses matching any selected subject)
- * - Across Type AND Subject groups: AND (e.g. `নির্দিষ্ট` + `ফিজিক্স` shows dedicated Physics courses only)
- * - Combined smoothly with keyword search query.
+ * Single-filter matching logic:
+ * - 'all' shows every HSC 28 Science course.
+ * - Any selected filter ID shows courses matching that specific type or subject.
  */
 export function filterHsc28ScienceCourses(
   courses: Course[],
-  selectedFilters: Hsc28ScienceFilterId[],
-  searchQuery: string
+  selectedFilter: Hsc28ScienceFilterId | 'all'
 ): Course[] {
-  const selectedTypes = selectedFilters.filter(
-    (id) => id === 'bundle' || id === 'specific'
+  if (selectedFilter === 'all') {
+    return courses;
+  }
+  return courses.filter((course) =>
+    courseMatchesHsc28ScienceFilter(course, selectedFilter)
   );
-  const selectedSubjects = selectedFilters.filter(
-    (id) => id !== 'bundle' && id !== 'specific'
-  );
-  const q = normalizeCategoryMatchText(searchQuery.trim());
-
-  return courses.filter((course) => {
-    if (
-      selectedTypes.length > 0 &&
-      !selectedTypes.some((typeId) => courseMatchesHsc28ScienceFilter(course, typeId))
-    ) {
-      return false;
-    }
-
-    if (
-      selectedSubjects.length > 0 &&
-      !selectedSubjects.some((subjId) => courseMatchesHsc28ScienceFilter(course, subjId))
-    ) {
-      return false;
-    }
-
-    if (!q) return true;
-
-    const searchable = normalizeCategoryMatchText(
-      [
-        course.title || '',
-        course.slug || '',
-        course.shortBadge || '',
-        course.headerTitle || '',
-        course.headerSubtitle || '',
-        course.targetStudents || '',
-        course.description || '',
-        extractCourseFeaturesText(course),
-      ].join(' ')
-    );
-
-    return searchable.includes(q);
-  });
 }
 
 export function getHsc28ScienceFilterCounts(
