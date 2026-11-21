@@ -11,6 +11,7 @@ import {
 
 export const DEFAULT_PUBLIC_SITE_URL = 'https://10msallcourse.com';
 export const DEFAULT_SITE_NAME = '10ms All Courses';
+export const COURSE_BRAND_NAME = '10msallcourses';
 export const DEFAULT_SITE_TITLE = '10ms All Courses';
 export const DEFAULT_SITE_DESCRIPTION =
   'Explore and discover courses from 10 Minute School. Find your preferred courses, compare prices, and access them easily.';
@@ -58,6 +59,123 @@ export function getSiteBaseUrl(): string {
   return DEFAULT_PUBLIC_SITE_URL;
 }
 
+export function resolveSiteOriginFromHeaders(headersList?: {
+  get(name: string): string | null;
+}): string {
+  if (headersList) {
+    const forwardedHost = headersList.get('x-forwarded-host')?.split(',')[0]?.trim();
+    const rawHost = forwardedHost || headersList.get('host')?.split(',')[0]?.trim();
+    const forwardedProto = headersList
+      .get('x-forwarded-proto')
+      ?.split(',')[0]
+      ?.trim()
+      .toLowerCase();
+
+    if (rawHost) {
+      const candidate = normalizePublicOrigin(
+        `${forwardedProto === 'http' ? 'http' : 'https'}://${rawHost}`
+      );
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+
+  return getSiteBaseUrl();
+}
+
+function sanitizeOgText(value?: string | null): string {
+  if (!value) return '';
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function truncateAtWordBoundary(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  const sliced = text.slice(0, Math.max(0, maxLength - 3));
+  const lastSpace = sliced.lastIndexOf(' ');
+  const safeSlice =
+    lastSpace > Math.floor(maxLength * 0.55) ? sliced.slice(0, lastSpace) : sliced;
+  return `${safeSlice.replace(/[,.;:!?—-]+$/, '').trim()}...`;
+}
+
+function getEffectiveDiscountPercent(course: Course): number {
+  if (course.discountPercent > 0) return Math.round(course.discountPercent);
+  if (course.originalPrice > course.discountPrice && course.originalPrice > 0) {
+    return Math.round(
+      ((course.originalPrice - course.discountPrice) / course.originalPrice) * 100
+    );
+  }
+  return 0;
+}
+
+export function formatCourseOgPriceSummary(course: Course): {
+  shortPrice: string;
+  detailPrefix: string;
+} {
+  if (course.discountPrice === 0) {
+    return {
+      shortPrice: 'সম্পূর্ণ ফ্রি',
+      detailPrefix: 'কোর্স ফি: সম্পূর্ণ ফ্রি।',
+    };
+  }
+
+  const discounted = `৳${toBengaliNumber(course.discountPrice)}`;
+  const discountPct = getEffectiveDiscountPercent(course);
+
+  if (course.originalPrice > course.discountPrice) {
+    const original = `৳${toBengaliNumber(course.originalPrice)}`;
+    const pctText = discountPct > 0 ? `${toBengaliNumber(discountPct)}% ছাড়` : '';
+    return {
+      shortPrice: pctText ? `${discounted} (${pctText})` : discounted,
+      detailPrefix: pctText
+        ? `কোর্স ফি: ${discounted} (পূর্বমূল্য ${original} · ${pctText})।`
+        : `কোর্স ফি: ${discounted} (পূর্বমূল্য ${original})।`,
+    };
+  }
+
+  return {
+    shortPrice: discounted,
+    detailPrefix: `কোর্স ফি: ${discounted}।`,
+  };
+}
+
+export function buildCourseOgTitle(course: Course): string {
+  const { shortPrice } = formatCourseOgPriceSummary(course);
+  return `${sanitizeOgText(course.title)} — ${shortPrice} | ${COURSE_BRAND_NAME}`;
+}
+
+export function buildCourseOgDescription(course: Course): string {
+  const { detailPrefix } = formatCourseOgPriceSummary(course);
+  const rawSummary =
+    sanitizeOgText(course.description) || sanitizeOgText(course.fullDescription);
+  const brandSuffix = `— ${COURSE_BRAND_NAME}`;
+
+  if (!rawSummary) {
+    return `${detailPrefix} ${sanitizeOgText(course.title)} কোর্সে অনলাইনে ভর্তি হোন ${brandSuffix}।`;
+  }
+
+  const maxSummaryChars = Math.max(60, 195 - detailPrefix.length - brandSuffix.length - 2);
+  const compactSummary = truncateAtWordBoundary(rawSummary, maxSummaryChars);
+  return `${detailPrefix} ${compactSummary} ${brandSuffix}`;
+}
+
+export function buildCourseOgImageVersion(course: Course): string {
+  const updatedMs = course.updatedAt ? Date.parse(course.updatedAt) : NaN;
+  const imgSignal = course.imageUrl
+    ? course.imageUrl.split('/').pop()?.slice(0, 12).replace(/[^a-zA-Z0-9_-]/g, '') || ''
+    : 'default';
+  if (Number.isFinite(updatedMs) && updatedMs > 0) {
+    return `${course.id}-${Math.floor(updatedMs / 1000).toString(36)}-${imgSignal}`;
+  }
+  return `${course.id}-${imgSignal}`;
+}
+
+export function buildCourseOgImageUrl(course: Course, baseUrl: string): string {
+  const safeBase = normalizePublicOrigin(baseUrl) || getSiteBaseUrl();
+  const version = buildCourseOgImageVersion(course);
+  return `${safeBase}/api/og/course/${encodeURIComponent(course.slug)}?v=${encodeURIComponent(version)}`;
+}
+
 interface ResolvedRouteSeo {
   title: string;
   description: string;
@@ -65,7 +183,11 @@ interface ResolvedRouteSeo {
   filterCourses: (allCourses: Course[]) => Course[];
   isAdmin?: boolean;
   noIndex?: boolean;
+  siteName?: string;
   ogImageUrl?: string;
+  ogImageAlt?: string;
+  ogImageType?: 'image/png' | 'image/jpeg';
+  ogExtraMeta?: Record<string, string>;
 }
 
 function isPublicVisibleCourse(course: Course): boolean {
@@ -77,7 +199,8 @@ function resolveRouteSeo(
   categories: Category[],
   settings?: SiteSettings | null,
   bookCategories: BookCategory[] = [],
-  courses: Course[] = []
+  courses: Course[] = [],
+  baseUrlOverride?: string
 ): ResolvedRouteSeo {
   const clean = pathname.replace(/\/+$/, '') || '/';
 
@@ -315,33 +438,36 @@ function resolveRouteSeo(
           c.slug.toLowerCase() === targetSlug.toLowerCase())
     );
     if (matchedCourse) {
-      const priceText =
-        matchedCourse.discountPrice === 0
-          ? 'সম্পূর্ণ ফ্রি'
-          : `৳${toBengaliNumber(matchedCourse.discountPrice)}`;
-      const courseOgImage =
-        matchedCourse.imageUrl && /^https:\/\//i.test(matchedCourse.imageUrl.trim())
-          ? matchedCourse.imageUrl.replace(/\?(w=\d+.*)/i, '').trim()
-          : undefined;
+      const effectiveBaseUrl = normalizePublicOrigin(baseUrlOverride) || getSiteBaseUrl();
+      const title = buildCourseOgTitle(matchedCourse);
+      const description = buildCourseOgDescription(matchedCourse);
+      const ogImageUrl = buildCourseOgImageUrl(matchedCourse, effectiveBaseUrl);
 
       return {
-        title: `${matchedCourse.title} (${priceText}) — ১০ মিনিট স্কুল`,
-        description:
-          matchedCourse.description?.trim() ||
-          matchedCourse.fullDescription?.trim().slice(0, 160) ||
-          `${matchedCourse.title} কোর্সে সরাসরি ডিসকাউন্টেড মূল্যে ভর্তি হোন।`,
+        title,
+        description,
         canonicalPath: `/courses/${encodeURIComponent(matchedCourse.slug)}`,
         filterCourses: () => [matchedCourse],
-        ogImageUrl: courseOgImage,
+        siteName: COURSE_BRAND_NAME,
+        ogImageUrl,
+        ogImageAlt: `${matchedCourse.title} — ${COURSE_BRAND_NAME}`,
+        ogImageType: 'image/jpeg',
+        ogExtraMeta: {
+          'product:price:amount': String(matchedCourse.discountPrice),
+          'product:price:currency': 'BDT',
+          'og:price:amount': String(matchedCourse.discountPrice),
+          'og:price:currency': 'BDT',
+        },
       };
     }
 
     return {
-      title: 'কোর্স পাওয়া যায়নি — ১০ মিনিট স্কুল',
+      title: `কোর্স পাওয়া যায়নি — ${COURSE_BRAND_NAME}`,
       description: DEFAULT_SITE_DESCRIPTION,
       canonicalPath: clean,
       filterCourses: () => [],
       noIndex: true,
+      siteName: COURSE_BRAND_NAME,
     };
   }
 
@@ -353,15 +479,45 @@ function resolveRouteSeo(
   };
 }
 
+export function buildCourseSeoMetadata(
+  course: Course | null | undefined,
+  rawSlug: string,
+  originOverride?: string
+): Metadata {
+  const baseUrl = normalizePublicOrigin(originOverride) || getSiteBaseUrl();
+  const safePath = `/courses/${encodeURIComponent(rawSlug)}`;
+
+  if (!course || !isPublicVisibleCourse(course)) {
+    return buildSeoMetadata(safePath, [], null, [], [], baseUrl);
+  }
+
+  return buildSeoMetadata(
+    `/courses/${encodeURIComponent(course.slug)}`,
+    [],
+    null,
+    [],
+    [course],
+    baseUrl
+  );
+}
+
 export function buildSeoMetadata(
   pathname: string,
   categories: Category[],
   settings?: SiteSettings | null,
   bookCategories: BookCategory[] = [],
-  courses: Course[] = []
+  courses: Course[] = [],
+  originOverride?: string
 ): Metadata {
-  const baseUrl = getSiteBaseUrl();
-  const resolved = resolveRouteSeo(pathname, categories, settings, bookCategories, courses);
+  const baseUrl = normalizePublicOrigin(originOverride) || getSiteBaseUrl();
+  const resolved = resolveRouteSeo(
+    pathname,
+    categories,
+    settings,
+    bookCategories,
+    courses,
+    baseUrl
+  );
 
   if (resolved.isAdmin) {
     return {
@@ -376,11 +532,14 @@ export function buildSeoMetadata(
 
   const canonicalUrl =
     resolved.canonicalPath === '/' ? baseUrl : `${baseUrl}${resolved.canonicalPath}`;
+  const siteName = resolved.siteName || DEFAULT_SITE_NAME;
   const ogImageUrl = resolved.ogImageUrl || `${baseUrl}${DEFAULT_OG_IMAGE_PATH}`;
+  const ogImageType = resolved.ogImageType || 'image/png';
   const ogImageAlt =
-    resolved.title === DEFAULT_SITE_NAME
+    resolved.ogImageAlt ||
+    (resolved.title === DEFAULT_SITE_NAME
       ? `${DEFAULT_SITE_NAME} — 10 Minute School Courses`
-      : `${resolved.title} — ${DEFAULT_SITE_NAME}`;
+      : `${resolved.title} — ${siteName}`);
 
   return {
     title: resolved.title,
@@ -398,14 +557,14 @@ export function buildSeoMetadata(
       url: canonicalUrl,
       type: 'website',
       locale: 'bn_BD',
-      siteName: DEFAULT_SITE_NAME,
+      siteName,
       images: [
         {
           url: ogImageUrl,
           secureUrl: ogImageUrl,
           width: 1200,
           height: 630,
-          type: 'image/png',
+          type: ogImageType,
           alt: ogImageAlt,
         },
       ],
@@ -421,6 +580,7 @@ export function buildSeoMetadata(
         },
       ],
     },
+    ...(resolved.ogExtraMeta ? { other: resolved.ogExtraMeta } : {}),
   };
 }
 
@@ -428,10 +588,11 @@ export function buildStructuredData(
   pathname: string,
   categories: Category[],
   courses: Course[],
-  settings?: SiteSettings | null
+  settings?: SiteSettings | null,
+  originOverride?: string
 ) {
-  const baseUrl = getSiteBaseUrl();
-  const resolved = resolveRouteSeo(pathname, categories, settings, [], courses);
+  const baseUrl = normalizePublicOrigin(originOverride) || getSiteBaseUrl();
+  const resolved = resolveRouteSeo(pathname, categories, settings, [], courses, baseUrl);
   if (resolved.isAdmin) return null;
 
   const matched = resolved
