@@ -18,6 +18,7 @@ import {
 } from '@/src/lib/courseValidation';
 import {
   courseMatchesAcademicBatch,
+  courseMatchesCategorySlug,
   resolveCourseDepartments,
 } from '@/src/lib/categoryMatching';
 import {
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const category = searchParams.get('category')?.trim();
     if (category && category !== 'all') {
-      courses = courses.filter((c) => c.categorySlug === category);
+      courses = courses.filter((c) => courseMatchesCategorySlug(c, category));
     }
 
     const batch = searchParams.get('batch')?.trim();

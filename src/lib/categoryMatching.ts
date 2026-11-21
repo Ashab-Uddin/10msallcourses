@@ -199,6 +199,41 @@ export function resolveCourseDepartments(course: Course): CourseGroupKey[] {
   return ['science', 'business', 'humanities'];
 }
 
+export function getCourseCategorySlugs(
+  course: Pick<Course, 'categorySlug' | 'categorySlugs'>
+): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  const pushSlug = (raw: unknown) => {
+    const norm = String(raw || '').trim().toLowerCase();
+    if (!norm || seen.has(norm)) return;
+    seen.add(norm);
+    result.push(norm);
+  };
+
+  pushSlug(course.categorySlug);
+  if (Array.isArray(course.categorySlugs)) {
+    for (const s of course.categorySlugs) {
+      pushSlug(s);
+    }
+  }
+  return result;
+}
+
+export function courseHasAssignedCategorySlug(
+  course: Pick<Course, 'categorySlug' | 'categorySlugs'>,
+  targetSlug: string
+): boolean {
+  const cleanTarget = String(targetSlug || '').trim().toLowerCase();
+  if (!cleanTarget) return false;
+  const assigned = getCourseCategorySlugs(course);
+  if (assigned.includes(cleanTarget)) return true;
+  if (cleanTarget === 'free-course' || cleanTarget === 'free') {
+    return assigned.includes('free-course') || assigned.includes('free');
+  }
+  return false;
+}
+
 /**
  * Matches courses assigned directly to `class-5`..`class-8` categories
  * OR legacy `school` category courses whose target batch/title explicitly targets that class.
@@ -207,13 +242,13 @@ export function courseMatchesClass(course: Course, classNum: JuniorClassNumber):
   const dedicatedSlug = `class-${classNum}`;
   const resolvedBatch = resolveCourseTargetBatch(course);
 
-  if (course.categorySlug === dedicatedSlug) {
+  if (courseHasAssignedCategorySlug(course, dedicatedSlug)) {
     return resolvedBatch === null || resolvedBatch === dedicatedSlug;
   }
-  if (course.categorySlug === 'free-course' && resolvedBatch === dedicatedSlug) {
+  if (courseHasAssignedCategorySlug(course, 'free-course') && resolvedBatch === dedicatedSlug) {
     return true;
   }
-  if (course.categorySlug !== 'school') {
+  if (!courseHasAssignedCategorySlug(course, 'school')) {
     return false;
   }
   if (resolvedBatch !== null) {
@@ -236,19 +271,24 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
   const normalizedTarget =
     normalizeTargetBatchId(targetBatchOrClass) || targetBatchOrClass.trim().toLowerCase();
   const resolvedBatch = resolveCourseTargetBatch(course);
+  const assignedSlugs = getCourseCategorySlugs(course);
   const metaHaystack = normalizeCategoryMatchText(
     `${course.title} ${course.slug} ${course.headerTitle} ${course.headerSubtitle} ${course.targetStudents || ''}`
   );
 
   if (normalizedTarget === 'hsc-26') {
-    if (course.categorySlug !== 'hsc' && course.categorySlug !== 'admission') {
+    const inHscOrAdmission =
+      assignedSlugs.includes('hsc') ||
+      assignedSlugs.includes('admission') ||
+      assignedSlugs.some((s) => s === 'hsc-26' || s.startsWith('hsc-26-'));
+    if (!inHscOrAdmission) {
       return false;
     }
     // If a course belongs to a specific other batch (e.g. HSC 27 or HSC 28), strictly exclude it!
     if (resolvedBatch !== null) {
       return resolvedBatch === 'hsc-26';
     }
-    if (course.categorySlug === 'admission') {
+    if (assignedSlugs.includes('admission')) {
       return true;
     }
     return matchesAnyNormalizedKeyword(metaHaystack, [
@@ -278,7 +318,10 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
   }
 
   if (normalizedTarget === 'hsc-27') {
-    if (course.categorySlug !== 'hsc') return false;
+    const inHsc27Scope =
+      assignedSlugs.includes('hsc') ||
+      assignedSlugs.some((s) => s === 'hsc-27' || s.startsWith('hsc-27-'));
+    if (!inHsc27Scope) return false;
     if (resolvedBatch !== null) {
       return resolvedBatch === 'hsc-27';
     }
@@ -290,7 +333,10 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
   }
 
   if (normalizedTarget === 'hsc-28') {
-    if (course.categorySlug !== 'hsc') return false;
+    const inHsc28Scope =
+      assignedSlugs.includes('hsc') ||
+      assignedSlugs.some((s) => s === 'hsc-28' || s.startsWith('hsc-28-'));
+    if (!inHsc28Scope) return false;
     if (resolvedBatch !== null) {
       return resolvedBatch === 'hsc-28';
     }
@@ -302,7 +348,7 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
   }
 
   if (normalizedTarget === 'ssc-2027') {
-    if (course.categorySlug !== 'school') return false;
+    if (!assignedSlugs.includes('school')) return false;
     if (resolvedBatch !== null) {
       return resolvedBatch === 'ssc-2027';
     }
@@ -324,7 +370,7 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
   }
 
   if (normalizedTarget === 'ssc-2028') {
-    if (course.categorySlug !== 'school') return false;
+    if (!assignedSlugs.includes('school')) return false;
     if (resolvedBatch !== null) {
       return resolvedBatch === 'ssc-2028';
     }
@@ -360,6 +406,7 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
 export function courseMatchesCategorySlug(course: Course, categorySlug: string): boolean {
   const slug = (categorySlug || '').trim().toLowerCase();
   if (!slug) return false;
+  const assignedSlugs = getCourseCategorySlugs(course);
 
   if (slug === 'class-5') return courseMatchesClass(course, 5);
   if (slug === 'class-6') return courseMatchesClass(course, 6);
@@ -367,12 +414,16 @@ export function courseMatchesCategorySlug(course: Course, categorySlug: string):
   if (slug === 'class-8') return courseMatchesClass(course, 8);
 
   if (slug === 'free-course' || slug === 'free') {
-    return course.categorySlug === 'free-course' || course.discountPrice === 0;
+    return (
+      assignedSlugs.includes('free-course') ||
+      assignedSlugs.includes('free') ||
+      course.discountPrice === 0
+    );
   }
 
   if (slug === 'language-learning') {
-    if (course.categorySlug === 'language-learning') return true;
-    if (course.categorySlug !== 'skills') return false;
+    if (assignedSlugs.includes('language-learning')) return true;
+    if (!assignedSlugs.includes('skills')) return false;
     const text = normalizeCategoryMatchText(
       `${course.title} ${course.slug} ${course.description}`
     );
@@ -386,8 +437,8 @@ export function courseMatchesCategorySlug(course: Course, categorySlug: string):
   }
 
   if (slug === 'books' || slug === 'book-store') {
-    return course.categorySlug === 'books';
+    return assignedSlugs.includes('books');
   }
 
-  return (course.categorySlug || '').trim().toLowerCase() === slug;
+  return assignedSlugs.includes(slug);
 }

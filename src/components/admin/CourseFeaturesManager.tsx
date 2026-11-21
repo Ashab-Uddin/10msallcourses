@@ -33,6 +33,7 @@ import {
   normalizeFeatureTitleForComparison,
   sortCourseFeatures,
 } from '../../lib/courseFeatures.ts';
+import { getCourseCategorySlugs } from '../../lib/categoryMatching.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { CourseFeatureIcon } from '../public/CourseFeatureIcon.tsx';
 
@@ -875,7 +876,9 @@ export const CourseFeaturesManager: React.FC<CourseFeaturesManagerProps> = (prop
                   : '— একটি বিদ্যমান কোর্স (Source Course) নির্বাচন করুন —'}
               </option>
               {availableSourceCourses.map((c) => {
-                const catLabel = categoryNameBySlug.get(c.categorySlug) || c.categorySlug;
+                const catLabel = getCourseCategorySlugs(c)
+                  .map((s) => categoryNameBySlug.get(s) || s)
+                  .join(', ');
                 const featCount = Array.isArray(c.courseFeatures) ? c.courseFeatures.length : 0;
                 return (
                   <option key={c.id} value={String(c.id)}>

@@ -360,7 +360,9 @@ function resolveRouteSeo(
         'স্পোকেন ইংলিশ, ফ্রিল্যান্সিং, ওয়েব ডেভেলপমেন্ট, ডিজিটাল মার্কেটিং ও প্রফেশনাল ক্যারিয়ার স্কিল কোর্সসমূহ।',
       canonicalPath: '/skills',
       filterCourses: (all) =>
-        all.filter((c) => isPublicVisibleCourse(c) && c.categorySlug === 'skills'),
+        all.filter(
+          (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, 'skills')
+        ),
     };
   }
 
@@ -377,7 +379,9 @@ function resolveRouteSeo(
         'মেডিকেল, বুয়েট, ঢাকা বিশ্ববিদ্যালয় ক, খ, গ ইউনিট এবং গুচ্ছ ভর্তি পরীক্ষার পূর্ণাঙ্গ অনলাইন এডমিশন ব্যাচ।',
       canonicalPath: '/admission',
       filterCourses: (all) =>
-        all.filter((c) => isPublicVisibleCourse(c) && c.categorySlug === 'admission'),
+        all.filter(
+          (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, 'admission')
+        ),
     };
   }
 

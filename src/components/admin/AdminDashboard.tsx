@@ -24,6 +24,10 @@ import {
   normalizeCategoryCourseOrders,
   type CategoryCourseOrdersMap,
 } from '../../lib/courseSorting.ts';
+import {
+  courseMatchesCategorySlug,
+  getCourseCategorySlugs,
+} from '../../lib/categoryMatching.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
@@ -574,9 +578,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const map = new Map<string, string>();
     for (const cat of categories) {
       map.set(cat.slug, cat.name);
+      map.set(cat.slug.toLowerCase(), cat.name);
     }
     return map;
   }, [categories]);
+
+  const getCourseCategoryNames = useCallback(
+    (course: Course): string[] =>
+      getCourseCategorySlugs(course).map(
+        (slug) => categoryNameBySlug.get(slug.toLowerCase()) || categoryNameBySlug.get(slug) || slug
+      ),
+    [categoryNameBySlug]
+  );
 
   const sortedCategories = useMemo(
     () =>
@@ -660,7 +673,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
 
       // 2. Category Filter
-      if (filterCat !== 'all' && course.categorySlug !== filterCat) {
+      if (filterCat !== 'all' && !courseMatchesCategorySlug(course, filterCat)) {
         return false;
       }
 
@@ -1669,9 +1682,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </div>
                           </td>
                           <td className="py-3 px-2 sm:px-3 font-semibold text-[#2A0F12]/80">
-                            <span className="line-clamp-2 leading-snug text-[11px]">
-                              {categoryNameBySlug.get(course.categorySlug) || course.categorySlug}
-                            </span>
+                            {(() => {
+                              const catNames = getCourseCategoryNames(course);
+                              if (catNames.length <= 1) {
+                                return (
+                                  <span className="line-clamp-2 leading-snug text-[11px]">
+                                    {catNames[0] || course.categorySlug}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <div className="flex flex-wrap gap-1">
+                                  {catNames.slice(0, 2).map((name) => (
+                                    <span
+                                      key={name}
+                                      className="inline-block px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200/70 text-[10px] font-bold text-[#2A0F12] leading-tight truncate max-w-[115px]"
+                                    >
+                                      {name}
+                                    </span>
+                                  ))}
+                                  {catNames.length > 2 && (
+                                    <span
+                                      title={catNames.slice(2).join(', ')}
+                                      className="inline-block px-1.5 py-0.5 rounded-md bg-rose-100 text-[10px] font-extrabold text-[#b91c1c] leading-tight tabular-nums"
+                                    >
+                                      +{toBengaliNumber(catNames.length - 2)}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="py-3 px-2 sm:px-3 whitespace-nowrap">
                             <div className="font-mono font-bold text-[#2A0F12] tabular-nums">
@@ -1907,8 +1947,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="space-y-3">
                       {paginatedCourses.map((course) => {
                         const isToggling = statusTogglingId === course.id;
-                        const categoryLabel =
-                          categoryNameBySlug.get(course.categorySlug) || course.categorySlug;
+                        const categoryNames = getCourseCategoryNames(course);
 
                         return (
                           <div
@@ -2006,9 +2045,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <span className="text-[10px] text-[#6B4C4F] block">
                                   ক্যাটাগরি:
                                 </span>
-                                <span className="font-semibold text-[#2A0F12] break-words">
-                                  {categoryLabel}
-                                </span>
+                                {categoryNames.length <= 1 ? (
+                                  <span className="font-semibold text-[#2A0F12] break-words">
+                                    {categoryNames[0] || course.categorySlug}
+                                  </span>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1 mt-0.5">
+                                    {categoryNames.map((name) => (
+                                      <span
+                                        key={name}
+                                        className="inline-block px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200/70 text-[9.5px] font-bold text-[#2A0F12] leading-tight"
+                                      >
+                                        {name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
 
                               <div className="min-w-0">
@@ -2216,9 +2268,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                               {/* Category */}
                               <td className="py-3 px-2 lg:px-2.5 font-semibold text-[#2A0F12]/80">
-                                <span className="line-clamp-2 leading-snug text-[11px] xl:text-xs">
-                                  {categoryNameBySlug.get(course.categorySlug) || course.categorySlug}
-                                </span>
+                                {(() => {
+                                  const catNames = getCourseCategoryNames(course);
+                                  if (catNames.length <= 1) {
+                                    return (
+                                      <span className="line-clamp-2 leading-snug text-[11px] xl:text-xs">
+                                        {catNames[0] || course.categorySlug}
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <div className="flex flex-wrap gap-1" title={catNames.join(', ')}>
+                                      {catNames.slice(0, 2).map((name) => (
+                                        <span
+                                          key={name}
+                                          className="inline-block px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200/70 text-[10px] font-bold text-[#2A0F12] leading-tight truncate max-w-[120px]"
+                                        >
+                                          {name}
+                                        </span>
+                                      ))}
+                                      {catNames.length > 2 && (
+                                        <span className="inline-block px-1.5 py-0.5 rounded-md bg-rose-100 text-[10px] font-extrabold text-[#b91c1c] leading-tight tabular-nums">
+                                          +{toBengaliNumber(catNames.length - 2)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </td>
 
                               {/* Pricing */}
@@ -2418,7 +2494,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* Categories Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sortedCategories.map((cat, idx) => {
-                  const catCoursesCount = courses.filter((c) => c.categorySlug === cat.slug).length;
+                  const catCoursesCount = courses.filter((c) =>
+                    courseMatchesCategorySlug(c, cat.slug)
+                  ).length;
                   const isFirst = idx === 0;
                   const isLast = idx === sortedCategories.length - 1;
                   const hasDuplicateOrder =

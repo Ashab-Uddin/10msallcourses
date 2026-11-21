@@ -1,6 +1,7 @@
 import { MetadataRoute } from 'next';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getSiteBaseUrl } from '@/src/lib/seo';
+import { getCourseCategorySlugs } from '@/src/lib/categoryMatching';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,9 +52,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (!Number.isFinite(ts)) continue;
       candidateDates.push(ts);
 
-      const existing = categoryLastMod.get(course.categorySlug);
-      if (!existing || ts > existing.getTime()) {
-        categoryLastMod.set(course.categorySlug, new Date(ts));
+      for (const assignedSlug of getCourseCategorySlugs(course)) {
+        const existing = categoryLastMod.get(assignedSlug);
+        if (!existing || ts > existing.getTime()) {
+          categoryLastMod.set(assignedSlug, new Date(ts));
+        }
       }
     }
 

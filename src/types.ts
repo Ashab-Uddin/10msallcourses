@@ -38,6 +38,8 @@ export interface Course {
   slug: string;
   categoryId: number | null;
   categorySlug: string;
+  categoryIds?: number[];
+  categorySlugs?: string[];
   shortBadge: string;
   headerTitle: string;
   headerSubtitle: string;

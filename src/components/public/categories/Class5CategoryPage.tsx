@@ -16,6 +16,7 @@ import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
+  courseHasAssignedCategorySlug,
   courseMatchesCategorySlug,
   normalizeCategoryMatchText,
 } from '../../../lib/categoryMatching.ts';
@@ -57,7 +58,10 @@ function matchesClass5Filter(course: Course, filterId: Class5FilterId): boolean 
     `${course.title || ''} ${course.slug || ''} ${course.shortBadge || ''} ${course.headerSubtitle || ''}`
   );
   if (filterId === 'free') {
-    return course.discountPrice === 0 || course.categorySlug === 'free-course';
+    return (
+      course.discountPrice === 0 ||
+      courseHasAssignedCategorySlug(course, 'free-course')
+    );
   }
   if (filterId === 'pre-book') {
     return includesAny(primary, ['প্রি-বুক', 'প্রি বুক', 'pre-book', 'prebook']);

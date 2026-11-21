@@ -29,6 +29,7 @@ import {
   getLocalTimezoneLabel,
   toLocalDateTimeInputValue,
 } from '../../lib/offerTimerUtils.ts';
+import { getCourseCategorySlugs } from '../../lib/categoryMatching.ts';
 
 interface OfferTimerManagerProps {
   authToken?: string;
@@ -171,7 +172,7 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
       (c) =>
         c.title.toLowerCase().includes(q) ||
         c.slug.toLowerCase().includes(q) ||
-        c.categorySlug.toLowerCase().includes(q)
+        getCourseCategorySlugs(c).some((s) => s.includes(q))
     );
   }, [courses, courseSearch]);
 

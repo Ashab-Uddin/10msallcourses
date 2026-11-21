@@ -75,10 +75,13 @@ const SELECTOR_ICON_CONFIG_BUCKET = 'portal-config';
 const SELECTOR_ICON_CONFIG_OBJECT = 'selector-icon-order.json';
 const COURSE_FEATURES_CONFIG_OBJECT = 'course-features.json';
 const CATEGORY_COURSE_ORDERS_OBJECT = 'category-course-orders.json';
+const COURSE_CATEGORY_ASSIGNMENTS_OBJECT = 'course-category-assignments.json';
 const COURSE_FEATURES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_FEATURES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_ORDERS_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const CATEGORY_ORDERS_STORAGE_CACHE_TTL_MS = 30 * 1000;
+const COURSE_CATEGORIES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
+const COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 
 let courseFeaturesTableMissingUntil = 0;
 let cachedCourseFeaturesStorage: {
@@ -93,6 +96,13 @@ let cachedCategoryOrdersStorage: {
   expiresAt: number;
 } | null = null;
 let inFlightCategoryOrdersStorageRead: Promise<CategoryCourseOrdersMap> | null = null;
+
+let courseCategoriesTableMissingUntil = 0;
+let cachedCourseCategoriesStorage: {
+  data: Record<string, string[]>;
+  expiresAt: number;
+} | null = null;
+let inFlightCourseCategoriesStorageRead: Promise<Record<string, string[]>> | null = null;
 
 function cloneCourseFeaturesStorageMap(
   map: Record<string, CourseFeatureItem[]>
@@ -796,6 +806,462 @@ export async function sbFetchCategoryCourseOrders(
   return map;
 }
 
+type CourseCategoryLink = {
+  categoryId: number | null;
+  categorySlug: string;
+};
+
+function isMissingCourseCategoriesTableError(err: unknown): boolean {
+  const pg = (err || {}) as PgErrorLike;
+  const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
+  return (
+    (pg.code === '42P01' ||
+      pg.code === 'PGRST204' ||
+      pg.code === 'PGRST205' ||
+      msg.includes('schema cache') ||
+      msg.includes('does not exist')) &&
+    msg.includes('course_categories')
+  );
+}
+
+function normalizeCourseCategoryStorageMap(raw: unknown): Record<string, string[]> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+  const result: Record<string, string[]> = {};
+  for (const [rawId, rawSlugs] of Object.entries(raw as Record<string, unknown>)) {
+    const cid = Number(rawId);
+    if (!Number.isInteger(cid) || cid <= 0 || !Array.isArray(rawSlugs)) continue;
+    const seen = new Set<string>();
+    const cleanSlugs: string[] = [];
+    for (const entry of rawSlugs) {
+      const slug = String(entry || '').trim();
+      const key = slug.toLowerCase();
+      if (!slug || seen.has(key)) continue;
+      seen.add(key);
+      cleanSlugs.push(slug);
+    }
+    if (cleanSlugs.length > 0) {
+      result[String(cid)] = cleanSlugs;
+    }
+  }
+  return result;
+}
+
+function cloneCourseCategoryStorageMap(
+  map: Record<string, string[]>
+): Record<string, string[]> {
+  const cloned: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(map)) {
+    cloned[k] = [...v];
+  }
+  return cloned;
+}
+
+async function readCourseCategoryAssignmentsFromStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  options?: { bypassCache?: boolean }
+): Promise<Record<string, string[]>> {
+  if (
+    !options?.bypassCache &&
+    cachedCourseCategoriesStorage &&
+    Date.now() < cachedCourseCategoriesStorage.expiresAt
+  ) {
+    return cloneCourseCategoryStorageMap(cachedCourseCategoriesStorage.data);
+  }
+
+  if (!options?.bypassCache && inFlightCourseCategoriesStorageRead) {
+    const shared = await inFlightCourseCategoriesStorageRead;
+    return cloneCourseCategoryStorageMap(shared);
+  }
+
+  const reader = (async (): Promise<Record<string, string[]>> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(SELECTOR_ICON_CONFIG_BUCKET)
+        .download(COURSE_CATEGORY_ASSIGNMENTS_OBJECT);
+      if (error || !data) {
+        cachedCourseCategoriesStorage = {
+          data: {},
+          expiresAt: Date.now() + COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS,
+        };
+        return {};
+      }
+      const text = await data.text();
+      const parsed = JSON.parse(text) as { assignments?: unknown };
+      const normalized = normalizeCourseCategoryStorageMap(parsed?.assignments ?? parsed);
+      cachedCourseCategoriesStorage = {
+        data: normalized,
+        expiresAt: Date.now() + COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS,
+      };
+      return normalized;
+    } catch {
+      return {};
+    } finally {
+      inFlightCourseCategoriesStorageRead = null;
+    }
+  })();
+
+  if (!options?.bypassCache) {
+    inFlightCourseCategoriesStorageRead = reader;
+  }
+
+  const result = await reader;
+  return cloneCourseCategoryStorageMap(result);
+}
+
+async function writeCourseCategoryAssignmentsToStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  map: Record<string, string[]>
+): Promise<void> {
+  const normalized = normalizeCourseCategoryStorageMap(map);
+  const payload = Buffer.from(
+    JSON.stringify(
+      {
+        assignments: normalized,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
+
+  const attemptUpload = async () =>
+    supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .upload(COURSE_CATEGORY_ASSIGNMENTS_OBJECT, payload, {
+        upsert: true,
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: '0',
+      });
+
+  const first = await attemptUpload();
+  if (!first.error) {
+    cachedCourseCategoriesStorage = {
+      data: normalized,
+      expiresAt: Date.now() + COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS,
+    };
+    return;
+  }
+
+  const errMsg = String(first.error.message || '').toLowerCase();
+  if (errMsg.includes('not found') || errMsg.includes('bucket')) {
+    const { error: createErr } = await supabase.storage.createBucket(
+      SELECTOR_ICON_CONFIG_BUCKET,
+      { public: false }
+    );
+    if (createErr && !String(createErr.message || '').toLowerCase().includes('already exists')) {
+      throw new RepositoryError('কোর্স ক্যাটাগরি স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
+    }
+    const retry = await attemptUpload();
+    if (!retry.error) {
+      cachedCourseCategoriesStorage = {
+        data: normalized,
+        expiresAt: Date.now() + COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS,
+      };
+      return;
+    }
+  }
+
+  throw new RepositoryError('কোর্স ক্যাটাগরি সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
+}
+
+function buildCourseCategoriesMapFromStorage(
+  storageMap: Record<string, string[]>,
+  courseIds?: number[]
+): Map<number, CourseCategoryLink[]> {
+  const result = new Map<number, CourseCategoryLink[]>();
+  const allowed = courseIds && courseIds.length > 0 ? new Set(courseIds) : null;
+  for (const [key, slugs] of Object.entries(storageMap)) {
+    const cid = Number(key);
+    if (!Number.isInteger(cid) || cid <= 0) continue;
+    if (allowed && !allowed.has(cid)) continue;
+    result.set(
+      cid,
+      slugs.map((slug) => ({ categoryId: null, categorySlug: slug }))
+    );
+  }
+  return result;
+}
+
+async function sbFetchCourseCategoriesMap(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  courseIds?: number[]
+): Promise<Map<number, CourseCategoryLink[]>> {
+  if (Date.now() < courseCategoriesTableMissingUntil) {
+    const storageMap = await readCourseCategoryAssignmentsFromStorage(supabase);
+    return buildCourseCategoriesMapFromStorage(storageMap, courseIds);
+  }
+
+  let query = supabase
+    .from('course_categories')
+    .select('course_id, category_id, category_slug')
+    .order('course_id', { ascending: true })
+    .order('category_id', { ascending: true });
+
+  if (courseIds && courseIds.length > 0) {
+    query = query.in('course_id', courseIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    if (isMissingCourseCategoriesTableError(error)) {
+      courseCategoriesTableMissingUntil = Date.now() + COURSE_CATEGORIES_TABLE_MISSING_TTL_MS;
+      const storageMap = await readCourseCategoryAssignmentsFromStorage(supabase);
+      return buildCourseCategoriesMapFromStorage(storageMap, courseIds);
+    }
+    throw mapPgError(error, 'কোর্স ক্যাটাগরি তথ্য লোড করতে সমস্যা হয়েছে।');
+  }
+
+  const grouped = new Map<number, CourseCategoryLink[]>();
+  for (const row of (data || []) as Array<Record<string, unknown>>) {
+    const cid = Number(row.course_id);
+    const catId = row.category_id === null || row.category_id === undefined ? null : Number(row.category_id);
+    const catSlug = String(row.category_slug || '').trim();
+    if (!Number.isInteger(cid) || cid <= 0 || !catSlug) continue;
+    const list = grouped.get(cid) || [];
+    list.push({ categoryId: catId, categorySlug: catSlug });
+    grouped.set(cid, list);
+  }
+  return grouped;
+}
+
+async function sbReplaceCourseCategories(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  courseId: number,
+  categoriesList: Array<{ id: number; slug: string }>
+): Promise<void> {
+  const uniqueCategories: Array<{ id: number; slug: string }> = [];
+  const seenIds = new Set<number>();
+  for (const cat of categoriesList) {
+    if (!Number.isInteger(cat.id) || cat.id <= 0 || !cat.slug || seenIds.has(cat.id)) continue;
+    seenIds.add(cat.id);
+    uniqueCategories.push(cat);
+  }
+  if (uniqueCategories.length === 0) return;
+
+  const slugs = uniqueCategories.map((c) => c.slug);
+
+  const { error: delErr } = await supabase
+    .from('course_categories')
+    .delete()
+    .eq('course_id', courseId);
+
+  if (delErr) {
+    if (isMissingCourseCategoriesTableError(delErr)) {
+      courseCategoriesTableMissingUntil = Date.now() + COURSE_CATEGORIES_TABLE_MISSING_TTL_MS;
+      const storageMap = await readCourseCategoryAssignmentsFromStorage(supabase, {
+        bypassCache: true,
+      });
+      storageMap[String(courseId)] = slugs;
+      await writeCourseCategoryAssignmentsToStorage(supabase, storageMap);
+      return;
+    }
+    throw mapPgError(delErr, 'কোর্স ক্যাটাগরি সংরক্ষণ করতে সমস্যা হয়েছে।');
+  }
+
+  courseCategoriesTableMissingUntil = 0;
+
+  const insertRows = uniqueCategories.map((cat) => ({
+    course_id: courseId,
+    category_id: cat.id,
+    category_slug: cat.slug,
+  }));
+
+  const { error: insErr } = await supabase
+    .from('course_categories')
+    .upsert(insertRows, { onConflict: 'course_id,category_id' });
+
+  if (insErr) {
+    if (isMissingCourseCategoriesTableError(insErr)) {
+      courseCategoriesTableMissingUntil = Date.now() + COURSE_CATEGORIES_TABLE_MISSING_TTL_MS;
+      const storageMap = await readCourseCategoryAssignmentsFromStorage(supabase, {
+        bypassCache: true,
+      });
+      storageMap[String(courseId)] = slugs;
+      await writeCourseCategoryAssignmentsToStorage(supabase, storageMap);
+      return;
+    }
+    throw mapPgError(insErr, 'কোর্স ক্যাটাগরি সংরক্ষণ করতে সমস্যা হয়েছে।');
+  }
+
+  // Also keep storage fallback in sync if an entry already existed there
+  try {
+    const storageMap = await readCourseCategoryAssignmentsFromStorage(supabase, {
+      bypassCache: true,
+    });
+    if (storageMap[String(courseId)]) {
+      storageMap[String(courseId)] = slugs;
+      await writeCourseCategoryAssignmentsToStorage(supabase, storageMap);
+    }
+  } catch {
+    // Ignore optional fallback cleanup error
+  }
+}
+
+function attachCategoriesToCourses(
+  courses: Course[],
+  categories: Array<Pick<Category, 'id' | 'slug'>>,
+  assignmentsMap: Map<number, CourseCategoryLink[]>
+): Course[] {
+  const catBySlug = new Map<string, Pick<Category, 'id' | 'slug'>>();
+  const catById = new Map<number, Pick<Category, 'id' | 'slug'>>();
+  for (const cat of categories) {
+    const cleanSlug = String(cat.slug || '').trim().toLowerCase();
+    if (cleanSlug) catBySlug.set(cleanSlug, cat);
+    if (Number.isInteger(cat.id) && cat.id > 0) catById.set(cat.id, cat);
+  }
+
+  return courses.map((course) => {
+    const orderedSlugs: string[] = [];
+    const orderedIds: number[] = [];
+    const seenSlugs = new Set<string>();
+
+    const addEntry = (rawSlug: string | null | undefined, rawId: number | null | undefined) => {
+      const cleanRaw = String(rawSlug || '').trim();
+      const cat =
+        (cleanRaw ? catBySlug.get(cleanRaw.toLowerCase()) : undefined) ||
+        (rawId && Number.isInteger(rawId) ? catById.get(rawId) : undefined);
+      const effectiveSlug = cat?.slug || cleanRaw;
+      const effectiveId = cat?.id ?? (rawId && Number.isInteger(rawId) ? rawId : null);
+      if (!effectiveSlug) return;
+      const key = effectiveSlug.toLowerCase();
+      if (seenSlugs.has(key)) return;
+      seenSlugs.add(key);
+      orderedSlugs.push(effectiveSlug);
+      if (effectiveId && !orderedIds.includes(effectiveId)) {
+        orderedIds.push(effectiveId);
+      }
+    };
+
+    // Always place the primary category first
+    addEntry(course.categorySlug, course.categoryId);
+
+    const extraLinks = assignmentsMap.get(course.id) || [];
+    for (const link of extraLinks) {
+      addEntry(link.categorySlug, link.categoryId);
+    }
+
+    const primaryCat = orderedSlugs[0] ? catBySlug.get(orderedSlugs[0].toLowerCase()) : undefined;
+    return {
+      ...course,
+      categoryId: primaryCat?.id ?? course.categoryId,
+      categorySlug: primaryCat?.slug ?? course.categorySlug,
+      categorySlugs: orderedSlugs,
+      categoryIds: orderedIds,
+    };
+  });
+}
+
+async function resolveRequestedCourseCategories(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  input: Record<string, unknown>
+): Promise<Array<{ id: number; slug: string }>> {
+  const { data: allCats, error: catErr } = await supabase
+    .from('categories')
+    .select('id, slug')
+    .order('display_order', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (catErr) throw mapPgError(catErr, 'ক্যাটাগরি যাচাই করতে সমস্যা হয়েছে।');
+
+  const catList = (allCats || []).map((r) => ({
+    id: Number(r.id),
+    slug: String(r.slug || '').trim(),
+  }));
+  const catBySlug = new Map(catList.map((c) => [c.slug.toLowerCase(), c]));
+  const catById = new Map(catList.map((c) => [c.id, c]));
+
+  const matched: Array<{ id: number; slug: string }> = [];
+  const seenIds = new Set<number>();
+
+  const pushMatched = (cat: { id: number; slug: string } | undefined) => {
+    if (!cat || seenIds.has(cat.id)) return;
+    seenIds.add(cat.id);
+    matched.push(cat);
+  };
+
+  if (Array.isArray(input.categorySlugs)) {
+    for (const rawSlug of input.categorySlugs) {
+      const clean = String(rawSlug || '').trim().toLowerCase();
+      if (!clean) continue;
+      const found = catBySlug.get(clean);
+      if (!found) {
+        throw new RepositoryError('অনুগ্রহ করে বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+      }
+      pushMatched(found);
+    }
+  }
+
+  if (Array.isArray(input.categoryIds)) {
+    for (const rawId of input.categoryIds) {
+      const numId = Number(rawId);
+      if (!Number.isInteger(numId) || numId <= 0) continue;
+      const found = catById.get(numId);
+      if (!found) {
+        throw new RepositoryError('অনুগ্রহ করে বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+      }
+      pushMatched(found);
+    }
+  }
+
+  if (typeof input.categorySlug === 'string' && input.categorySlug.trim()) {
+    const primaryClean = input.categorySlug.trim().toLowerCase();
+    const primaryMatch = catBySlug.get(primaryClean);
+    if (!primaryMatch) {
+      throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+    }
+    if (!seenIds.has(primaryMatch.id)) {
+      seenIds.add(primaryMatch.id);
+      matched.unshift(primaryMatch);
+    } else if (matched.length > 1 && matched[0].id !== primaryMatch.id) {
+      // Ensure explicitly supplied primary categorySlug sits at index 0
+      const idx = matched.findIndex((m) => m.id === primaryMatch.id);
+      if (idx > 0) {
+        matched.splice(idx, 1);
+        matched.unshift(primaryMatch);
+      }
+    }
+  }
+
+  if (matched.length === 0) {
+    throw new RepositoryError('অনুগ্রহ করে অন্তত একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+  }
+
+  return matched;
+}
+
+async function buildDuplicateSlugRepositoryError(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  slug: string,
+  excludeCourseId?: number
+): Promise<RepositoryError> {
+  try {
+    let query = supabase
+      .from('courses')
+      .select('id, title, category_slug')
+      .eq('slug', slug)
+      .limit(1);
+    if (excludeCourseId !== undefined) {
+      query = query.neq('id', excludeCourseId);
+    }
+    const { data: conflict } = await query.maybeSingle();
+    if (conflict?.title) {
+      return new RepositoryError(
+        `"${slug}" স্লাগটি ইতিমধ্যে "${String(conflict.title)}" কোর্সে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+        409
+      );
+    }
+  } catch {
+    // Fall back to default message
+  }
+  return new RepositoryError(
+    `"${slug}" স্লাগটি ইতিমধ্যে অন্য একটি কোর্সে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+    409
+  );
+}
+
 function writeFallbackCourseOrderIds(orderedIds: number[]): void {
   if (process.env.VERCEL === '1') return;
   try {
@@ -1096,6 +1562,7 @@ async function sbFetchPublicPortalBase() {
     selectorIconConfig,
     featuresMap,
     categoryCourseOrders,
+    courseCategoriesMap,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -1119,6 +1586,7 @@ async function sbFetchPublicPortalBase() {
     sbGetSelectorIconConfig(),
     sbFetchCourseFeaturesMap(supabase),
     sbFetchCategoryCourseOrders(supabase),
+    sbFetchCourseCategoriesMap(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড করতে সমস্যা হয়েছে।');
@@ -1132,7 +1600,8 @@ async function sbFetchPublicPortalBase() {
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
   const orderedCourses = applyCourseOrdering(rawCourseRows, mappedCourses);
-  const courses = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: true });
+  const withFeatures = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: true });
+  const courses = attachCategoriesToCourses(withFeatures, categories, courseCategoriesMap);
   const settings = mapSettingsRow((settingsRes.data as Record<string, unknown> | null) || null);
   const allHydratedTimers = hydrateTimerRows(
     (timerRes.data || []) as Array<Record<string, unknown>>,
@@ -1209,8 +1678,17 @@ export async function sbGetCourseBySlug(slug: string): Promise<Course | null> {
   if (error) throw mapPgError(error, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
   if (!data) return null;
   const mapped = mapCourseRow(data as Record<string, unknown>);
-  const featuresMap = await sbFetchCourseFeaturesMap(supabase, [mapped.id]);
-  return attachFeaturesToCourses([mapped], featuresMap, { activeOnly: true })[0] || mapped;
+  const [featuresMap, categoriesMap, catRowsRes] = await Promise.all([
+    sbFetchCourseFeaturesMap(supabase, [mapped.id]),
+    sbFetchCourseCategoriesMap(supabase, [mapped.id]),
+    supabase.from('categories').select('id, slug'),
+  ]);
+  const withFeatures = attachFeaturesToCourses([mapped], featuresMap, { activeOnly: true });
+  const catList = ((catRowsRes.data || []) as Array<Record<string, unknown>>).map((r) => ({
+    id: Number(r.id),
+    slug: String(r.slug || ''),
+  }));
+  return attachCategoriesToCourses(withFeatures, catList, categoriesMap)[0] || withFeatures[0] || mapped;
 }
 
 export async function sbGetCourseById(id: number): Promise<Course | null> {
@@ -1232,8 +1710,17 @@ export async function sbGetCourseById(id: number): Promise<Course | null> {
       mapped.displayOrder = rank + 1;
     }
   }
-  const featuresMap = await sbFetchCourseFeaturesMap(supabase, [mapped.id]);
-  return attachFeaturesToCourses([mapped], featuresMap, { activeOnly: false })[0] || mapped;
+  const [featuresMap, categoriesMap, catRowsRes] = await Promise.all([
+    sbFetchCourseFeaturesMap(supabase, [mapped.id]),
+    sbFetchCourseCategoriesMap(supabase, [mapped.id]),
+    supabase.from('categories').select('id, slug'),
+  ]);
+  const withFeatures = attachFeaturesToCourses([mapped], featuresMap, { activeOnly: false });
+  const catList = ((catRowsRes.data || []) as Array<Record<string, unknown>>).map((r) => ({
+    id: Number(r.id),
+    slug: String(r.slug || ''),
+  }));
+  return attachCategoriesToCourses(withFeatures, catList, categoriesMap)[0] || withFeatures[0] || mapped;
 }
 
 export async function sbCountCoursesUsingImageUrl(
@@ -1302,13 +1789,15 @@ export async function sbRecordCourseClick(
 
 export async function sbGetAdminCoursesList(): Promise<Course[]> {
   const supabase = getSupabaseAdminClient();
-  const [courseRes, featuresMap] = await Promise.all([
+  const [courseRes, catRes, featuresMap, courseCategoriesMap] = await Promise.all([
     supabase
       .from('courses')
       .select('*')
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
+    supabase.from('categories').select('id, slug'),
     sbFetchCourseFeaturesMap(supabase),
+    sbFetchCourseCategoriesMap(supabase),
   ]);
 
   if (courseRes.error) throw mapPgError(courseRes.error, 'কোর্স লোড ব্যর্থ হয়েছে।');
@@ -1318,7 +1807,12 @@ export async function sbGetAdminCoursesList(): Promise<Course[]> {
   const orderedCourses = normalizeContiguousCourseOrder(
     applyCourseOrdering(rawCourseRows, mappedCourses)
   );
-  return attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: false });
+  const withFeatures = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: false });
+  const catList = ((catRes.data || []) as Array<Record<string, unknown>>).map((r) => ({
+    id: Number(r.id),
+    slug: String(r.slug || ''),
+  }));
+  return attachCategoriesToCourses(withFeatures, catList, courseCategoriesMap);
 }
 
 export async function sbGetAdminOverviewData() {
@@ -1335,6 +1829,7 @@ export async function sbGetAdminOverviewData() {
     featuresMap,
     booksRes,
     categoryCourseOrders,
+    courseCategoriesMap,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -1358,6 +1853,7 @@ export async function sbGetAdminOverviewData() {
     sbFetchCourseFeaturesMap(supabase),
     supabase.from('books').select('status'),
     sbFetchCategoryCourseOrders(supabase),
+    sbFetchCourseCategoriesMap(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
@@ -1374,7 +1870,8 @@ export async function sbGetAdminOverviewData() {
   const orderedCourses = normalizeContiguousCourseOrder(
     applyCourseOrdering(rawCourseRows, mappedCourses)
   );
-  const allCourses = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: false });
+  const withFeatures = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: false });
+  const allCourses = attachCategoriesToCourses(withFeatures, allCategories, courseCategoriesMap);
   const recentClicks: ClickRecord[] = [];
   const currentSettings = mapSettingsRow(
     (settingsRes.data as Record<string, unknown> | null) || null
@@ -1440,17 +1937,8 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
     throw new RepositoryError('কোর্সের শিরোনাম এবং বৈধ স্লাগ পূরণ করা আবশ্যক।', 400);
   }
 
-  const categorySlug = String(input.categorySlug || '').trim();
-  const { data: matchedCat, error: catErr } = await supabase
-    .from('categories')
-    .select('id, slug')
-    .eq('slug', categorySlug)
-    .maybeSingle();
-
-  if (catErr) throw mapPgError(catErr, 'ক্যাটাগরি যাচাই করতে সমস্যা হয়েছে।');
-  if (!matchedCat) {
-    throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
-  }
+  const matchedCategories = await resolveRequestedCourseCategories(supabase, input);
+  const matchedCat = matchedCategories[0];
 
   const parsedOriginal = parseSafePrice(input.originalPrice ?? 0);
   const parsedDiscount = parseSafePrice(input.discountPrice ?? 0);
@@ -1611,15 +2099,16 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
 
   if (error) {
     if (error.code === '23505' && isCourseSlugUniqueError(error)) {
-      throw new RepositoryError(
-        `"${slug}" স্লাগটি ইতিমধ্যে অন্য একটি কোর্সে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
-        409
-      );
+      throw await buildDuplicateSlugRepositoryError(supabase, slug);
     }
     throw mapPgError(error, 'কোর্স তৈরি করতে সমস্যা হয়েছে।');
   }
 
   const created = mapCourseRow(data as Record<string, unknown>);
+  await sbReplaceCourseCategories(supabase, created.id, matchedCategories);
+  created.categoryIds = matchedCategories.map((c) => c.id);
+  created.categorySlugs = matchedCategories.map((c) => c.slug);
+
   if (Array.isArray(input.courseFeatures)) {
     created.courseFeatures = await sbReplaceCourseFeatures(created.id, input.courseFeatures);
   } else {
@@ -1644,6 +2133,8 @@ export async function sbCreateNewCourse(input: Record<string, unknown>): Promise
   };
   return {
     ...finalCourse,
+    categoryIds: created.categoryIds,
+    categorySlugs: created.categorySlugs,
     courseFeatures: created.courseFeatures ?? finalCourse.courseFeatures,
   };
 }
@@ -1667,20 +2158,15 @@ export async function sbUpdateExistingCourse(
 
   let nextCategoryId = existing.categoryId;
   let nextCategorySlug = existing.categorySlug;
-  if (input.categorySlug !== undefined) {
-    const candidateCatSlug = String(input.categorySlug || '').trim();
-    const { data: matchedCat, error: catErr } = await supabase
-      .from('categories')
-      .select('id, slug')
-      .eq('slug', candidateCatSlug)
-      .maybeSingle();
-
-    if (catErr) throw mapPgError(catErr, 'ক্যাটাগরি যাচাই ব্যর্থ হয়েছে।');
-    if (!matchedCat) {
-      throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
-    }
-    nextCategoryId = Number(matchedCat.id);
-    nextCategorySlug = String(matchedCat.slug);
+  let resolvedCategoriesForUpdate: Array<{ id: number; slug: string }> | null = null;
+  if (
+    input.categorySlugs !== undefined ||
+    input.categoryIds !== undefined ||
+    input.categorySlug !== undefined
+  ) {
+    resolvedCategoriesForUpdate = await resolveRequestedCourseCategories(supabase, input);
+    nextCategoryId = resolvedCategoriesForUpdate[0].id;
+    nextCategorySlug = resolvedCategoriesForUpdate[0].slug;
   }
 
   const parsedOriginal =
@@ -1844,16 +2330,22 @@ export async function sbUpdateExistingCourse(
 
   if (error) {
     if (error.code === '23505' && isCourseSlugUniqueError(error)) {
-      throw new RepositoryError(
-        `"${nextSlug}" স্লাগটি ইতিমধ্যে অন্য একটি কোর্সে ব্যবহৃত হচ্ছে।`,
-        409
-      );
+      throw await buildDuplicateSlugRepositoryError(supabase, nextSlug, id);
     }
     throw mapPgError(error, 'কোর্স আপডেট করতে সমস্যা হয়েছে।');
   }
 
   if (!data) return null;
   let updated = mapCourseRow(data as Record<string, unknown>);
+
+  if (resolvedCategoriesForUpdate) {
+    await sbReplaceCourseCategories(supabase, id, resolvedCategoriesForUpdate);
+    updated.categoryIds = resolvedCategoriesForUpdate.map((c) => c.id);
+    updated.categorySlugs = resolvedCategoriesForUpdate.map((c) => c.slug);
+  } else {
+    updated.categoryIds = existing.categoryIds;
+    updated.categorySlugs = existing.categorySlugs;
+  }
 
   if (Array.isArray(input.courseFeatures)) {
     const savedFeatures = await sbReplaceCourseFeatures(id, input.courseFeatures);
@@ -1885,6 +2377,8 @@ export async function sbUpdateExistingCourse(
     const matched = reordered.find((c) => c.id === id) || updated;
     return {
       ...matched,
+      categoryIds: updated.categoryIds ?? matched.categoryIds,
+      categorySlugs: updated.categorySlugs ?? matched.categorySlugs,
       courseFeatures: updated.courseFeatures ?? matched.courseFeatures,
     };
   }
@@ -2201,6 +2695,36 @@ export async function sbDeleteCourseById(
     if (storageMap[String(id)]) {
       delete storageMap[String(id)];
       await writeCourseFeaturesMapToStorage(supabase, storageMap);
+    }
+  } catch {
+    // Ignore optional storage cleanup failure
+  }
+
+  try {
+    const catStorageMap = await readCourseCategoryAssignmentsFromStorage(supabase, {
+      bypassCache: true,
+    });
+    if (catStorageMap[String(id)]) {
+      delete catStorageMap[String(id)];
+      await writeCourseCategoryAssignmentsToStorage(supabase, catStorageMap);
+    }
+  } catch {
+    // Ignore optional storage cleanup failure
+  }
+
+  try {
+    const ordersStorage = await readCategoryCourseOrdersFromStorage(supabase, {
+      bypassCache: true,
+    });
+    let changedOrders = false;
+    const cleanedOrders: CategoryCourseOrdersMap = {};
+    for (const [slugKey, ids] of Object.entries(ordersStorage)) {
+      const filteredIds = ids.filter((cid) => cid !== id);
+      if (filteredIds.length !== ids.length) changedOrders = true;
+      if (filteredIds.length > 0) cleanedOrders[slugKey] = filteredIds;
+    }
+    if (changedOrders) {
+      await writeCategoryCourseOrdersToStorage(supabase, cleanedOrders);
     }
   } catch {
     // Ignore optional storage cleanup failure
@@ -2942,6 +3466,35 @@ export async function sbUpdateExistingCategory(
     throw mapPgError(error, 'ক্যাটাগরি আপডেট ব্যর্থ হয়েছে।');
   }
 
+  if (data && nextSlug !== existing.slug) {
+    try {
+      const { error: ccSyncErr } = await supabase
+        .from('course_categories')
+        .update({ category_slug: nextSlug })
+        .eq('category_id', id);
+      if (ccSyncErr && isMissingCourseCategoriesTableError(ccSyncErr)) {
+        const storageMap = await readCourseCategoryAssignmentsFromStorage(supabase, {
+          bypassCache: true,
+        });
+        let changed = false;
+        for (const [cid, slugs] of Object.entries(storageMap)) {
+          const nextSlugs = slugs.map((s) =>
+            s.toLowerCase() === existing.slug.toLowerCase() ? nextSlug : s
+          );
+          if (nextSlugs.some((s, idx) => s !== slugs[idx])) {
+            storageMap[cid] = nextSlugs;
+            changed = true;
+          }
+        }
+        if (changed) {
+          await writeCourseCategoryAssignmentsToStorage(supabase, storageMap);
+        }
+      }
+    } catch {
+      // Ignore optional sync warning
+    }
+  }
+
   return data ? mapCategoryRow(data as Record<string, unknown>) : null;
 }
 
@@ -3053,7 +3606,24 @@ export async function sbDeleteCategoryById(
 
   if (countErr) throw mapPgError(countErr, 'ক্যাটাগরির কোর্স যাচাই ব্যর্থ হয়েছে।');
 
-  const linkedCount = count ?? 0;
+  let linkedCount = count ?? 0;
+
+  if (linkedCount === 0) {
+    const assignmentsMap = await sbFetchCourseCategoriesMap(supabase);
+    const targetSlugLower = String(existingRow.slug || '').trim().toLowerCase();
+    for (const links of assignmentsMap.values()) {
+      if (
+        links.some(
+          (l) =>
+            l.categoryId === id ||
+            l.categorySlug.trim().toLowerCase() === targetSlugLower
+        )
+      ) {
+        linkedCount += 1;
+      }
+    }
+  }
+
   if (linkedCount > 0) {
     throw new RepositoryError(
       `এই ক্যাটাগরিতে ${toBengaliNumber(linkedCount)}টি কোর্স যুক্ত রয়েছে। ক্যাটাগরি মুছে ফেলার আগে কোর্সগুলো অন্য ক্যাটাগরিতে স্থানান্তর করুন।`,

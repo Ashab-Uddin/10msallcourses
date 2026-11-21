@@ -1,5 +1,8 @@
 import type { Course } from '../types.ts';
-import { normalizeCategoryMatchText } from './categoryMatching.ts';
+import {
+  courseHasAssignedCategorySlug,
+  normalizeCategoryMatchText,
+} from './categoryMatching.ts';
 
 export type JuniorClassFilterId =
   | 'all'
@@ -203,7 +206,7 @@ export function courseMatchesJuniorClassFilter(
   if (filterId === 'free') {
     return (
       course.discountPrice === 0 ||
-      course.categorySlug === 'free-course' ||
+      courseHasAssignedCategorySlug(course, 'free-course') ||
       includesNormalizedKeyword(primary, FREE_KEYWORDS)
     );
   }

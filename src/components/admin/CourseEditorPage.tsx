@@ -50,6 +50,10 @@ import {
   Clock,
   Users,
   Star,
+  Layers,
+  Search,
+  Check,
+  Sparkles,
 } from 'lucide-react';
 
 import { validateExternalHttpUrl } from '../../lib/affiliateUrl.ts';
@@ -137,9 +141,24 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   // Form states
   const [title, setTitle] = useState(course?.title || '');
   const [slug, setSlug] = useState(course?.slug || '');
-  const [categorySlug, setCategorySlug] = useState(
-    course?.categorySlug || (categories[0]?.slug ?? 'hsc')
-  );
+  const [selectedCategorySlugs, setSelectedCategorySlugs] = useState<string[]>(() => {
+    if (course) {
+      const raw = [course.categorySlug, ...(course.categorySlugs || [])].filter(Boolean);
+      const unique: string[] = [];
+      const seen = new Set<string>();
+      for (const s of raw) {
+        const norm = s.trim();
+        const key = norm.toLowerCase();
+        if (!norm || seen.has(key)) continue;
+        seen.add(key);
+        unique.push(categories.find((c) => c.slug.toLowerCase() === key)?.slug || norm);
+      }
+      if (unique.length > 0) return unique;
+    }
+    return categories[0]?.slug ? [categories[0].slug] : ['hsc'];
+  });
+  const [categorySearch, setCategorySearch] = useState('');
+  const primaryCategorySlug = selectedCategorySlugs[0] || categories[0]?.slug || 'hsc';
   const headerTitle = course?.headerTitle || '10MS';
   const headerSubtitle = course?.headerSubtitle || 'অনলাইন কোর্স';
   const [shortBadge, setShortBadge] = useState<string>(course?.shortBadge ?? '');
@@ -210,6 +229,91 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const [draftUploadedFileId, setDraftUploadedFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const featuresSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const categoryNameBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of categories) {
+      map.set(c.slug.toLowerCase(), c.name);
+    }
+    return map;
+  }, [categories]);
+
+  const selectedCategorySlugSet = useMemo(
+    () => new Set(selectedCategorySlugs.map((s) => s.toLowerCase())),
+    [selectedCategorySlugs]
+  );
+
+  const filteredCategoryOptions = useMemo(() => {
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return categories;
+    return categories.filter(
+      (cat) =>
+        cat.name.toLowerCase().includes(q) ||
+        cat.slug.toLowerCase().includes(q) ||
+        (cat.subtitle || '').toLowerCase().includes(q)
+    );
+  }, [categories, categorySearch]);
+
+  const normalizedInputSlug = slug.trim().toLowerCase();
+  const conflictingSlugCourse = useMemo(() => {
+    if (!normalizedInputSlug || !existingCourses?.length) return null;
+    return (
+      existingCourses.find(
+        (c) => c.id !== course?.id && c.slug.trim().toLowerCase() === normalizedInputSlug
+      ) || null
+    );
+  }, [normalizedInputSlug, existingCourses, course?.id]);
+
+  const suggestedUniqueSlug = useMemo(() => {
+    if (!conflictingSlugCourse || !normalizedInputSlug || !existingCourses?.length) {
+      return '';
+    }
+    const existingSet = new Set(
+      existingCourses
+        .filter((c) => c.id !== course?.id)
+        .map((c) => c.slug.trim().toLowerCase())
+    );
+    const base = normalizedInputSlug.replace(/-\d+$/, '') || normalizedInputSlug;
+    let counter = 2;
+    while (existingSet.has(`${base}-${counter}`)) {
+      counter += 1;
+    }
+    return `${base}-${counter}`;
+  }, [conflictingSlugCourse, normalizedInputSlug, existingCourses, course?.id]);
+
+  const handleToggleCategorySlug = (targetSlug: string) => {
+    const normTarget = targetSlug.trim().toLowerCase();
+    setSelectedCategorySlugs((prev) => {
+      const exists = prev.some((s) => s.toLowerCase() === normTarget);
+      if (exists) {
+        if (prev.length <= 1) {
+          onShowToast?.('অন্তত একটি ক্যাটাগরি নির্বাচন করা বাধ্যতামূলক।', 'info');
+          return prev;
+        }
+        return prev.filter((s) => s.toLowerCase() !== normTarget);
+      }
+      return [...prev, targetSlug];
+    });
+  };
+
+  const handleSetPrimaryCategorySlug = (targetSlug: string) => {
+    const normTarget = targetSlug.trim().toLowerCase();
+    setSelectedCategorySlugs((prev) => {
+      const rest = prev.filter((s) => s.toLowerCase() !== normTarget);
+      return [targetSlug, ...rest];
+    });
+  };
+
+  const handleRemoveSelectedCategory = (targetSlug: string) => {
+    const normTarget = targetSlug.trim().toLowerCase();
+    setSelectedCategorySlugs((prev) => {
+      if (prev.length <= 1) {
+        onShowToast?.('অন্তত একটি ক্যাটাগরি নির্বাচন করা বাধ্যতামূলক।', 'info');
+        return prev;
+      }
+      return prev.filter((s) => s.toLowerCase() !== normTarget);
+    });
+  };
 
   // Batch validation & selection tracking
   const matchedBatches = useMemo(
@@ -494,7 +598,12 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
 
   // Live Constructed Course object for real-time CourseCard preview
   const previewCourse: Course = useMemo(() => {
-    const matchedCategory = categories.find((c) => c.slug === categorySlug);
+    const matchedCategory = categories.find(
+      (c) => c.slug.toLowerCase() === primaryCategorySlug.toLowerCase()
+    );
+    const selectedCategoryIds = selectedCategorySlugs
+      .map((s) => categories.find((c) => c.slug.toLowerCase() === s.toLowerCase())?.id)
+      .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
     const normalizedFeatures = sortCourseFeatures(courseFeatures);
     const activeTitles = extractActiveFeatureTitles(normalizedFeatures);
     return {
@@ -502,7 +611,9 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       title: title.trim() || 'কোর্স শিরোনাম এখানে প্রদর্শিত হবে',
       slug: slug.trim() || 'preview-course',
       categoryId: matchedCategory ? matchedCategory.id : 1,
-      categorySlug: categorySlug || 'hsc',
+      categoryIds: selectedCategoryIds,
+      categorySlug: primaryCategorySlug || 'hsc',
+      categorySlugs: selectedCategorySlugs,
       shortBadge: shortBadge.trim(),
       headerTitle: headerTitle.trim() || '10MS',
       headerSubtitle: headerSubtitle.trim() || 'অনলাইন কোর্স',
@@ -544,7 +655,8 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     };
   }, [
     categories,
-    categorySlug,
+    primaryCategorySlug,
+    selectedCategorySlugs,
     computedDiscountPercent,
     computedFlatSavings,
     course,
@@ -579,6 +691,16 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
     }
     if (!slug.trim()) {
       setError('কোর্সের স্লাগ (Slug) পূরণ করা আবশ্যক।');
+      return;
+    }
+    if (conflictingSlugCourse) {
+      const msg = `"${slug.trim()}" স্লাগটি ইতিমধ্যে "${conflictingSlugCourse.title}" কোর্সে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন অথবা "নতুন ইউনিক স্লাগ তৈরি করুন" বাটনে ক্লিক করুন।`;
+      setError(msg);
+      onShowToast?.(msg, 'error');
+      return;
+    }
+    if (selectedCategorySlugs.length === 0) {
+      setError('অন্তত একটি ক্যাটাগরি নির্বাচন করা আবশ্যক।');
       return;
     }
     const normalizedFeatures = sortCourseFeatures(courseFeatures);
@@ -631,7 +753,12 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
 
     const normalizedOriginalPrice = Math.round(originalPrice);
     const normalizedDiscountPrice = Math.round(discountPrice);
-    const matchedCat = categories.find((c) => c.slug === categorySlug);
+    const matchedCat = categories.find(
+      (c) => c.slug.toLowerCase() === primaryCategorySlug.toLowerCase()
+    );
+    const selectedCategoryIds = selectedCategorySlugs
+      .map((s) => categories.find((c) => c.slug.toLowerCase() === s.toLowerCase())?.id)
+      .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
     const resolvedSummaryDescription = deriveCourseSummaryDescription(
       description || fullDescription,
       normalizedFeatures,
@@ -642,7 +769,9 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       title: title.trim(),
       slug: slug.trim(),
       categoryId: matchedCat ? matchedCat.id : null,
-      categorySlug,
+      categoryIds: selectedCategoryIds,
+      categorySlug: primaryCategorySlug,
+      categorySlugs: selectedCategorySlugs,
       shortBadge: shortBadge.trim(),
       headerTitle: headerTitle.trim() || '10MS',
       headerSubtitle: headerSubtitle.trim() || 'অনলাইন কোর্স',
@@ -790,29 +919,192 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                   value={slug}
                   onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
                   placeholder="hsc-28-online-batch"
-                  className="w-full px-3.5 py-2.5 rounded-r-xl border border-slate-200/90 text-xs font-mono text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
+                  className={`w-full px-3.5 py-2.5 rounded-r-xl border text-xs font-mono text-slate-800 bg-white outline-none shadow-2xs transition ${
+                    conflictingSlugCourse
+                      ? 'border-rose-400 focus:border-rose-500 ring-2 ring-rose-100'
+                      : 'border-slate-200/90 focus:border-[#eb1c24]'
+                  }`}
                 />
               </div>
+              {conflictingSlugCourse && (
+                <div className="mt-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                    <span className="leading-snug">
+                      এই স্লাগটি ইতিমধ্যে{' '}
+                      <span className="text-[#2A0F12] underline decoration-rose-300">
+                        {conflictingSlugCourse.title}
+                      </span>{' '}
+                      (ক্যাটাগরি:{' '}
+                      {categoryNameBySlug.get(conflictingSlugCourse.categorySlug.toLowerCase()) ||
+                        conflictingSlugCourse.categorySlug}
+                      ) কোর্সে ব্যবহৃত হচ্ছে।
+                    </span>
+                  </div>
+                  {suggestedUniqueSlug && (
+                    <button
+                      type="button"
+                      onClick={() => setSlug(suggestedUniqueSlug)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-rose-300 text-[#b91c1c] hover:bg-rose-100 text-[10.5px] font-extrabold cursor-pointer shrink-0 transition"
+                    >
+                      <Sparkles className="w-3 h-3 shrink-0" />
+                      <span>নতুন ইউনিক স্লাগ তৈরি করুন</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Category */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                ক্যাটাগরি (Category) <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={categorySlug}
-                onChange={(e) => setCategorySlug(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs sm:text-sm text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer font-medium"
-              >
-                {categories.map((cat) => (
-                  <option key={cat.slug} value={cat.slug}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-[#6B4C4F] mt-1">
-                নির্বাচিত ক্যাটাগরি অনুযায়ী কোর্সটি ওয়েবসাইটের সংশ্লিষ্ট সেকশন ও ক্যাটাগরি পেজে প্রদর্শিত হবে।
+            {/* Multiple Category Assignment */}
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-[#eb1c24] shrink-0" />
+                  <span>
+                    ক্যাটাগরি নির্বাচন (Categories — একাধিক সিলেক্ট করা যাবে){' '}
+                    <span className="text-red-500">*</span>
+                  </span>
+                </label>
+                <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-[#b91c1c] text-[10.5px] font-extrabold tabular-nums">
+                  {toBengaliNumber(selectedCategorySlugs.length)}টি নির্বাচিত
+                </span>
+              </div>
+
+              {/* Selected Category Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 p-2.5 rounded-xl bg-white/95 border border-rose-200/80 shadow-2xs">
+                {selectedCategorySlugs.map((selSlug, idx) => {
+                  const catName =
+                    categoryNameBySlug.get(selSlug.toLowerCase()) || selSlug;
+                  const isPrimary = idx === 0;
+                  return (
+                    <div
+                      key={selSlug}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+                        isPrimary
+                          ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-xs'
+                          : 'bg-rose-50/90 text-[#2A0F12] border-rose-200 hover:border-[#eb1c24]'
+                      }`}
+                    >
+                      {!isPrimary ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSetPrimaryCategorySlug(selSlug)}
+                          title="মূল ক্যাটাগরি হিসেবে সেট করতে ক্লিক করুন"
+                          className="text-left hover:text-[#eb1c24] cursor-pointer"
+                        >
+                          {catName}
+                        </button>
+                      ) : (
+                        <>
+                          <span>{catName}</span>
+                          <span className="px-1.5 py-0.2 rounded bg-white/20 text-[9.5px] font-extrabold">
+                            মূল
+                          </span>
+                        </>
+                      )}
+                      {selectedCategorySlugs.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSelectedCategory(selSlug)}
+                          aria-label={`${catName} সরান`}
+                          className={`p-0.5 rounded transition cursor-pointer ${
+                            isPrimary
+                              ? 'hover:bg-white/20 text-white'
+                              : 'hover:bg-rose-200/70 text-rose-700'
+                          }`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Category Quick Search + Scrollable Multi-Select Checkbox Grid */}
+              <div className="rounded-2xl bg-rose-50/35 border border-rose-200/70 p-2.5 space-y-2">
+                {categories.length > 6 && (
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={categorySearch}
+                      onChange={(e) => setCategorySearch(e.target.value)}
+                      placeholder="ক্যাটাগরি খুঁজুন (যেমন: HSC 28)..."
+                      className="w-full pl-8 pr-8 py-1.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 outline-none focus:border-[#eb1c24]"
+                    />
+                    {categorySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setCategorySearch('')}
+                        aria-label="ক্যাটাগরি অনুসন্ধান মুছুন"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-0.5">
+                  {filteredCategoryOptions.length === 0 ? (
+                    <div className="col-span-full py-4 text-center text-[11px] font-semibold text-[#6B4C4F]">
+                      কোনো ক্যাটাগরি খুঁজে পাওয়া যায়নি।
+                    </div>
+                  ) : (
+                    filteredCategoryOptions.map((cat) => {
+                      const isSelected = selectedCategorySlugSet.has(cat.slug.toLowerCase());
+                      const isPrimary =
+                        primaryCategorySlug.toLowerCase() === cat.slug.toLowerCase();
+                      return (
+                        <button
+                          key={cat.slug}
+                          type="button"
+                          onClick={() => handleToggleCategorySlug(cat.slug)}
+                          aria-pressed={isSelected}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-white border-[#eb1c24] shadow-xs ring-1 ring-inset ring-[#eb1c24]/15'
+                              : 'bg-white/80 border-slate-200/80 hover:border-rose-300 hover:bg-white'
+                          }`}
+                        >
+                          <span
+                            className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition ${
+                              isSelected
+                                ? 'bg-gradient-to-br from-[#ff5252] to-[#b91c1c] border-[#b91c1c] text-white'
+                                : 'bg-white border-slate-300'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className={`text-xs font-bold truncate ${
+                                  isSelected ? 'text-[#2A0F12]' : 'text-slate-700'
+                                }`}
+                              >
+                                {cat.name}
+                              </span>
+                              {isPrimary && (
+                                <span className="px-1.5 py-0.2 rounded bg-rose-100 text-[#b91c1c] text-[9px] font-extrabold shrink-0">
+                                  মূল
+                                </span>
+                              )}
+                            </span>
+                            <span className="block text-[10px] font-mono text-[#6B4C4F]/80 truncate">
+                              /{cat.slug}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <p className="text-[11px] text-[#6B4C4F]">
+                নির্বাচিত প্রতিটি ক্যাটাগরি সেকশন ও ক্যাটাগরি পেজে এই একই কোর্সটি স্বয়ংক্রিয়ভাবে প্রদর্শিত হবে। পরবর্তীতে কোর্সটি এডিট করলে সব ক্যাটাগরিতে একসাথে আপডেট হবে।
               </p>
             </div>
 

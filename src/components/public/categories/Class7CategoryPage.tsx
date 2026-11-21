@@ -20,6 +20,7 @@ import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
+  courseHasAssignedCategorySlug,
   courseMatchesCategorySlug,
   normalizeCategoryMatchText,
 } from '../../../lib/categoryMatching.ts';
@@ -79,7 +80,7 @@ function matchesClass7Filter(course: Course, filterId: Class7FilterId): boolean 
     case 'free':
       return (
         course.discountPrice === 0 ||
-        course.categorySlug === 'free-course' ||
+        courseHasAssignedCategorySlug(course, 'free-course') ||
         includesAny(primary, ['ফ্রি কোর্স', 'বিনামূল্যে', 'free course'])
       );
     case 'pre-book':

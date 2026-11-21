@@ -11,6 +11,7 @@ import {
 } from '../types.ts';
 import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
 import { computeDiscountPercent, syncTargetStudentsMetadata } from '../lib/courseValidation.ts';
+import { getCourseCategorySlugs } from '../lib/categoryMatching.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import {
   MAX_COURSE_FEATURES_PER_COURSE,
@@ -521,19 +522,67 @@ export async function createNewCourse(input: Record<string, unknown>) {
     throw new RepositoryError('কোর্সের শিরোনাম এবং বৈধ স্লাগ পূরণ করা আবশ্যক।', 400);
   }
 
-  const slugExists = store.courses.some((c) => c.slug.toLowerCase() === slug.toLowerCase());
-  if (slugExists) {
+  const duplicateCourse = store.courses.find(
+    (c) => c.slug.toLowerCase() === slug.toLowerCase()
+  );
+  if (duplicateCourse) {
     throw new RepositoryError(
-      `"${slug}" স্লাগটি ইতিমধ্যে অন্য একটি কোর্সে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+      `"${slug}" স্লাগটি ইতিমধ্যে "${duplicateCourse.title}" কোর্সে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
       409
     );
   }
 
-  const categorySlug = String(input.categorySlug || '').trim();
-  const matchedCategory = store.categories.find((c) => c.slug === categorySlug);
-  if (!matchedCategory) {
-    throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+  const resolvedCats: Category[] = [];
+  const seenCatIds = new Set<number>();
+  const pushMatchedCat = (cat: Category | undefined) => {
+    if (!cat || seenCatIds.has(cat.id)) return;
+    seenCatIds.add(cat.id);
+    resolvedCats.push(cat);
+  };
+
+  if (Array.isArray(input.categorySlugs)) {
+    for (const rawSlug of input.categorySlugs) {
+      const clean = String(rawSlug || '').trim().toLowerCase();
+      if (!clean) continue;
+      const found = store.categories.find((c) => c.slug.toLowerCase() === clean);
+      if (!found) {
+        throw new RepositoryError('অনুগ্রহ করে বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+      }
+      pushMatchedCat(found);
+    }
   }
+  if (Array.isArray(input.categoryIds)) {
+    for (const rawId of input.categoryIds) {
+      const numId = Number(rawId);
+      if (!Number.isInteger(numId) || numId <= 0) continue;
+      const found = store.categories.find((c) => c.id === numId);
+      if (!found) {
+        throw new RepositoryError('অনুগ্রহ করে বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+      }
+      pushMatchedCat(found);
+    }
+  }
+  const primaryCategorySlug = String(input.categorySlug || '').trim().toLowerCase();
+  if (primaryCategorySlug) {
+    const primaryMatch = store.categories.find((c) => c.slug.toLowerCase() === primaryCategorySlug);
+    if (!primaryMatch) {
+      throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+    }
+    if (!seenCatIds.has(primaryMatch.id)) {
+      seenCatIds.add(primaryMatch.id);
+      resolvedCats.unshift(primaryMatch);
+    } else if (resolvedCats.length > 1 && resolvedCats[0].id !== primaryMatch.id) {
+      const idx = resolvedCats.findIndex((c) => c.id === primaryMatch.id);
+      if (idx > 0) {
+        resolvedCats.splice(idx, 1);
+        resolvedCats.unshift(primaryMatch);
+      }
+    }
+  }
+  if (resolvedCats.length === 0) {
+    throw new RepositoryError('অনুগ্রহ করে অন্তত একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+  }
+  const matchedCategory = resolvedCats[0];
 
   const newId = store.courses.length > 0 ? Math.max(...store.courses.map((c) => c.id)) + 1 : 1;
 
@@ -599,6 +648,8 @@ export async function createNewCourse(input: Record<string, unknown>) {
     slug,
     categoryId: matchedCategory.id,
     categorySlug: matchedCategory.slug,
+    categoryIds: resolvedCats.map((c) => c.id),
+    categorySlugs: resolvedCats.map((c) => c.slug),
     shortBadge: typeof input.shortBadge === 'string' ? input.shortBadge.trim().slice(0, 60) : '',
     headerTitle: String(input.headerTitle || '10MS').trim().slice(0, 80),
     headerSubtitle: String(input.headerSubtitle || 'অনলাইন কোর্স').trim().slice(0, 120),
@@ -678,12 +729,12 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
     if (!candidateSlug) {
       throw new RepositoryError('কোর্সের বৈধ স্লাগ প্রদান করুন।', 400);
     }
-    const duplicate = store.courses.some(
+    const duplicate = store.courses.find(
       (c) => c.id !== id && c.slug.toLowerCase() === candidateSlug.toLowerCase()
     );
     if (duplicate) {
       throw new RepositoryError(
-        `"${candidateSlug}" স্লাগটি ইতিমধ্যে অন্য একটি কোর্সে ব্যবহৃত হচ্ছে।`,
+        `"${candidateSlug}" স্লাগটি ইতিমধ্যে "${duplicate.title}" কোর্সে ব্যবহৃত হচ্ছে।`,
         409
       );
     }
@@ -692,14 +743,67 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
 
   let nextCategoryId = existing.categoryId;
   let nextCategorySlug = existing.categorySlug;
-  if (input.categorySlug !== undefined) {
-    const candidateCatSlug = String(input.categorySlug || '').trim();
-    const matchedCat = store.categories.find((c) => c.slug === candidateCatSlug);
-    if (!matchedCat) {
-      throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+  let nextCategoryIds = existing.categoryIds;
+  let nextCategorySlugs = existing.categorySlugs;
+  if (
+    input.categorySlugs !== undefined ||
+    input.categoryIds !== undefined ||
+    input.categorySlug !== undefined
+  ) {
+    const resolvedCats: Category[] = [];
+    const seenCatIds = new Set<number>();
+    const pushMatchedCat = (cat: Category | undefined) => {
+      if (!cat || seenCatIds.has(cat.id)) return;
+      seenCatIds.add(cat.id);
+      resolvedCats.push(cat);
+    };
+
+    if (Array.isArray(input.categorySlugs)) {
+      for (const rawSlug of input.categorySlugs) {
+        const clean = String(rawSlug || '').trim().toLowerCase();
+        if (!clean) continue;
+        const found = store.categories.find((c) => c.slug.toLowerCase() === clean);
+        if (!found) {
+          throw new RepositoryError('অনুগ্রহ করে বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+        }
+        pushMatchedCat(found);
+      }
     }
-    nextCategoryId = matchedCat.id;
-    nextCategorySlug = matchedCat.slug;
+    if (Array.isArray(input.categoryIds)) {
+      for (const rawId of input.categoryIds) {
+        const numId = Number(rawId);
+        if (!Number.isInteger(numId) || numId <= 0) continue;
+        const found = store.categories.find((c) => c.id === numId);
+        if (!found) {
+          throw new RepositoryError('অনুগ্রহ করে বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+        }
+        pushMatchedCat(found);
+      }
+    }
+    if (typeof input.categorySlug === 'string' && input.categorySlug.trim()) {
+      const candidateCatSlug = input.categorySlug.trim().toLowerCase();
+      const matchedCat = store.categories.find((c) => c.slug.toLowerCase() === candidateCatSlug);
+      if (!matchedCat) {
+        throw new RepositoryError('অনুগ্রহ করে একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+      }
+      if (!seenCatIds.has(matchedCat.id)) {
+        seenCatIds.add(matchedCat.id);
+        resolvedCats.unshift(matchedCat);
+      } else if (resolvedCats.length > 1 && resolvedCats[0].id !== matchedCat.id) {
+        const moveIdx = resolvedCats.findIndex((c) => c.id === matchedCat.id);
+        if (moveIdx > 0) {
+          resolvedCats.splice(moveIdx, 1);
+          resolvedCats.unshift(matchedCat);
+        }
+      }
+    }
+    if (resolvedCats.length === 0) {
+      throw new RepositoryError('অনুগ্রহ করে অন্তত একটি বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
+    }
+    nextCategoryId = resolvedCats[0].id;
+    nextCategorySlug = resolvedCats[0].slug;
+    nextCategoryIds = resolvedCats.map((c) => c.id);
+    nextCategorySlugs = resolvedCats.map((c) => c.slug);
   }
 
   const parsedOriginal =
@@ -735,6 +839,8 @@ export async function updateExistingCourse(id: number, input: Record<string, unk
     slug: nextSlug,
     categoryId: nextCategoryId,
     categorySlug: nextCategorySlug,
+    categoryIds: nextCategoryIds,
+    categorySlugs: nextCategorySlugs,
     shortBadge:
       typeof input.shortBadge === 'string'
         ? input.shortBadge.trim().slice(0, 60)
@@ -1568,11 +1674,28 @@ export async function updateExistingCategory(id: number, input: Record<string, u
 
   // Cascade category slug change to all linked courses so referential integrity stays intact.
   if (nextSlug !== existing.slug) {
-    store.courses = store.courses.map((course) =>
-      course.categoryId === id || course.categorySlug === existing.slug
-        ? { ...course, categoryId: id, categorySlug: nextSlug }
-        : course
-    );
+    store.courses = store.courses.map((course) => {
+      const assigned = getCourseCategorySlugs(course);
+      const hasMatch =
+        course.categoryId === id ||
+        assigned.includes(existing.slug.toLowerCase()) ||
+        (Array.isArray(course.categoryIds) && course.categoryIds.includes(id));
+      if (!hasMatch) return course;
+      const nextSlugs = Array.isArray(course.categorySlugs)
+        ? course.categorySlugs.map((s) =>
+            s.toLowerCase() === existing.slug.toLowerCase() ? nextSlug : s
+          )
+        : [nextSlug];
+      return {
+        ...course,
+        categoryId: course.categoryId === id ? id : course.categoryId,
+        categorySlug:
+          course.categorySlug.toLowerCase() === existing.slug.toLowerCase()
+            ? nextSlug
+            : course.categorySlug,
+        categorySlugs: nextSlugs,
+      };
+    });
   }
 
   await persistStore(store);
@@ -1638,7 +1761,10 @@ export async function deleteCategoryById(
   }
 
   const linkedCoursesCount = store.courses.filter(
-    (c) => c.categoryId === id || c.categorySlug === existing.slug
+    (c) =>
+      c.categoryId === id ||
+      getCourseCategorySlugs(c).includes(existing.slug.toLowerCase()) ||
+      (Array.isArray(c.categoryIds) && c.categoryIds.includes(id))
   ).length;
   if (linkedCoursesCount > 0) {
     throw new RepositoryError(

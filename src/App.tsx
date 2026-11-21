@@ -33,6 +33,7 @@ import {
 import {
   CLASS_BENGALI_ORDINALS,
   courseMatchesCategorySlug,
+  getCourseCategorySlugs,
 } from './lib/categoryMatching.ts';
 import {
   normalizeCategoryCourseOrders,
@@ -1163,6 +1164,7 @@ export default function App({
       c.headerTitle.toLowerCase().includes(q) ||
       c.headerSubtitle.toLowerCase().includes(q) ||
       c.categorySlug.toLowerCase().includes(q) ||
+      getCourseCategorySlugs(c).some((s) => s.includes(q)) ||
       (c.targetStudents || '').toLowerCase().includes(q) ||
       c.features.toLowerCase().includes(q) ||
       activeFeatureTitles.includes(q);
