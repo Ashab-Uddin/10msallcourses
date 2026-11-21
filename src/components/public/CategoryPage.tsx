@@ -157,7 +157,6 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
         courses={categoryCourses}
         breadcrumbParentLabel="কোর্স ক্যাটালগ"
         onNavigateHome={onBack}
-        onSwitchClass={(targetNum) => onSelectCategory(`class-${targetNum}`)}
         onEnrollClick={onEnrollClick}
       />
     );

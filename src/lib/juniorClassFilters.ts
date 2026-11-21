@@ -279,18 +279,7 @@ export function getJuniorClassFilterCounts(
 
 export function filterJuniorClassCourses(
   courses: Course[],
-  filterId: JuniorClassFilterId,
-  searchQuery: string
+  filterId: JuniorClassFilterId
 ): Course[] {
-  const q = normalizeCategoryMatchText(searchQuery.trim());
-  return courses.filter((course) => {
-    if (!courseMatchesJuniorClassFilter(course, filterId)) {
-      return false;
-    }
-    if (!q) return true;
-    const searchable = normalizeCategoryMatchText(
-      `${course.title || ''} ${course.slug || ''} ${course.shortBadge || ''} ${course.targetStudents || ''} ${course.description || ''}`
-    );
-    return searchable.includes(q);
-  });
+  return courses.filter((course) => courseMatchesJuniorClassFilter(course, filterId));
 }

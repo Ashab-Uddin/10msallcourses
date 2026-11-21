@@ -12,6 +12,7 @@ import {
 import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
 import { computeDiscountPercent, syncTargetStudentsMetadata } from '../lib/courseValidation.ts';
 import { getCourseCategorySlugs } from '../lib/categoryMatching.ts';
+import { normalizeCategoryNavGroup } from '../lib/navbarCategories.ts';
 import { decodeCourseSlug, generateUnicodeCourseSlug } from '../lib/courseSlug.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import {
@@ -1651,6 +1652,7 @@ export async function createNewCategory(input: Record<string, unknown>) {
     badgeColor: String(input.badgeColor || 'red').trim().slice(0, 30),
     displayOrder,
     status: input.status === 'inactive' ? 'inactive' : 'active',
+    navGroup: normalizeCategoryNavGroup(input.navGroup),
     createdAt: new Date().toISOString(),
   };
 
@@ -1733,6 +1735,10 @@ export async function updateExistingCategory(id: number, input: Record<string, u
           ? 'inactive'
           : 'active'
         : existing.status,
+    navGroup:
+      input.navGroup !== undefined
+        ? normalizeCategoryNavGroup(input.navGroup)
+        : existing.navGroup,
   };
 
   store.categories[idx] = updated;

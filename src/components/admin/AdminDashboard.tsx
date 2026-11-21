@@ -6,11 +6,17 @@ import {
   AdminOverviewData,
   BookStoreAdminPayload,
   Category,
+  CategoryNavAssignment,
   ClickRecord,
   Course,
   OfferTimer,
   SiteSettings,
 } from '../../types.ts';
+import {
+  NAVBAR_GROUP_OPTIONS,
+  getNavbarGroupDisplayLabel,
+  normalizeCategoryNavGroup,
+} from '../../lib/navbarCategories.ts';
 import { computeOfferTimerStatus } from '../../lib/offerTimerUtils.ts';
 import {
   DEFAULT_SELECTOR_ICON_IDS,
@@ -336,6 +342,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [catSubtitle, setCatSubtitle] = useState('');
   const [catBadgeColor, setCatBadgeColor] = useState('red');
   const [catDisplayOrderInput, setCatDisplayOrderInput] = useState<string>('1');
+  const [catNavGroup, setCatNavGroup] = useState<CategoryNavAssignment>('auto');
   const [catFormError, setCatFormError] = useState<string | null>(null);
   const [savingCat, setSavingCat] = useState(false);
   const [swappingCatId, setSwappingCatId] = useState<number | null>(null);
@@ -855,6 +862,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         subtitle: catSubtitle.trim() || null,
         badgeColor: catBadgeColor,
         displayOrder: orderCheck.value,
+        navGroup: catNavGroup,
         status: 'active',
       };
 
@@ -885,6 +893,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCatSlug('');
       setCatSubtitle('');
       setCatDisplayOrderInput('1');
+      setCatNavGroup('auto');
       showToast(editingCategory ? 'ক্যাটাগরি আপডেট হয়েছে।' : 'নতুন ক্যাটাগরি তৈরি হয়েছে।', 'success');
     } catch (err: any) {
       const errMsg = err.message || 'ত্রুটি হয়েছে।';
@@ -2482,6 +2491,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setCatSubtitle('');
                     setCatBadgeColor('red');
                     setCatDisplayOrderInput(String(nextAvailableCategoryOrder));
+                    setCatNavGroup('auto');
                     setCatFormError(null);
                     setShowCategoryModal(true);
                   }}
@@ -2503,6 +2513,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const hasDuplicateOrder =
                     sortedCategories.filter((c) => Number(c.displayOrder) === Number(cat.displayOrder))
                       .length > 1;
+                  const navDisplay = getNavbarGroupDisplayLabel(cat);
                   return (
                     <div
                       key={cat.id}
@@ -2520,6 +2531,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               }`}
                             >
                               ক্রম: {toBengaliNumber(cat.displayOrder)}
+                            </span>
+                            <span
+                              title={
+                                navDisplay.isAuto
+                                  ? 'নাম/স্লাগ থেকে স্বয়ংক্রিয়ভাবে নির্ধারিত'
+                                  : 'ম্যানুয়ালি নির্ধারিত Navbar ড্রপডাউন'
+                              }
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                navDisplay.group === 'none'
+                                  ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}
+                            >
+                              Navbar: {navDisplay.label}
                             </span>
                           </div>
                           <div className="text-xs text-[#6B4C4F] font-mono mt-0.5">
@@ -2580,6 +2605,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               setCatSubtitle(cat.subtitle || '');
                               setCatBadgeColor(cat.badgeColor || 'red');
                               setCatDisplayOrderInput(String(cat.displayOrder || 1));
+                              setCatNavGroup(normalizeCategoryNavGroup(cat.navGroup));
                               setCatFormError(null);
                               setShowCategoryModal(true);
                             }}
@@ -3157,6 +3183,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <option value="emerald">এমারেল্ড (Emerald)</option>
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                Navbar ড্রপডাউন মেনু
+              </label>
+              <select
+                value={catNavGroup}
+                onChange={(e) => setCatNavGroup(normalizeCategoryNavGroup(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer font-bold"
+              >
+                {NAVBAR_GROUP_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[#6B4C4F] mt-1">
+                নির্বাচিত Navbar বাটনের ড্রপডাউনে এই ক্যাটাগরিটি প্রদর্শিত হবে।
+              </p>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-rose-100">

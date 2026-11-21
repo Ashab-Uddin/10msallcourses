@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { BookOpen, RotateCcw, Search, X } from 'lucide-react';
+import { BookOpen, RotateCcw } from 'lucide-react';
 import type { Course } from '../../types.ts';
-import { toBengaliNumber } from '../../utils/format.ts';
 import {
   JUNIOR_CLASS_FILTERS,
   JUNIOR_CLASS_PAGE_META,
@@ -19,18 +18,14 @@ interface JuniorClassSectionProps {
   courses: Course[];
   breadcrumbParentLabel: string;
   onNavigateHome: () => void;
-  onSwitchClass: (targetClassNum: JuniorClassNumber5To8) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
 }
-
-const CLASS_SWITCH_ORDER: ReadonlyArray<JuniorClassNumber5To8> = [5, 6, 7, 8];
 
 export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
   classNum,
   courses,
   breadcrumbParentLabel,
   onNavigateHome,
-  onSwitchClass,
   onEnrollClick,
 }) => {
   const meta = JUNIOR_CLASS_PAGE_META[classNum];
@@ -40,32 +35,21 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
     key: string;
     filter: JuniorClassFilterId;
   } | null>(null);
-  const [searchOverride, setSearchOverride] = useState<{
-    key: string;
-    query: string;
-  } | null>(null);
 
   const selectedFilter: JuniorClassFilterId =
     filterOverride?.key === classKey ? filterOverride.filter : 'all';
-  const searchQuery =
-    searchOverride?.key === classKey ? searchOverride.query : '';
 
   const setSelectedFilter = (filter: JuniorClassFilterId) => {
     setFilterOverride({ key: classKey, filter });
   };
 
-  const setSearchQuery = (query: string) => {
-    setSearchOverride({ key: classKey, query });
-  };
-
   const handleResetFilters = () => {
     setFilterOverride({ key: classKey, filter: 'all' });
-    setSearchOverride({ key: classKey, query: '' });
   };
 
   const filteredCourses = useMemo(
-    () => filterJuniorClassCourses(courses, selectedFilter, searchQuery),
-    [courses, selectedFilter, searchQuery]
+    () => filterJuniorClassCourses(courses, selectedFilter),
+    [courses, selectedFilter]
   );
 
   const activeFilterDef = useMemo(
@@ -73,8 +57,7 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
     [selectedFilter]
   );
 
-  const isFilterActive =
-    selectedFilter !== 'all' || searchQuery.trim().length > 0;
+  const isFilterActive = selectedFilter !== 'all';
 
   return (
     <div className="min-h-screen pb-28 md:pb-16">
@@ -117,100 +100,7 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
             </p>
           </div>
 
-          {/* 1. COURSE LIST CARD (Top: Class 5–8 Quick Switcher, Active Count & Search) */}
-          <div className="glass-surface rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 mb-3 sm:mb-4 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3">
-            {/* Left: Count + Quick Class 5–8 Switcher */}
-            <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2 sm:gap-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm sm:text-base font-black text-[#2A0F12] tracking-tight">
-                  {meta.label} কোর্স তালিকা
-                </h2>
-                {selectedFilter !== 'all' && activeFilterDef && (
-                  <span className="text-[11px] font-bold text-[#B91C1C] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                    {activeFilterDef.label}
-                  </span>
-                )}
-                <span className="text-[11px] font-extrabold text-[#B91C1C] bg-white/90 border border-rose-200/80 px-2.5 py-0.5 rounded-full tabular-nums bn-digits-fix">
-                  {toBengaliNumber(filteredCourses.length)}টি কোর্স
-                </span>
-              </div>
-
-              <span
-                aria-hidden="true"
-                className="hidden sm:inline-block w-px h-4 bg-rose-200/80"
-              />
-
-              {/* Quick Class 5-8 Switcher */}
-              <div
-                className="flex items-center gap-1 flex-wrap"
-                role="navigation"
-                aria-label="অন্যান্য শ্রেণি নির্বাচন"
-              >
-                {CLASS_SWITCH_ORDER.map((cNum) => {
-                  const cMeta = JUNIOR_CLASS_PAGE_META[cNum];
-                  const isCurrent = cNum === classNum;
-                  return (
-                    <button
-                      key={cMeta.slug}
-                      type="button"
-                      onClick={() => {
-                        if (!isCurrent) onSwitchClass(cNum);
-                      }}
-                      aria-current={isCurrent ? 'page' : undefined}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap border ${
-                        isCurrent
-                          ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-xs'
-                          : 'border-rose-200/80 bg-white/85 text-[#4A2528] hover:border-[#E22B2B]/60 hover:text-[#B91C1C]'
-                      }`}
-                    >
-                      {cMeta.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Right: Search & Reset */}
-            <div className="flex items-center gap-2 w-full lg:w-auto shrink-0">
-              <div className="relative flex-1 lg:w-64">
-                <Search
-                  aria-hidden="true"
-                  className="w-3.5 h-3.5 text-[#E11D48] sm:text-rose-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="কোর্সের নাম বা বিষয় খুঁজুন..."
-                  aria-label={`${meta.label} কোর্স অনুসন্ধান`}
-                  className="w-full pl-8 pr-8 py-1.5 rounded-xl bg-white/90 border border-rose-200/85 text-xs text-[#2A0F12] placeholder-[#7A5A5D] focus:bg-white focus:border-[#eb1c24] focus:ring-2 focus:ring-red-500/10 outline-none transition"
-                />
-                {searchQuery.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    aria-label="সার্চ মুছুন"
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#7A5A5D] hover:text-[#B91C1C] p-0.5 rounded-md cursor-pointer transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {isFilterActive && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[#B91C1C] text-xs font-bold transition cursor-pointer shrink-0 whitespace-nowrap"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>রিসেট</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* 2. FILTER CARD (Below Course List Card, Single-Line Strip) */}
+          {/* FILTER CARD (Single-Line Strip) */}
           <JuniorClassFilterBar
             classLabel={meta.label}
             courses={courses}
@@ -222,8 +112,6 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
 
       {/* COURSE GRID / EMPTY STATE */}
       <section className="max-w-[1240px] mx-auto px-4 sm:px-6 pt-1 sm:pt-2">
-
-        {/* Courses Grid / Empty State */}
         {filteredCourses.length === 0 ? (
           <div className="glass-surface rounded-3xl p-8 sm:p-12 text-center space-y-4 max-w-xl mx-auto">
             <div className="w-16 h-16 rounded-2xl glass-inset text-[#E22B2B] flex items-center justify-center mx-auto">

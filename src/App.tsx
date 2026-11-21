@@ -917,6 +917,7 @@ export default function App({
 
         <HeaderNav
           courses={courses}
+          categories={orderedCategories}
           bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -981,6 +982,7 @@ export default function App({
 
         <HeaderNav
           courses={courses}
+          categories={orderedCategories}
           bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -1042,6 +1044,7 @@ export default function App({
 
         <HeaderNav
           courses={courses}
+          categories={orderedCategories}
           bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -1106,6 +1109,7 @@ export default function App({
 
         <HeaderNav
           courses={courses}
+          categories={orderedCategories}
           bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -1224,6 +1228,7 @@ export default function App({
       {/* FLOATING FROSTED GLASS HEADER */}
       <HeaderNav
         courses={courses}
+        categories={orderedCategories}
         bookCategories={bookCategories}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}

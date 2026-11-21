@@ -271,7 +271,6 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
         courses={batchCourses}
         breadcrumbParentLabel="স্কুল"
         onNavigateHome={() => onNavigate('/')}
-        onSwitchClass={(targetNum) => onNavigate(`/class-${targetNum}`)}
         onEnrollClick={onEnrollClick}
       />
     );

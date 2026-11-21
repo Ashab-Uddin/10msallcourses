@@ -3,6 +3,7 @@ import path from 'path';
 import { unstable_cache } from 'next/cache';
 import {
   Category,
+  CategoryNavAssignment,
   ClickRecord,
   Course,
   CourseFeatureIconKey,
@@ -10,6 +11,7 @@ import {
   OfferTimer,
   SiteSettings,
 } from '../types.ts';
+import { normalizeCategoryNavGroup } from '../lib/navbarCategories.ts';
 import { INITIAL_SETTINGS } from './seedData.ts';
 import { getSupabaseAdminClient } from '../lib/supabase/admin.ts';
 import { CACHE_TAG_PUBLIC_PORTAL } from '../lib/cacheInvalidation.ts';
@@ -77,12 +79,14 @@ const SELECTOR_ICON_CONFIG_OBJECT = 'selector-icon-order.json';
 const COURSE_FEATURES_CONFIG_OBJECT = 'course-features.json';
 const CATEGORY_COURSE_ORDERS_OBJECT = 'category-course-orders.json';
 const COURSE_CATEGORY_ASSIGNMENTS_OBJECT = 'course-category-assignments.json';
+const CATEGORY_NAV_GROUPS_OBJECT = 'category-nav-groups.json';
 const COURSE_FEATURES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_FEATURES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_ORDERS_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const CATEGORY_ORDERS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const COURSE_CATEGORIES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS = 30 * 1000;
+const CATEGORY_NAV_GROUPS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 
 let courseFeaturesTableMissingUntil = 0;
 let cachedCourseFeaturesStorage: {
@@ -104,6 +108,147 @@ let cachedCourseCategoriesStorage: {
   expiresAt: number;
 } | null = null;
 let inFlightCourseCategoriesStorageRead: Promise<Record<string, string[]>> | null = null;
+
+let cachedCategoryNavGroupsStorage: {
+  data: Record<string, CategoryNavAssignment>;
+  expiresAt: number;
+} | null = null;
+let inFlightCategoryNavGroupsStorageRead: Promise<Record<string, CategoryNavAssignment>> | null = null;
+
+function normalizeCategoryNavGroupsMap(
+  raw: unknown
+): Record<string, CategoryNavAssignment> {
+  if (!raw || typeof raw !== 'object') return {};
+  const result: Record<string, CategoryNavAssignment> = {};
+  for (const [rawId, rawVal] of Object.entries(raw as Record<string, unknown>)) {
+    const idNum = Number(rawId);
+    if (!Number.isInteger(idNum) || idNum <= 0) continue;
+    const normalized = normalizeCategoryNavGroup(rawVal);
+    if (normalized !== 'auto') {
+      result[String(idNum)] = normalized;
+    }
+  }
+  return result;
+}
+
+async function readCategoryNavGroupsFromStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  options?: { bypassCache?: boolean }
+): Promise<Record<string, CategoryNavAssignment>> {
+  if (
+    !options?.bypassCache &&
+    cachedCategoryNavGroupsStorage &&
+    Date.now() < cachedCategoryNavGroupsStorage.expiresAt
+  ) {
+    return { ...cachedCategoryNavGroupsStorage.data };
+  }
+
+  if (!options?.bypassCache && inFlightCategoryNavGroupsStorageRead) {
+    const shared = await inFlightCategoryNavGroupsStorageRead;
+    return { ...shared };
+  }
+
+  const reader = (async (): Promise<Record<string, CategoryNavAssignment>> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(SELECTOR_ICON_CONFIG_BUCKET)
+        .download(CATEGORY_NAV_GROUPS_OBJECT);
+      if (error || !data) {
+        cachedCategoryNavGroupsStorage = {
+          data: {},
+          expiresAt: Date.now() + CATEGORY_NAV_GROUPS_STORAGE_CACHE_TTL_MS,
+        };
+        return {};
+      }
+      const text = await data.text();
+      const parsed = JSON.parse(text) as { navGroups?: unknown };
+      const normalized = normalizeCategoryNavGroupsMap(parsed?.navGroups ?? parsed);
+      cachedCategoryNavGroupsStorage = {
+        data: normalized,
+        expiresAt: Date.now() + CATEGORY_NAV_GROUPS_STORAGE_CACHE_TTL_MS,
+      };
+      return normalized;
+    } catch {
+      return {};
+    } finally {
+      inFlightCategoryNavGroupsStorageRead = null;
+    }
+  })();
+
+  if (!options?.bypassCache) {
+    inFlightCategoryNavGroupsStorageRead = reader;
+  }
+
+  const result = await reader;
+  return { ...result };
+}
+
+async function writeCategoryNavGroupsToStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  map: Record<string, CategoryNavAssignment>
+): Promise<void> {
+  const normalized = normalizeCategoryNavGroupsMap(map);
+  const payload = Buffer.from(
+    JSON.stringify(
+      {
+        navGroups: normalized,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
+
+  const attemptUpload = async () =>
+    supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .upload(CATEGORY_NAV_GROUPS_OBJECT, payload, {
+        upsert: true,
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: '0',
+      });
+
+  const first = await attemptUpload();
+  if (!first.error) {
+    cachedCategoryNavGroupsStorage = {
+      data: normalized,
+      expiresAt: Date.now() + CATEGORY_NAV_GROUPS_STORAGE_CACHE_TTL_MS,
+    };
+    return;
+  }
+
+  const errMsg = String(first.error.message || '').toLowerCase();
+  if (errMsg.includes('not found') || errMsg.includes('bucket')) {
+    const { error: createErr } = await supabase.storage.createBucket(
+      SELECTOR_ICON_CONFIG_BUCKET,
+      { public: false }
+    );
+    if (createErr && !String(createErr.message || '').toLowerCase().includes('already exists')) {
+      throw new RepositoryError('ক্যাটাগরি নেভবার স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
+    }
+    const retry = await attemptUpload();
+    if (!retry.error) {
+      cachedCategoryNavGroupsStorage = {
+        data: normalized,
+        expiresAt: Date.now() + CATEGORY_NAV_GROUPS_STORAGE_CACHE_TTL_MS,
+      };
+      return;
+    }
+  }
+
+  throw new RepositoryError('ক্যাটাগরি নেভবার কনফিগারেশন সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
+}
+
+function attachNavGroupsToCategories(
+  categories: Category[],
+  navGroupsMap: Record<string, CategoryNavAssignment>
+): Category[] {
+  return categories.map((cat) => ({
+    ...cat,
+    navGroup: navGroupsMap[String(cat.id)] ?? normalizeCategoryNavGroup(cat.navGroup),
+  }));
+}
 
 function cloneCourseFeaturesStorageMap(
   map: Record<string, CourseFeatureItem[]>
@@ -1397,6 +1542,9 @@ function mapCategoryRow(row: Record<string, unknown>): Category {
     badgeColor: String(row.badge_color || 'red'),
     displayOrder: Number(row.display_order ?? 1),
     status: String(row.status || 'active'),
+    ...(row.nav_group !== undefined
+      ? { navGroup: normalizeCategoryNavGroup(row.nav_group) }
+      : {}),
     createdAt: row.created_at ? String(row.created_at) : null,
   };
 }
@@ -1564,6 +1712,7 @@ async function sbFetchPublicPortalBase() {
     featuresMap,
     categoryCourseOrders,
     courseCategoriesMap,
+    categoryNavGroupsMap,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -1588,6 +1737,7 @@ async function sbFetchPublicPortalBase() {
     sbFetchCourseFeaturesMap(supabase),
     sbFetchCategoryCourseOrders(supabase),
     sbFetchCourseCategoriesMap(supabase),
+    readCategoryNavGroupsFromStorage(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড করতে সমস্যা হয়েছে।');
@@ -1595,8 +1745,9 @@ async function sbFetchPublicPortalBase() {
   if (settingsRes.error) throw mapPgError(settingsRes.error, 'সেটিংস লোড করতে সমস্যা হয়েছে।');
   if (timerRes.error) throw mapPgError(timerRes.error, 'অফার টাইমার লোড করতে সমস্যা হয়েছে।');
 
-  const categories = (catRes.data || []).map((r) =>
-    mapCategoryRow(r as Record<string, unknown>)
+  const categories = attachNavGroupsToCategories(
+    (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
+    categoryNavGroupsMap
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
@@ -1937,6 +2088,7 @@ export async function sbGetAdminOverviewData() {
     booksRes,
     categoryCourseOrders,
     courseCategoriesMap,
+    categoryNavGroupsMap,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -1961,6 +2113,7 @@ export async function sbGetAdminOverviewData() {
     supabase.from('books').select('status'),
     sbFetchCategoryCourseOrders(supabase),
     sbFetchCourseCategoriesMap(supabase),
+    readCategoryNavGroupsFromStorage(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
@@ -1969,8 +2122,9 @@ export async function sbGetAdminOverviewData() {
   if (settingsRes.error) throw mapPgError(settingsRes.error, 'সেটিংস লোড ব্যর্থ হয়েছে।');
   if (timerRes.error) throw mapPgError(timerRes.error, 'অফার টাইমার লোড ব্যর্থ হয়েছে।');
 
-  const allCategories = (catRes.data || []).map((r) =>
-    mapCategoryRow(r as Record<string, unknown>)
+  const allCategories = attachNavGroupsToCategories(
+    (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
+    categoryNavGroupsMap
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
@@ -3461,6 +3615,8 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
     status: input.status === 'inactive' ? 'inactive' : 'active',
   };
 
+  const requestedNavGroup = normalizeCategoryNavGroup(input.navGroup);
+
   const { data, error } = await supabase
     .from('categories')
     .insert(insertPayload)
@@ -3480,7 +3636,23 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
     throw mapPgError(error, 'ক্যাটাগরি তৈরি ব্যর্থ হয়েছে।');
   }
 
-  return mapCategoryRow(data as Record<string, unknown>);
+  const created = mapCategoryRow(data as Record<string, unknown>);
+  if (requestedNavGroup !== 'auto') {
+    const navMap = await readCategoryNavGroupsFromStorage(supabase, { bypassCache: true });
+    navMap[String(created.id)] = requestedNavGroup;
+    await writeCategoryNavGroupsToStorage(supabase, navMap);
+    if (Object.prototype.hasOwnProperty.call(data as Record<string, unknown>, 'nav_group')) {
+      await supabase
+        .from('categories')
+        .update({ nav_group: requestedNavGroup })
+        .eq('id', created.id);
+    }
+  }
+
+  return {
+    ...created,
+    navGroup: requestedNavGroup,
+  };
 }
 
 export async function sbUpdateExistingCategory(
@@ -3532,6 +3704,13 @@ export async function sbUpdateExistingCategory(
     );
   }
 
+  const hasNavGroupColumn = Object.prototype.hasOwnProperty.call(
+    existingRow as Record<string, unknown>,
+    'nav_group'
+  );
+  const requestedNavGroup =
+    input.navGroup !== undefined ? normalizeCategoryNavGroup(input.navGroup) : undefined;
+
   const updatePayload = {
     name: nextName.slice(0, 120),
     slug: nextSlug.slice(0, 120),
@@ -3552,6 +3731,9 @@ export async function sbUpdateExistingCategory(
           ? 'inactive'
           : 'active'
         : existing.status,
+    ...(hasNavGroupColumn && requestedNavGroup !== undefined
+      ? { nav_group: requestedNavGroup }
+      : {}),
   };
 
   // Trigger `trg_categories_sync_course_slug` automatically cascades slug rename to linked courses.
@@ -3576,6 +3758,19 @@ export async function sbUpdateExistingCategory(
       );
     }
     throw mapPgError(error, 'ক্যাটাগরি আপডেট ব্যর্থ হয়েছে।');
+  }
+
+  const navMap = await readCategoryNavGroupsFromStorage(supabase, { bypassCache: true });
+  if (requestedNavGroup !== undefined) {
+    if (requestedNavGroup === 'auto') {
+      if (Object.prototype.hasOwnProperty.call(navMap, String(id))) {
+        delete navMap[String(id)];
+        await writeCategoryNavGroupsToStorage(supabase, navMap);
+      }
+    } else {
+      navMap[String(id)] = requestedNavGroup;
+      await writeCategoryNavGroupsToStorage(supabase, navMap);
+    }
   }
 
   if (data && nextSlug !== existing.slug) {
@@ -3607,7 +3802,15 @@ export async function sbUpdateExistingCategory(
     }
   }
 
-  return data ? mapCategoryRow(data as Record<string, unknown>) : null;
+  if (!data) return null;
+  const mapped = mapCategoryRow(data as Record<string, unknown>);
+  return {
+    ...mapped,
+    navGroup:
+      requestedNavGroup !== undefined
+        ? requestedNavGroup
+        : navMap[String(id)] ?? normalizeCategoryNavGroup(mapped.navGroup),
+  };
 }
 
 export async function sbSwapCategoryOrder(
@@ -3686,14 +3889,20 @@ export async function sbSwapCategoryOrder(
     }
   }
 
-  const { data: sortedRows, error: fetchSortedErr } = await supabase
-    .from('categories')
-    .select('*')
-    .order('display_order', { ascending: true })
-    .order('id', { ascending: true });
+  const [{ data: sortedRows, error: fetchSortedErr }, navGroupsMap] = await Promise.all([
+    supabase
+      .from('categories')
+      .select('*')
+      .order('display_order', { ascending: true })
+      .order('id', { ascending: true }),
+    readCategoryNavGroupsFromStorage(supabase),
+  ]);
 
   if (fetchSortedErr) throw mapPgError(fetchSortedErr, 'ক্যাটাগরি তালিকা লোড ব্যর্থ হয়েছে।');
-  return (sortedRows || []).map((r) => mapCategoryRow(r as Record<string, unknown>));
+  return attachNavGroupsToCategories(
+    (sortedRows || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
+    navGroupsMap
+  );
 }
 
 export async function sbDeleteCategoryById(
@@ -3752,6 +3961,16 @@ export async function sbDeleteCategoryById(
       );
     }
     throw mapPgError(delErr, 'ক্যাটাগরি মুছে ফেলতে ব্যর্থ হয়েছে।');
+  }
+
+  try {
+    const navMap = await readCategoryNavGroupsFromStorage(supabase, { bypassCache: true });
+    if (Object.prototype.hasOwnProperty.call(navMap, String(id))) {
+      delete navMap[String(id)];
+      await writeCategoryNavGroupsToStorage(supabase, navMap);
+    }
+  } catch {
+    // Non-fatal cleanup
   }
 
   return { deleted: true, found: true };

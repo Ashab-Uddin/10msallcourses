@@ -1,6 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { BookCategory, Course } from '../../types.ts';
+import { BookCategory, Category, Course } from '../../types.ts';
+import {
+  getNavbarCategoriesByGroup,
+  inferCategoryNavGroup,
+  resolveCategoryNavGroup,
+} from '../../lib/navbarCategories.ts';
+import { categorySlugsMatch } from '../../lib/categoryMatching.ts';
+import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 import {
   Home,
   GraduationCap,
@@ -15,6 +22,7 @@ import {
 
 interface HeaderNavProps {
   courses: Course[];
+  categories?: Category[];
   bookCategories?: BookCategory[];
   searchQuery: string;
   onSearchChange: (val: string) => void;
@@ -28,17 +36,16 @@ interface HeaderNavProps {
   currentHash?: string;
 }
 
-type NavKey = 'school' | 'hsc26' | 'hsc27' | 'hsc28' | 'admission' | 'books';
+type NavKey = 'school' | 'hsc27' | 'hsc28' | 'admission' | 'books';
 
 interface SubMenuItem {
   label: string;
   categorySlug?: string;
-  searchFilter?: string;
   urlPath: string;
-  icon?: React.ReactNode;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
+  categories = [],
   bookCategories = [],
   searchQuery,
   onSearchChange,
@@ -48,15 +55,123 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   onNavigate,
   currentPath = '/',
 }) => {
-  const [activeMenu, setActiveMenu] = useState<NavKey | null>(null);
+  const [hoverMenu, setHoverMenu] = useState<NavKey | null>(null);
+  const [pinnedMenu, setPinnedMenu] = useState<NavKey | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
 
-  // Determine active navigation item based on current URL path and hash
-  const getActiveKey = (): 'home' | 'school' | 'hsc26' | 'hsc27' | 'hsc28' | 'admission' | 'books' => {
+  const activeMenu = pinnedMenu ?? hoverMenu;
+
+  // Close pinned/hover dropdown when clicking outside the header or pressing Escape
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
+        setPinnedMenu(null);
+        setHoverMenu(null);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPinnedMenu(null);
+        setHoverMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  // Build 100% dynamic category lists per Navbar button directly from existing Categories
+  const groupedCategories = useMemo(
+    () => getNavbarCategoriesByGroup(categories),
+    [categories]
+  );
+
+  const mapCategoriesToSubItems = (list: Category[]): SubMenuItem[] =>
+    list.map((cat) => ({
+      label: cat.name,
+      categorySlug: cat.slug,
+      urlPath: `/category/${cat.slug}`,
+    }));
+
+  const class6to12Items = useMemo(
+    () => mapCategoriesToSubItems(groupedCategories.school),
+    [groupedCategories.school]
+  );
+  const hsc27Items = useMemo(
+    () => mapCategoriesToSubItems(groupedCategories.hsc27),
+    [groupedCategories.hsc27]
+  );
+  const hsc28Items = useMemo(
+    () => mapCategoriesToSubItems(groupedCategories.hsc28),
+    [groupedCategories.hsc28]
+  );
+  const admissionItems = useMemo(
+    () => mapCategoriesToSubItems(groupedCategories.admission),
+    [groupedCategories.admission]
+  );
+
+  // Dynamic Book Store categories dropdown items
+  const bookStoreItems: SubMenuItem[] = useMemo(
+    () => [
+      { label: '📚 সকল বই (10MS বুক স্টোর)', urlPath: '/books' },
+      ...bookCategories
+        .filter((cat) => cat.status === 'active')
+        .map((cat) => ({
+          label: cat.sectionTitle || `${cat.name}-এর সকল বই`,
+          urlPath: `/books/${cat.slug}`,
+        })),
+    ],
+    [bookCategories]
+  );
+
+  const activeCategorySlugFromPath = useMemo(() => {
+    const clean = currentPath.replace(/\/+$/, '') || '/';
+    const match = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
+    if (!match) return null;
+    return decodeCourseSlug(match[1]) || match[1];
+  }, [currentPath]);
+
+  // Determine active navigation item based on current URL path and active category
+  const getActiveKey = (): 'home' | 'school' | 'hsc27' | 'hsc28' | 'admission' | 'books' => {
     const clean = currentPath.replace(/\/+$/, '') || '/';
 
-    if (clean.includes('/hsc/hsc-26') || clean.includes('/academic/hsc/hsc-26')) return 'hsc26';
+    if (
+      clean === '/books' ||
+      clean.startsWith('/books/') ||
+      clean === '/book-store' ||
+      clean === '/category/books' ||
+      clean === '/categories/books'
+    ) {
+      return 'books';
+    }
+
+    if (activeCategorySlugFromPath) {
+      const matchedCategory = categories.find((cat) =>
+        categorySlugsMatch(cat.slug, activeCategorySlugFromPath)
+      );
+      if (matchedCategory) {
+        const group = resolveCategoryNavGroup(matchedCategory);
+        if (group !== 'none') return group;
+      }
+      const inferred = inferCategoryNavGroup({
+        name: activeCategorySlugFromPath,
+        slug: activeCategorySlugFromPath,
+        subtitle: null,
+      });
+      if (inferred !== 'none') return inferred;
+    }
+
     if (clean.includes('/hsc/hsc-27') || clean.includes('/academic/hsc/hsc-27')) return 'hsc27';
     if (clean.includes('/hsc/hsc-28') || clean.includes('/academic/hsc/hsc-28')) return 'hsc28';
 
@@ -71,15 +186,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     }
 
     if (clean.includes('/admission') || clean === '/category/admission') return 'admission';
-    if (
-      clean === '/books' ||
-      clean.startsWith('/books/') ||
-      clean === '/book-store' ||
-      clean === '/category/books' ||
-      clean === '/categories/books'
-    ) {
-      return 'books';
-    }
 
     if (clean === '/' && !searchQuery.trim()) return 'home';
 
@@ -90,84 +196,67 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 
   const handleMouseEnter = (key: NavKey) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setActiveMenu(key);
+    setHoverMenu(key);
+    if (pinnedMenu && pinnedMenu !== key) {
+      setPinnedMenu(null);
+    }
   };
 
   const handleMouseLeave = () => {
     timeoutRef.current = setTimeout(() => {
-      setActiveMenu(null);
+      setHoverMenu(null);
     }, 180);
   };
 
-  // Sub-items for Class 6-12
-  const class6to12Items: SubMenuItem[] = [
-    { label: '৬ষ্ঠ শ্রেণি– অনলাইন ব্যাচ', urlPath: '/class-6' },
-    { label: '৭ম শ্রেণি– অনলাইন ব্যাচ', urlPath: '/class-7' },
-    { label: '৮ম শ্রেণি– অনলাইন ব্যাচ', urlPath: '/class-8' },
-    { label: '৯ম শ্রেণি (SSC ২০২৮ ব্যাচ)', urlPath: '/ssc/ssc-28' },
-    { label: '১০ম শ্রেণি (SSC ২০২৭ ব্যাচ)', urlPath: '/ssc/ssc-27' },
-    { label: 'SSC 27 শেষ মুহূর্তের প্রস্তুতি', urlPath: '/ssc/ssc-27' },
-  ];
-
-  // Sub-items for HSC 2026 (dedicated sections)
-  const hsc26Items: SubMenuItem[] = [
-    { label: '🔬 বিজ্ঞান বিভাগ (Science)', urlPath: '/hsc/hsc-26#science' },
-    { label: '💼 ব্যবসায় শিক্ষা (Business Studies)', urlPath: '/hsc/hsc-26#business-studies' },
-    { label: '📚 মানবিক বিভাগ (Humanities)', urlPath: '/hsc/hsc-26#humanities' },
-    { label: '🎯 HSC 2026 সকল কোর্স', urlPath: '/hsc/hsc-26' },
-  ];
-
-  // Sub-items for HSC 2027 (dedicated sections)
-  const hsc27Items: SubMenuItem[] = [
-    { label: '🔬 বিজ্ঞান বিভাগ (Science)', urlPath: '/hsc/hsc-27#science' },
-    { label: '💼 ব্যবসায় শিক্ষা (Business Studies)', urlPath: '/hsc/hsc-27#business-studies' },
-    { label: '📚 মানবিক বিভাগ (Humanities)', urlPath: '/hsc/hsc-27#humanities' },
-    { label: '🎯 HSC 2027 সকল কোর্স', urlPath: '/hsc/hsc-27' },
-  ];
-
-  // Sub-items for HSC 2028 (dedicated sections)
-  const hsc28Items: SubMenuItem[] = [
-    { label: '🔬 বিজ্ঞান বিভাগ (Science)', urlPath: '/hsc/hsc-28#science' },
-    { label: '💼 ব্যবসায় শিক্ষা (Business Studies)', urlPath: '/hsc/hsc-28#business-studies' },
-    { label: '📚 মানবিক বিভাগ (Humanities)', urlPath: '/hsc/hsc-28#humanities' },
-    { label: '🎯 HSC 2028 সকল কোর্স', urlPath: '/hsc/hsc-28' },
-  ];
-
-  // Dynamic Book Store categories dropdown items
-  const bookStoreItems: SubMenuItem[] = [
-    { label: '📚 সকল বই (10MS বুক স্টোর)', urlPath: '/books' },
-    ...bookCategories
-      .filter((cat) => cat.status === 'active')
-      .map((cat) => ({
-        label: cat.sectionTitle || `${cat.name}-এর সকল বই`,
-        urlPath: `/books/${cat.slug}`,
-      })),
-  ];
-
   const handleSubItemClick = (item: SubMenuItem) => {
-    setActiveMenu(null);
+    setPinnedMenu(null);
+    setHoverMenu(null);
     setMobileMenuOpen(false);
     if (onNavigate) {
       onNavigate(item.urlPath);
+    } else if (item.categorySlug) {
+      onSelectCategory(item.categorySlug, '');
     }
   };
 
   const handleDirectNavClick = (key: NavKey) => {
-    setActiveMenu(null);
+    setPinnedMenu(null);
+    setHoverMenu(null);
     setMobileMenuOpen(false);
     if (onNavigate) {
       if (key === 'school') onNavigate('/class-7');
-      else if (key === 'hsc26') onNavigate('/hsc/hsc-26');
       else if (key === 'hsc27') onNavigate('/hsc/hsc-27');
       else if (key === 'hsc28') onNavigate('/hsc/hsc-28');
       else if (key === 'admission') onNavigate('/admission');
       else if (key === 'books') onNavigate('/books');
     } else {
       if (key === 'school') onSelectCategory('school', '');
-      else if (key === 'hsc26' || key === 'hsc27' || key === 'hsc28') onSelectCategory('hsc', '');
+      else if (key === 'hsc27' || key === 'hsc28') onSelectCategory('hsc', '');
       else if (key === 'admission') onSelectCategory('admission', '');
       else if (key === 'books') onSelectCategory('all', 'বুক');
     }
+  };
+
+  const handleNavButtonClick = (key: NavKey, hasDropdown: boolean) => {
+    if (!hasDropdown) {
+      handleDirectNavClick(key);
+      return;
+    }
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (pinnedMenu === key) {
+      setPinnedMenu(null);
+      setHoverMenu(null);
+    } else {
+      setPinnedMenu(key);
+      setHoverMenu(key);
+    }
+  };
+
+  const isSubItemActive = (item: SubMenuItem): boolean => {
+    if (item.categorySlug && activeCategorySlugFromPath) {
+      return categorySlugsMatch(item.categorySlug, activeCategorySlugFromPath);
+    }
+    return currentPath.replace(/\/+$/, '') === item.urlPath;
   };
 
   // Active pill classes vs inactive neutral classes
@@ -176,6 +265,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 
   return (
     <header
+      ref={headerRef}
       style={{ borderRadius: mobileMenuOpen ? '26px' : '22px' }}
       className={`sticky top-3 z-50 mx-auto max-w-[1360px] w-[calc(100%-16px)] sm:w-[calc(100%-28px)] bg-white border border-slate-200/90 shadow-[0_10px_32px_-6px_rgba(0,0,0,0.11),0_4px_14px_rgba(226,43,43,0.05)] transition-all duration-200 relative overflow-visible ${
         mobileMenuOpen ? 'rounded-[26px]' : 'rounded-[22px]'
@@ -211,6 +301,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         <button
           type="button"
           onClick={() => {
+            setPinnedMenu(null);
+            setHoverMenu(null);
             setMobileMenuOpen(false);
             onNavigateHome();
           }}
@@ -228,13 +320,14 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           />
         </button>
 
-        {/* MIDDLE: NAVBAR MENU LINKS (Dynamic Active State & Dedicated HSC Routes) */}
+        {/* MIDDLE: NAVBAR MENU LINKS (100% Dynamic Category-Based Dropdowns) */}
         <nav className="hidden lg:flex items-center gap-1.5 xl:gap-2.5 text-[13px] xl:text-[13.5px] text-slate-700 relative py-0.5">
           {/* 1. হোম (Active ONLY when actually on Home Page) */}
           <button
             type="button"
             onClick={() => {
-              setActiveMenu(null);
+              setPinnedMenu(null);
+              setHoverMenu(null);
               onNavigateHome();
             }}
             className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
@@ -245,30 +338,34 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             <span>হোম</span>
           </button>
 
-          {/* 2. ক্লাস 6-12 (with dropdown) */}
+          {/* 2. ক্লাস 6-12 (Dynamic dropdown from categories) */}
           <div
-            onMouseEnter={() => handleMouseEnter('school')}
+            onMouseEnter={() => {
+              if (class6to12Items.length > 0) handleMouseEnter('school');
+            }}
             onMouseLeave={handleMouseLeave}
             className="relative"
           >
             <button
               type="button"
-              onClick={() => handleDirectNavClick('school')}
+              onClick={() => handleNavButtonClick('school', class6to12Items.length > 0)}
+              aria-expanded={class6to12Items.length > 0 ? activeMenu === 'school' : undefined}
               className={`flex items-center gap-1 py-1.5 px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
                 activeNavKey === 'school' ? activePillClass : inactivePillClass
               }`}
             >
               <GraduationCap className={`w-3.5 h-3.5 ${activeNavKey === 'school' ? 'text-[#eb1c24]' : 'text-slate-500'}`} />
               <span>ক্লাস 6-12</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  activeMenu === 'school' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
-                }`}
-              />
+              {class6to12Items.length > 0 && (
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    activeMenu === 'school' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
+                  }`}
+                />
+              )}
             </button>
 
-            {/* Dropdown Card */}
-            {activeMenu === 'school' && (
+            {activeMenu === 'school' && class6to12Items.length > 0 && (
               <div
                 onMouseEnter={() => {
                   if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -276,92 +373,58 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 onMouseLeave={handleMouseLeave}
                 className="absolute left-0 top-full mt-2 w-[275px] bg-white rounded-2xl border border-rose-100 border-t-[3px] border-t-[#eb1c24] shadow-[0_16px_40px_rgba(0,0,0,0.12)] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden"
               >
-                {class6to12Items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-4 py-2.5 text-[13px] font-semibold text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60 transition-colors flex items-center justify-between cursor-pointer"
-                  >
-                    <span>{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 3. HSC 26 (with section dropdown) */}
-          <div
-            onMouseEnter={() => handleMouseEnter('hsc26')}
-            onMouseLeave={handleMouseLeave}
-            className="relative"
-          >
-            <button
-              type="button"
-              onClick={() => handleDirectNavClick('hsc26')}
-              className={`flex items-center gap-1 py-1.5 px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
-                activeNavKey === 'hsc26' ? activePillClass : inactivePillClass
-              }`}
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${activeNavKey === 'hsc26' ? 'text-[#eb1c24]' : 'text-rose-500'}`} />
-              <span>HSC 26</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  activeMenu === 'hsc26' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
-                }`}
-              />
-            </button>
-
-            {/* HSC 26 Dropdown Card with Direct Department Links */}
-            {activeMenu === 'hsc26' && (
-              <div
-                onMouseEnter={() => {
-                  if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                }}
-                onMouseLeave={handleMouseLeave}
-                className="absolute left-0 top-full mt-2 w-[295px] bg-white rounded-2xl border border-rose-100 border-t-[3px] border-t-[#eb1c24] shadow-[0_16px_40px_rgba(0,0,0,0.12)] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden"
-              >
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  HSC 2026 বিভাগসমূহ
+                  ক্লাস ৬–১২ ক্যাটাগরি
                 </div>
-                {hsc26Items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-4 py-2 text-[12.5px] font-semibold text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60 transition-colors flex items-center justify-between cursor-pointer"
-                  >
-                    <span>{item.label}</span>
-                  </button>
-                ))}
+                {class6to12Items.map((item) => {
+                  const isCurrent = isSubItemActive(item);
+                  return (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-4 py-2.5 text-[13px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                        isCurrent
+                          ? 'text-[#eb1c24] bg-rose-50/80'
+                          : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
+                      }`}
+                    >
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* 4. HSC 27 (with section dropdown) */}
+          {/* 3. HSC 27 (Dynamic dropdown from categories) */}
           <div
-            onMouseEnter={() => handleMouseEnter('hsc27')}
+            onMouseEnter={() => {
+              if (hsc27Items.length > 0) handleMouseEnter('hsc27');
+            }}
             onMouseLeave={handleMouseLeave}
             className="relative"
           >
             <button
               type="button"
-              onClick={() => handleDirectNavClick('hsc27')}
+              onClick={() => handleNavButtonClick('hsc27', hsc27Items.length > 0)}
+              aria-expanded={hsc27Items.length > 0 ? activeMenu === 'hsc27' : undefined}
               className={`flex items-center gap-1 py-1.5 px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
                 activeNavKey === 'hsc27' ? activePillClass : inactivePillClass
               }`}
             >
               <Sparkles className={`w-3.5 h-3.5 ${activeNavKey === 'hsc27' ? 'text-[#eb1c24]' : 'text-amber-500'}`} />
               <span>HSC 27</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  activeMenu === 'hsc27' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
-                }`}
-              />
+              {hsc27Items.length > 0 && (
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    activeMenu === 'hsc27' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
+                  }`}
+                />
+              )}
             </button>
 
-            {/* HSC 27 Dropdown Card */}
-            {activeMenu === 'hsc27' && (
+            {activeMenu === 'hsc27' && hsc27Items.length > 0 && (
               <div
                 onMouseEnter={() => {
                   if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -370,46 +433,57 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 className="absolute left-0 top-full mt-2 w-[295px] bg-white rounded-2xl border border-rose-100 border-t-[3px] border-t-[#eb1c24] shadow-[0_16px_40px_rgba(0,0,0,0.12)] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden"
               >
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  HSC 2027 বিভাগসমূহ
+                  HSC 2027 ক্যাটাগরি
                 </div>
-                {hsc27Items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-4 py-2 text-[12.5px] font-semibold text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60 transition-colors flex items-center justify-between cursor-pointer"
-                  >
-                    <span>{item.label}</span>
-                  </button>
-                ))}
+                {hsc27Items.map((item) => {
+                  const isCurrent = isSubItemActive(item);
+                  return (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-4 py-2 text-[12.5px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                        isCurrent
+                          ? 'text-[#eb1c24] bg-rose-50/80'
+                          : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
+                      }`}
+                    >
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* 5. HSC 28 (with section dropdown) */}
+          {/* 5. HSC 28 (Dynamic dropdown from categories) */}
           <div
-            onMouseEnter={() => handleMouseEnter('hsc28')}
+            onMouseEnter={() => {
+              if (hsc28Items.length > 0) handleMouseEnter('hsc28');
+            }}
             onMouseLeave={handleMouseLeave}
             className="relative"
           >
             <button
               type="button"
-              onClick={() => handleDirectNavClick('hsc28')}
+              onClick={() => handleNavButtonClick('hsc28', hsc28Items.length > 0)}
+              aria-expanded={hsc28Items.length > 0 ? activeMenu === 'hsc28' : undefined}
               className={`flex items-center gap-1 py-1.5 px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
                 activeNavKey === 'hsc28' ? activePillClass : inactivePillClass
               }`}
             >
               <Sparkles className={`w-3.5 h-3.5 ${activeNavKey === 'hsc28' ? 'text-[#eb1c24]' : 'text-rose-500'}`} />
               <span>HSC 28</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  activeMenu === 'hsc28' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
-                }`}
-              />
+              {hsc28Items.length > 0 && (
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    activeMenu === 'hsc28' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
+                  }`}
+                />
+              )}
             </button>
 
-            {/* HSC 28 Dropdown Card */}
-            {activeMenu === 'hsc28' && (
+            {activeMenu === 'hsc28' && hsc28Items.length > 0 && (
               <div
                 onMouseEnter={() => {
                   if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -418,43 +492,100 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 className="absolute left-0 top-full mt-2 w-[295px] bg-white rounded-2xl border border-rose-100 border-t-[3px] border-t-[#eb1c24] shadow-[0_16px_40px_rgba(0,0,0,0.12)] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden"
               >
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  HSC 2028 বিভাগসমূহ
+                  HSC 2028 ক্যাটাগরি
                 </div>
-                {hsc28Items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-4 py-2 text-[12.5px] font-semibold text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60 transition-colors flex items-center justify-between cursor-pointer"
-                  >
-                    <span>{item.label}</span>
-                  </button>
-                ))}
+                {hsc28Items.map((item) => {
+                  const isCurrent = isSubItemActive(item);
+                  return (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-4 py-2 text-[12.5px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                        isCurrent
+                          ? 'text-[#eb1c24] bg-rose-50/80'
+                          : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
+                      }`}
+                    >
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* 6. ভর্তি পরীক্ষা */}
-          <button
-            type="button"
-            onClick={() => handleDirectNavClick('admission')}
-            className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
-              activeNavKey === 'admission' ? activePillClass : inactivePillClass
-            }`}
-          >
-            <Award className={`w-3.5 h-3.5 ${activeNavKey === 'admission' ? 'text-[#eb1c24]' : 'text-emerald-600'}`} />
-            <span>ভর্তি পরীক্ষা</span>
-          </button>
-
-          {/* 7. বুক স্টোর (with dynamic Book Store categories dropdown) */}
+          {/* 6. ভর্তি পরীক্ষা (Dynamic dropdown from categories) */}
           <div
-            onMouseEnter={() => handleMouseEnter('books')}
+            onMouseEnter={() => {
+              if (admissionItems.length > 0) handleMouseEnter('admission');
+            }}
             onMouseLeave={handleMouseLeave}
             className="relative"
           >
             <button
               type="button"
-              onClick={() => handleDirectNavClick('books')}
+              onClick={() => handleNavButtonClick('admission', admissionItems.length > 0)}
+              aria-expanded={admissionItems.length > 0 ? activeMenu === 'admission' : undefined}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+                activeNavKey === 'admission' ? activePillClass : inactivePillClass
+              }`}
+            >
+              <Award className={`w-3.5 h-3.5 ${activeNavKey === 'admission' ? 'text-[#eb1c24]' : 'text-emerald-600'}`} />
+              <span>ভর্তি পরীক্ষা</span>
+              {admissionItems.length > 0 && (
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    activeMenu === 'admission' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
+                  }`}
+                />
+              )}
+            </button>
+
+            {activeMenu === 'admission' && admissionItems.length > 0 && (
+              <div
+                onMouseEnter={() => {
+                  if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                }}
+                onMouseLeave={handleMouseLeave}
+                className="absolute left-0 top-full mt-2 w-[285px] bg-white rounded-2xl border border-rose-100 border-t-[3px] border-t-[#eb1c24] shadow-[0_16px_40px_rgba(0,0,0,0.12)] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden"
+              >
+                <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  ভর্তি পরীক্ষা ক্যাটাগরি
+                </div>
+                {admissionItems.map((item) => {
+                  const isCurrent = isSubItemActive(item);
+                  return (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-4 py-2 text-[12.5px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                        isCurrent
+                          ? 'text-[#eb1c24] bg-rose-50/80'
+                          : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
+                      }`}
+                    >
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 7. বুক স্টোর (with dynamic Book Store categories dropdown) */}
+          <div
+            onMouseEnter={() => {
+              if (bookStoreItems.length > 1) handleMouseEnter('books');
+            }}
+            onMouseLeave={handleMouseLeave}
+            className="relative"
+          >
+            <button
+              type="button"
+              onClick={() => handleNavButtonClick('books', bookStoreItems.length > 1)}
+              aria-expanded={bookStoreItems.length > 1 ? activeMenu === 'books' : undefined}
               className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
                 activeNavKey === 'books' ? activePillClass : inactivePillClass
               }`}
@@ -481,16 +612,23 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   বুক স্টোর ক্যাটাগরি
                 </div>
-                {bookStoreItems.map((item, idx) => (
-                  <button
-                    key={item.urlPath + idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-4 py-2 text-[12.5px] font-semibold text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60 transition-colors flex items-center justify-between cursor-pointer"
-                  >
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                ))}
+                {bookStoreItems.map((item, idx) => {
+                  const isCurrent = isSubItemActive(item);
+                  return (
+                    <button
+                      key={item.urlPath + idx}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-4 py-2 text-[12.5px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                        isCurrent
+                          ? 'text-[#eb1c24] bg-rose-50/80'
+                          : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
+                      }`}
+                    >
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -535,7 +673,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         </div>
       </div>
 
-      {/* MOBILE EXPANDED MENU DRAWER */}
+      {/* MOBILE EXPANDED MENU DRAWER (Dynamic Category-Based) */}
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-100 bg-white px-4 py-3 space-y-3 rounded-b-[22px] animate-in fade-in">
           <div className="space-y-1">
@@ -558,117 +696,175 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               <span>হোম পেজ</span>
             </button>
 
-            {/* ক্লাস 6-12 collapsible section */}
-            <details className="group" open={activeNavKey === 'school'}>
-              <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
-                activeNavKey === 'school' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <GraduationCap className="w-4 h-4 text-slate-600" />
-                  <span>ক্লাস 6-12</span>
+            {/* ক্লাস 6-12 */}
+            {class6to12Items.length > 0 ? (
+              <details className="group" open={activeNavKey === 'school'}>
+                <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
+                  activeNavKey === 'school' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-slate-600" />
+                    <span>ক্লাস 6-12</span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  {class6to12Items.map((item) => (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
+                        isSubItemActive(item)
+                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
-                <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
-                {class6to12Items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70 font-medium transition-colors"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </details>
+              </details>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDirectNavClick('school')}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                  activeNavKey === 'school' ? 'text-[#eb1c24] bg-rose-50 border border-rose-200' : 'text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <GraduationCap className="w-4 h-4 text-slate-600" />
+                <span>ক্লাস 6-12</span>
+              </button>
+            )}
 
-            {/* HSC 26 collapsible section */}
-            <details className="group" open={activeNavKey === 'hsc26'}>
-              <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
-                activeNavKey === 'hsc26' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-rose-500" />
-                  <span>HSC 26 (এডমিশন ও রিভিশন)</span>
+            {/* HSC 27 */}
+            {hsc27Items.length > 0 ? (
+              <details className="group" open={activeNavKey === 'hsc27'}>
+                <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
+                  activeNavKey === 'hsc27' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>HSC 27 (২য় বর্ষ)</span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  {hsc27Items.map((item) => (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
+                        isSubItemActive(item)
+                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
-                <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
-                {hsc26Items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70 font-medium transition-colors"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </details>
+              </details>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDirectNavClick('hsc27')}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                  activeNavKey === 'hsc27' ? 'text-[#eb1c24] bg-rose-50 border border-rose-200' : 'text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>HSC 27 (২য় বর্ষ)</span>
+              </button>
+            )}
 
-            {/* HSC 27 collapsible section */}
-            <details className="group" open={activeNavKey === 'hsc27'}>
-              <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
-                activeNavKey === 'hsc27' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span>HSC 27 (২য় বর্ষ)</span>
+            {/* HSC 28 */}
+            {hsc28Items.length > 0 ? (
+              <details className="group" open={activeNavKey === 'hsc28'}>
+                <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
+                  activeNavKey === 'hsc28' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-rose-500" />
+                    <span>HSC 28 (১ম বর্ষ)</span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  {hsc28Items.map((item) => (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
+                        isSubItemActive(item)
+                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
-                <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
-                {hsc27Items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70 font-medium transition-colors"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </details>
+              </details>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDirectNavClick('hsc28')}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                  activeNavKey === 'hsc28' ? 'text-[#eb1c24] bg-rose-50 border border-rose-200' : 'text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-rose-500" />
+                <span>HSC 28 (১ম বর্ষ)</span>
+              </button>
+            )}
 
-            {/* HSC 28 collapsible section */}
-            <details className="group" open={activeNavKey === 'hsc28'}>
-              <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
-                activeNavKey === 'hsc28' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-rose-500" />
-                  <span>HSC 28 (১ম বর্ষ)</span>
+            {/* ভর্তি পরীক্ষা */}
+            {admissionItems.length > 0 ? (
+              <details className="group" open={activeNavKey === 'admission'}>
+                <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
+                  activeNavKey === 'admission' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Award className="w-4 h-4 text-emerald-600" />
+                    <span>ভর্তি পরীক্ষা</span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  {admissionItems.map((item) => (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
+                        isSubItemActive(item)
+                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
-                <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
-                {hsc28Items.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSubItemClick(item)}
-                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70 font-medium transition-colors"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </details>
+              </details>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDirectNavClick('admission')}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                  activeNavKey === 'admission' ? 'text-[#eb1c24] bg-rose-50 border border-rose-200' : 'text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <Award className="w-4 h-4 text-emerald-600" />
+                <span>ভর্তি পরীক্ষা</span>
+              </button>
+            )}
 
-            {/* Direct links */}
-            <button
-              type="button"
-              onClick={() => handleDirectNavClick('admission')}
-              className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
-                activeNavKey === 'admission' ? 'text-[#eb1c24] bg-rose-50 border border-rose-200' : 'text-slate-800 hover:bg-slate-50'
-              }`}
-            >
-              <Award className="w-4 h-4 text-emerald-600" />
-              <span>ভর্তি পরীক্ষা</span>
-            </button>
+            {/* বুক স্টোর */}
             {bookStoreItems.length > 1 ? (
               <details className="group" open={activeNavKey === 'books'}>
                 <summary
@@ -690,7 +886,11 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                       key={item.urlPath + idx}
                       type="button"
                       onClick={() => handleSubItemClick(item)}
-                      className="w-full text-left px-2.5 py-1.5 text-xs rounded-md text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70 font-medium transition-colors"
+                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
+                        isSubItemActive(item)
+                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                      }`}
                     >
                       {item.label}
                     </button>

@@ -1,3 +1,6 @@
+export type NavbarGroupKey = 'school' | 'hsc27' | 'hsc28' | 'admission';
+export type CategoryNavAssignment = NavbarGroupKey | 'auto' | 'none';
+
 export interface Category {
   id: number;
   name: string;
@@ -6,6 +9,7 @@ export interface Category {
   badgeColor: string;
   displayOrder: number;
   status: string;
+  navGroup?: CategoryNavAssignment;
   createdAt?: string | null;
 }
 
