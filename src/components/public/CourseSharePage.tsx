@@ -5,9 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
-  Check,
   Clock,
-  Copy,
   MessageCircle,
   ShieldCheck,
   ShoppingBag,
@@ -91,35 +89,6 @@ function getBannerStyle(theme: string) {
   }
 }
 
-async function copyShareUrlToClipboard(text: string): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // Fallback below for iframe / restricted browsers
-    }
-  }
-  if (typeof document === 'undefined') return false;
-  try {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.setAttribute('readonly', '');
-    textarea.style.position = 'fixed';
-    textarea.style.top = '0';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    textarea.setSelectionRange(0, text.length);
-    const ok = document.execCommand('copy');
-    document.body.removeChild(textarea);
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
 export const CourseSharePage: React.FC<CourseSharePageProps> = ({
   slug,
   course,
@@ -134,7 +103,6 @@ export const CourseSharePage: React.FC<CourseSharePageProps> = ({
   const siteContact = useSiteContact();
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [imageRatio, setImageRatio] = useState<number | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
 
   if (isLoading && !course) {
     return (
@@ -235,16 +203,6 @@ export const CourseSharePage: React.FC<CourseSharePageProps> = ({
         c.status === 'active'
     )
     .slice(0, 4);
-
-  const handleCopyCurrentLink = async () => {
-    if (typeof window === 'undefined') return;
-    const shareUrl = `${window.location.origin}/courses/${encodeURIComponent(course.slug)}`;
-    const ok = await copyShareUrlToClipboard(shareUrl);
-    if (ok) {
-      setLinkCopied(true);
-      window.setTimeout(() => setLinkCopied(false), 2000);
-    }
-  };
 
   return (
     <div className="max-w-[1160px] mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-8">
@@ -473,28 +431,6 @@ export const CourseSharePage: React.FC<CourseSharePageProps> = ({
                 <MessageCircle className="w-4 h-4 shrink-0" />
                 <span>WhatsApp সহায়তা</span>
               </a>
-
-              <button
-                type="button"
-                onClick={() => void handleCopyCurrentLink()}
-                className={`inline-flex items-center justify-center gap-1.5 px-4 py-3.5 rounded-2xl border text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
-                  linkCopied
-                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                    : 'border-rose-200 bg-white/95 text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#b91c1c]'
-                }`}
-              >
-                {linkCopied ? (
-                  <>
-                    <Check className="w-4 h-4 shrink-0" />
-                    <span>লিংক কপি হয়েছে</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 shrink-0" />
-                    <span>লিংক কপি করুন</span>
-                  </>
-                )}
-              </button>
             </div>
           </div>
         </div>
