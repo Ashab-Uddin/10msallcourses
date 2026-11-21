@@ -283,17 +283,20 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
 
   const handleToggleCategorySlug = (targetSlug: string) => {
     const normTarget = targetSlug.trim().toLowerCase();
-    setSelectedCategorySlugs((prev) => {
-      const exists = prev.some((s) => s.toLowerCase() === normTarget);
-      if (exists) {
-        if (prev.length <= 1) {
-          onShowToast?.('অন্তত একটি ক্যাটাগরি নির্বাচন করা বাধ্যতামূলক।', 'info');
-          return prev;
-        }
-        return prev.filter((s) => s.toLowerCase() !== normTarget);
+    const exists = selectedCategorySlugs.some((s) => s.toLowerCase() === normTarget);
+    if (exists) {
+      if (selectedCategorySlugs.length <= 1) {
+        onShowToast?.('অন্তত একটি ক্যাটাগরি নির্বাচন করা বাধ্যতামূলক।', 'info');
+        return;
       }
-      return [...prev, targetSlug];
-    });
+      setSelectedCategorySlugs((prev) =>
+        prev.filter((s) => s.toLowerCase() !== normTarget)
+      );
+      return;
+    }
+    setSelectedCategorySlugs((prev) =>
+      prev.some((s) => s.toLowerCase() === normTarget) ? prev : [...prev, targetSlug]
+    );
   };
 
   const handleSetPrimaryCategorySlug = (targetSlug: string) => {
@@ -306,13 +309,13 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
 
   const handleRemoveSelectedCategory = (targetSlug: string) => {
     const normTarget = targetSlug.trim().toLowerCase();
-    setSelectedCategorySlugs((prev) => {
-      if (prev.length <= 1) {
-        onShowToast?.('অন্তত একটি ক্যাটাগরি নির্বাচন করা বাধ্যতামূলক।', 'info');
-        return prev;
-      }
-      return prev.filter((s) => s.toLowerCase() !== normTarget);
-    });
+    if (selectedCategorySlugs.length <= 1) {
+      onShowToast?.('অন্তত একটি ক্যাটাগরি নির্বাচন করা বাধ্যতামূলক।', 'info');
+      return;
+    }
+    setSelectedCategorySlugs((prev) =>
+      prev.length <= 1 ? prev : prev.filter((s) => s.toLowerCase() !== normTarget)
+    );
   };
 
   // Batch validation & selection tracking
