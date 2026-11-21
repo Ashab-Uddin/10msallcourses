@@ -18,6 +18,7 @@ import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { Hsc28ScienceCategoryPage } from './categories/Hsc28ScienceCategoryPage.tsx';
 import { Hsc28HumanitiesCategoryPage } from './categories/Hsc28HumanitiesCategoryPage.tsx';
+import { Hsc28BusinessCategoryPage } from './categories/Hsc28BusinessCategoryPage.tsx';
 import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
 import { Search, Sparkles } from 'lucide-react';
 
@@ -177,6 +178,18 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   if (categorySlugsMatch(currentCategory.slug, 'hsc-28-মানবিক-কোর্স')) {
     return (
       <Hsc28HumanitiesCategoryPage
+        category={currentCategory}
+        courses={courses}
+        categoryCourseOrders={categoryCourseOrders}
+        onBack={onBack}
+        onEnrollClick={onEnrollClick}
+      />
+    );
+  }
+
+  if (categorySlugsMatch(currentCategory.slug, 'hsc-28-ব্যবসায়-শিক্ষা')) {
+    return (
+      <Hsc28BusinessCategoryPage
         category={currentCategory}
         courses={courses}
         categoryCourseOrders={categoryCourseOrders}
