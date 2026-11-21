@@ -193,7 +193,7 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
   // Generic category path: /category/:slug
   if (clean.startsWith('/category/') || clean.startsWith('/categories/')) {
     const parts = clean.split('/').filter(Boolean);
-    const slug = parts[1];
+    const slug = decodeCourseSlug(parts[1] || '').normalize('NFC');
     if (slug) {
       return { view: 'category', slug };
     }
@@ -1331,7 +1331,7 @@ export default function App({
                       <button
                         key={cat.slug}
                         type="button"
-                        onClick={() => navigate(`/category/${encodeURIComponent(cat.slug)}`)}
+                        onClick={() => navigate(`/category/${cat.slug}`)}
                         className="px-2.5 py-1 sm:px-3 sm:py-1.5 lg:px-3.5 lg:py-2 rounded-full text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold transition cursor-pointer whitespace-nowrap shrink-0 border border-rose-200/90 bg-white/90 text-[#2A0F12] hover:border-[#b91c1c] hover:bg-white hover:text-[#B91C1C] shadow-2xs"
                       >
                         {cat.name}

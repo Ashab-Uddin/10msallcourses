@@ -12,7 +12,9 @@ import {
   type CategoryCourseOrdersMap,
 } from '../../lib/courseSorting.ts';
 import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
+import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
+import { Hsc28ScienceCategoryPage } from './categories/Hsc28ScienceCategoryPage.tsx';
 import { Search, Sparkles } from 'lucide-react';
 
 interface CategoryPageProps {
@@ -40,7 +42,8 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   const [batchFilter, setBatchFilter] = useState<string>('all');
   const [groupFilter, setGroupFilter] = useState<'all' | CourseGroupKey>('all');
 
-  const normalizedSlug = categorySlug === 'free' ? 'free-course' : categorySlug;
+  const decodedCategorySlug = decodeCourseSlug(categorySlug).normalize('NFC');
+  const normalizedSlug = decodedCategorySlug === 'free' ? 'free-course' : decodedCategorySlug;
   const isLanguageLearning = normalizedSlug === 'language-learning';
   const isSkills = normalizedSlug === 'skills';
   const isAdmission = normalizedSlug === 'admission';
@@ -150,6 +153,18 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
         breadcrumbParentLabel="কোর্স ক্যাটালগ"
         onNavigateHome={onBack}
         onSwitchClass={(targetNum) => onSelectCategory(`class-${targetNum}`)}
+        onEnrollClick={onEnrollClick}
+      />
+    );
+  }
+
+  if (currentCategory.slug.normalize('NFC') === 'hsc-28-বিজ্ঞান-কোর্স') {
+    return (
+      <Hsc28ScienceCategoryPage
+        category={currentCategory}
+        courses={courses}
+        categoryCourseOrders={categoryCourseOrders}
+        onBack={onBack}
         onEnrollClick={onEnrollClick}
       />
     );
