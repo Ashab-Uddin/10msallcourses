@@ -3,8 +3,10 @@ import { Category, Course, CourseGroupKey } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
 import {
+  categorySlugsMatch,
   courseMatchesAcademicBatch,
   courseMatchesCategorySlug,
+  normalizeCategorySlugKey,
   resolveCourseDepartments,
 } from '../../lib/categoryMatching.ts';
 import {
@@ -15,6 +17,7 @@ import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { Hsc28ScienceCategoryPage } from './categories/Hsc28ScienceCategoryPage.tsx';
+import { Hsc28HumanitiesCategoryPage } from './categories/Hsc28HumanitiesCategoryPage.tsx';
 import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
 import { Search, Sparkles } from 'lucide-react';
 
@@ -43,7 +46,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   const [batchFilter, setBatchFilter] = useState<string>('all');
   const [groupFilter, setGroupFilter] = useState<'all' | CourseGroupKey>('all');
 
-  const decodedCategorySlug = decodeCourseSlug(categorySlug).normalize('NFC');
+  const decodedCategorySlug = normalizeCategorySlugKey(categorySlug);
   const normalizedSlug = decodedCategorySlug === 'free' ? 'free-course' : decodedCategorySlug;
   const isLanguageLearning = normalizedSlug === 'language-learning';
   const isSkills = normalizedSlug === 'skills';
@@ -51,7 +54,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   const isBooks = normalizedSlug === 'books';
   const isFreeCourse = normalizedSlug === 'free-course';
 
-  let currentCategory = categories.find((c) => c.slug === normalizedSlug);
+  let currentCategory = categories.find((c) => categorySlugsMatch(c.slug, normalizedSlug));
   if (isLanguageLearning) {
     currentCategory = {
       id: 999,
@@ -103,11 +106,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
       status: 'active',
     };
   } else if (!currentCategory) {
-    currentCategory = categories[0] || {
+    currentCategory = {
       id: 0,
-      name: 'কোর্স ক্যাটালগ',
+      name: decodeCourseSlug(categorySlug).trim() || 'কোর্স ক্যাটালগ',
       slug: normalizedSlug,
-      subtitle: 'সকল উপলব্ধ কোর্স ও অনলাইন ব্যাচ',
+      subtitle: 'এই ক্যাটাগরির সকল উপলব্ধ কোর্স ও অনলাইন ব্যাচ',
       badgeColor: '#E22B2B',
       displayOrder: 1,
       status: 'active',
@@ -159,9 +162,21 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     );
   }
 
-  if (currentCategory.slug.normalize('NFC') === 'hsc-28-বিজ্ঞান-কোর্স') {
+  if (categorySlugsMatch(currentCategory.slug, 'hsc-28-বিজ্ঞান-কোর্স')) {
     return (
       <Hsc28ScienceCategoryPage
+        category={currentCategory}
+        courses={courses}
+        categoryCourseOrders={categoryCourseOrders}
+        onBack={onBack}
+        onEnrollClick={onEnrollClick}
+      />
+    );
+  }
+
+  if (categorySlugsMatch(currentCategory.slug, 'hsc-28-মানবিক-কোর্স')) {
+    return (
+      <Hsc28HumanitiesCategoryPage
         category={currentCategory}
         courses={courses}
         categoryCourseOrders={categoryCourseOrders}

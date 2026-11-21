@@ -30,7 +30,10 @@ import {
 import { CourseFeatureIcon } from './CourseFeatureIcon.tsx';
 import { CourseCard } from './CourseCard.tsx';
 import { useSiteContact } from './SiteContactContext.tsx';
-import { getCourseCategorySlugs } from '../../lib/categoryMatching.ts';
+import {
+  categorySlugsMatch,
+  getCourseCategorySlugs,
+} from '../../lib/categoryMatching.ts';
 
 interface CourseSharePageProps {
   slug: string;
@@ -150,7 +153,9 @@ export const CourseSharePage: React.FC<CourseSharePageProps> = ({
     );
   }
 
-  const matchedCategory = categories.find((c) => c.slug === course.categorySlug);
+  const matchedCategory = categories.find((c) =>
+    categorySlugsMatch(c.slug, course.categorySlug)
+  );
   const categoryLabel = matchedCategory?.name || course.categorySlug;
 
   const displayImageUrl = course.imageUrl

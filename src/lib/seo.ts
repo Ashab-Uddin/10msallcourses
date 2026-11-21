@@ -3,9 +3,11 @@ import { BookCategory, Category, Course, SiteSettings } from '@/src/types';
 import { toBengaliNumber } from '@/src/utils/format';
 import {
   CLASS_BENGALI_ORDINALS,
+  categorySlugsMatch,
   courseMatchesAcademicBatch,
   courseMatchesCategorySlug,
   courseMatchesClass,
+  normalizeCategorySlugKey,
   type JuniorClassNumber,
 } from '@/src/lib/categoryMatching';
 import { decodeCourseSlug, generateUnicodeCourseSlug } from '@/src/lib/courseSlug';
@@ -453,16 +455,20 @@ function resolveRouteSeo(
   }
 
   if (clean.startsWith('/category/') || clean.startsWith('/categories/')) {
-    const slug = clean.split('/').filter(Boolean)[1] || '';
-    const cat = categories.find((c) => c.slug === slug);
+    const rawSlug = clean.split('/').filter(Boolean)[1] || '';
+    const normalizedSlug = normalizeCategorySlugKey(rawSlug);
+    const cat = categories.find((c) => categorySlugsMatch(c.slug, normalizedSlug));
+    const resolvedSlug = cat?.slug || normalizedSlug;
     return withCourseOgFallback({
       title: cat ? `${cat.name} — ১০ মিনিট স্কুল` : 'কোর্স ক্যাটালগ — ১০ মিনিট স্কুল',
       description:
         cat?.subtitle ||
-        `টেন মিনিট স্কুলের ${cat?.name || slug} ক্যাটাগরির সকল অনলাইন কোর্স ও ব্যাচ ডিসকাউন্টেড মূল্যে দেখুন।`,
-      canonicalPath: `/category/${slug}`,
+        `টেন মিনিট স্কুলের ${cat?.name || resolvedSlug} ক্যাটাগরির সকল অনলাইন কোর্স ও ব্যাচ ডিসকাউন্টেড মূল্যে দেখুন।`,
+      canonicalPath: `/category/${resolvedSlug}`,
       filterCourses: (all) =>
-        all.filter((c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, slug)),
+        all.filter(
+          (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, resolvedSlug)
+        ),
     });
   }
 

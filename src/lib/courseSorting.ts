@@ -1,5 +1,8 @@
 import type { Course } from '../types.ts';
-import { courseMatchesCategorySlug } from './categoryMatching.ts';
+import {
+  courseMatchesCategorySlug,
+  normalizeCategorySlugKey,
+} from './categoryMatching.ts';
 
 /**
  * Per-category ordered course ID lists:
@@ -11,7 +14,7 @@ import { courseMatchesCategorySlug } from './categoryMatching.ts';
 export type CategoryCourseOrdersMap = Record<string, number[]>;
 
 export function normalizeCategorySortSlug(slug: string | null | undefined): string {
-  const clean = String(slug || '').trim().toLowerCase();
+  const clean = normalizeCategorySlugKey(slug);
   if (!clean) return '';
   if (clean === 'free' || clean === 'free-courses') return 'free-course';
   return clean;

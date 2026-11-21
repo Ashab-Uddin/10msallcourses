@@ -31,6 +31,10 @@ import {
 import { CourseCard } from '../public/CourseCard.tsx';
 import { CourseFeaturesManager } from './CourseFeaturesManager.tsx';
 import {
+  categorySlugsMatch,
+  normalizeCategorySlugKey,
+} from '../../lib/categoryMatching.ts';
+import {
   ArrowLeft,
   Save,
   Eye,
@@ -151,10 +155,10 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
       const seen = new Set<string>();
       for (const s of raw) {
         const norm = s.trim();
-        const key = norm.toLowerCase();
+        const key = normalizeCategorySlugKey(norm);
         if (!norm || seen.has(key)) continue;
         seen.add(key);
-        unique.push(categories.find((c) => c.slug.toLowerCase() === key)?.slug || norm);
+        unique.push(categories.find((c) => categorySlugsMatch(c.slug, key))?.slug || norm);
       }
       if (unique.length > 0) return unique;
     }
@@ -235,7 +239,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
   const categoryNameBySlug = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of categories) {
-      map.set(c.slug.toLowerCase(), c.name);
+      map.set(normalizeCategorySlugKey(c.slug), c.name);
     }
     return map;
   }, [categories]);
@@ -598,11 +602,11 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
 
   // Live Constructed Course object for real-time CourseCard preview
   const previewCourse: Course = useMemo(() => {
-    const matchedCategory = categories.find(
-      (c) => c.slug.toLowerCase() === primaryCategorySlug.toLowerCase()
+    const matchedCategory = categories.find((c) =>
+      categorySlugsMatch(c.slug, primaryCategorySlug)
     );
     const selectedCategoryIds = selectedCategorySlugs
-      .map((s) => categories.find((c) => c.slug.toLowerCase() === s.toLowerCase())?.id)
+      .map((s) => categories.find((c) => categorySlugsMatch(c.slug, s))?.id)
       .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
     const normalizedFeatures = sortCourseFeatures(courseFeatures);
     const activeTitles = extractActiveFeatureTitles(normalizedFeatures);
@@ -745,11 +749,11 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
 
     const normalizedOriginalPrice = Math.round(originalPrice);
     const normalizedDiscountPrice = Math.round(discountPrice);
-    const matchedCat = categories.find(
-      (c) => c.slug.toLowerCase() === primaryCategorySlug.toLowerCase()
+    const matchedCat = categories.find((c) =>
+      categorySlugsMatch(c.slug, primaryCategorySlug)
     );
     const selectedCategoryIds = selectedCategorySlugs
-      .map((s) => categories.find((c) => c.slug.toLowerCase() === s.toLowerCase())?.id)
+      .map((s) => categories.find((c) => categorySlugsMatch(c.slug, s))?.id)
       .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
     const resolvedSummaryDescription = deriveCourseSummaryDescription(
       description || fullDescription,

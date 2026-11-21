@@ -5,6 +5,7 @@ import {
   normalizeTargetBatchId,
   normalizeTargetGroups,
 } from './courseValidation.ts';
+import { decodeCourseSlug } from './courseSlug.ts';
 
 export type JuniorClassNumber = 5 | 6 | 7 | 8;
 
@@ -31,6 +32,29 @@ export function normalizeCategoryMatchText(value: string): string {
     .replace(/ড\u09BC/g, 'ড়')
     .replace(/ঢ\u09BC/g, 'ঢ়')
     .toLowerCase();
+}
+
+export function normalizeCategorySlugKey(slug: string | null | undefined): string {
+  const decoded = decodeCourseSlug(String(slug || ''));
+  if (!decoded) return '';
+  return normalizeCategoryMatchText(decoded).trim();
+}
+
+export function categorySlugsMatch(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  const keyA = normalizeCategorySlugKey(a);
+  const keyB = normalizeCategorySlugKey(b);
+  if (!keyA || !keyB) return false;
+  if (keyA === keyB) return true;
+  if (
+    (keyA === 'free' || keyA === 'free-course' || keyA === 'free-courses') &&
+    (keyB === 'free' || keyB === 'free-course' || keyB === 'free-courses')
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function matchesAnyNormalizedKeyword(haystack: string, keywords: string[]): boolean {
@@ -205,7 +229,7 @@ export function getCourseCategorySlugs(
   const seen = new Set<string>();
   const result: string[] = [];
   const pushSlug = (raw: unknown) => {
-    const norm = String(raw || '').trim().toLowerCase();
+    const norm = normalizeCategorySlugKey(String(raw || ''));
     if (!norm || seen.has(norm)) return;
     seen.add(norm);
     result.push(norm);
@@ -224,7 +248,7 @@ export function courseHasAssignedCategorySlug(
   course: Pick<Course, 'categorySlug' | 'categorySlugs'>,
   targetSlug: string
 ): boolean {
-  const cleanTarget = String(targetSlug || '').trim().toLowerCase();
+  const cleanTarget = normalizeCategorySlugKey(targetSlug);
   if (!cleanTarget) return false;
   const assigned = getCourseCategorySlugs(course);
   if (assigned.includes(cleanTarget)) return true;
@@ -404,7 +428,7 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
  * REST APIs, and SEO structured data.
  */
 export function courseMatchesCategorySlug(course: Course, categorySlug: string): boolean {
-  const slug = (categorySlug || '').trim().toLowerCase();
+  const slug = normalizeCategorySlugKey(categorySlug);
   if (!slug) return false;
   const assignedSlugs = getCourseCategorySlugs(course);
 

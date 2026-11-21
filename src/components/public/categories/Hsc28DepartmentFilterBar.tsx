@@ -1,0 +1,295 @@
+'use client';
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  BarChart3,
+  BookOpen,
+  Briefcase,
+  Calculator,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Cpu,
+  Globe2,
+  Landmark,
+  Languages,
+  Layers,
+  LayoutGrid,
+  Megaphone,
+  Package,
+  RotateCcw,
+  Scale,
+  ScrollText,
+  SlidersHorizontal,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
+import type { Course } from '../../../types.ts';
+import { toBengaliNumber } from '../../../utils/format.ts';
+import {
+  getDepartmentFilterCounts,
+  getDepartmentFilterOptions,
+  type Hsc28DepartmentFilterId,
+  type Hsc28DepartmentFilterOption,
+  type Hsc28DepartmentTrack,
+} from '../../../lib/hsc28DepartmentFilters.ts';
+
+interface Hsc28DepartmentFilterBarProps {
+  track: Hsc28DepartmentTrack;
+  courses: Course[];
+  selectedFilter: Hsc28DepartmentFilterId | 'all';
+  onSelectFilter: (filterId: Hsc28DepartmentFilterId | 'all') => void;
+  onResetAll: () => void;
+}
+
+const DEPARTMENT_FILTER_ICONS: Record<
+  Hsc28DepartmentFilterId,
+  React.ComponentType<{ className?: string }>
+> = {
+  bundle: Package,
+  specific: Target,
+  geography: Globe2,
+  economics: TrendingUp,
+  civics: Landmark,
+  history: ScrollText,
+  logic: Scale,
+  'commerce-combo': Briefcase,
+  accounting: Calculator,
+  finance: BarChart3,
+  management: Layers,
+  marketing: Megaphone,
+  bei: Layers,
+  bangla: BookOpen,
+  english: Languages,
+  ict: Cpu,
+};
+
+export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> = ({
+  track,
+  courses,
+  selectedFilter,
+  onSelectFilter,
+  onResetAll,
+}) => {
+  const orderedOptions = useMemo(() => getDepartmentFilterOptions(track), [track]);
+  const counts = useMemo(() => getDepartmentFilterCounts(courses, track), [courses, track]);
+
+  const scrollStripRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const isAllActive = selectedFilter === 'all';
+  const activeOption = useMemo(
+    () =>
+      selectedFilter === 'all'
+        ? null
+        : orderedOptions.find((opt) => opt.id === selectedFilter) || null,
+    [orderedOptions, selectedFilter]
+  );
+
+  const updateScrollHints = useCallback(() => {
+    const el = scrollStripRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(maxScroll - el.scrollLeft > 4);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollStripRef.current;
+    if (!el) return;
+
+    updateScrollHints();
+
+    const handleScroll = () => updateScrollHints();
+    el.addEventListener('scroll', handleScroll, { passive: true });
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => updateScrollHints())
+        : null;
+    resizeObserver?.observe(el);
+
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      resizeObserver?.disconnect();
+    };
+  }, [updateScrollHints, counts]);
+
+  const scrollStripBy = (direction: 'left' | 'right') => {
+    const el = scrollStripRef.current;
+    if (!el) return;
+    const delta = Math.max(180, Math.round(el.clientWidth * 0.6));
+    el.scrollBy({
+      left: direction === 'left' ? -delta : delta,
+      behavior: 'smooth',
+    });
+  };
+
+  const handleChipClick = (
+    filterId: Hsc28DepartmentFilterId | 'all',
+    buttonEl: HTMLButtonElement
+  ) => {
+    onSelectFilter(filterId);
+    buttonEl.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'nearest',
+      block: 'nearest',
+    });
+  };
+
+  const renderFilterChip = (option: Hsc28DepartmentFilterOption) => {
+    const Icon = DEPARTMENT_FILTER_ICONS[option.id];
+    const active = selectedFilter === option.id;
+    const count = counts[option.id] ?? 0;
+    const hasMatches = count > 0;
+
+    return (
+      <button
+        key={option.id}
+        type="button"
+        onClick={(e) => handleChipClick(option.id, e.currentTarget)}
+        aria-pressed={active}
+        title={option.shortHint}
+        className={`w-auto lg:w-full shrink-0 lg:shrink h-[34px] sm:h-[36px] lg:h-[38px] px-3 rounded-xl text-[11.5px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1.5 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
+          active
+            ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.42)]'
+            : hasMatches
+              ? 'border-rose-200/90 bg-white text-[#2A0F12] hover:border-[#E22B2B]/65 hover:bg-rose-50/80 hover:text-[#B91C1C] shadow-2xs'
+              : 'border-rose-100/90 bg-white/70 text-[#7A5A5D] hover:border-rose-200 hover:bg-white hover:text-[#2A0F12]'
+        }`}
+      >
+        {active ? (
+          <Check className="w-3.5 h-3.5 text-white shrink-0 stroke-[2.6]" aria-hidden="true" />
+        ) : (
+          <Icon
+            className={`w-3.5 h-3.5 shrink-0 ${
+              hasMatches ? 'text-[#E22B2B]' : 'text-[#9E7B7E]'
+            }`}
+            aria-hidden="true"
+          />
+        )}
+        <span className="leading-none whitespace-nowrap">{option.label}</span>
+        <span
+          className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
+            active
+              ? 'bg-black/20 text-white'
+              : hasMatches
+                ? 'bg-rose-50 text-[#B91C1C] border border-rose-200/75'
+                : 'bg-rose-50/60 text-[#7A5A5D] border border-rose-100'
+          }`}
+        >
+          {toBengaliNumber(count)}
+        </span>
+      </button>
+    );
+  };
+
+  return (
+    <div
+      className="space-y-2.5"
+      role="region"
+      aria-label={
+        track === 'humanities'
+          ? 'HSC 28 মানবিক কোর্স ফিল্টার'
+          : 'HSC 28 ব্যবসায় শিক্ষা কোর্স ফিল্টার'
+      }
+    >
+      {/* Centered Filter Metadata Bar */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] sm:text-xs font-semibold text-[#6B4C4F]">
+          <span className="inline-flex items-center gap-1.5 font-bold text-[#2A0F12]">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#E22B2B]" aria-hidden="true" />
+            <span>ফিল্টার অপশন</span>
+          </span>
+          <span className="text-rose-300" aria-hidden="true">•</span>
+          <span className="text-[11px] text-[#7A5A5D]">
+            যেকোনো একটি ফিল্টার নির্বাচন করুন
+          </span>
+          {activeOption && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-[#B91C1C] text-[10.5px] font-extrabold">
+              সক্রিয়: {activeOption.label}
+            </span>
+          )}
+        </div>
+
+        {!isAllActive && (
+          <button
+            type="button"
+            onClick={onResetAll}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[#B91C1C] text-[11px] font-bold transition cursor-pointer shrink-0 active:scale-[0.97]"
+          >
+            <RotateCcw className="w-3 h-3 shrink-0" aria-hidden="true" />
+            <span>ফিল্টার রিসেট</span>
+          </button>
+        )}
+      </div>
+
+      {/* Mobile & Tablet (<lg): 1 Single Horizontal Line | Laptop (lg+): 2 Equal Lines (6x2 Grid) */}
+      <div className="relative flex items-center rounded-2xl bg-white/65 border border-rose-100/95 p-1.5 lg:p-2 shadow-2xs">
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={() => scrollStripBy('left')}
+            aria-label="বামে ফিল্টার দেখুন"
+            className="lg:hidden mr-1.5 w-7 h-7 rounded-xl bg-white border border-rose-200/90 text-[#B91C1C] hover:bg-rose-50 flex items-center justify-center shrink-0 shadow-xs transition cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+          </button>
+        )}
+
+        <div
+          ref={scrollStripRef}
+          className="min-w-0 flex-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth lg:grid lg:grid-cols-6 lg:gap-2 lg:overflow-visible"
+          role="group"
+          aria-label={
+            track === 'humanities'
+              ? 'HSC 28 মানবিক কোর্সের ধরন ও বিষয় ফিল্টার'
+              : 'HSC 28 ব্যবসায় শিক্ষা কোর্সের ধরন ও বিষয় ফিল্টার'
+          }
+        >
+          {/* Button 1: All Courses */}
+          <button
+            type="button"
+            onClick={(e) => handleChipClick('all', e.currentTarget)}
+            aria-pressed={isAllActive}
+            className={`w-auto lg:w-full shrink-0 lg:shrink h-[34px] sm:h-[36px] lg:h-[38px] px-3 rounded-xl text-[11.5px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1.5 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
+              isAllActive
+                ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.42)]'
+                : 'border-rose-200/90 bg-white text-[#2A0F12] hover:border-[#E22B2B]/65 hover:bg-rose-50/80 hover:text-[#B91C1C] shadow-2xs'
+            }`}
+          >
+            <LayoutGrid
+              className={`w-3.5 h-3.5 shrink-0 ${isAllActive ? 'text-white' : 'text-[#E22B2B]'}`}
+              aria-hidden="true"
+            />
+            <span className="leading-none whitespace-nowrap">সব কোর্স</span>
+            <span
+              className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
+                isAllActive
+                  ? 'bg-black/20 text-white'
+                  : 'bg-rose-50 text-[#B91C1C] border border-rose-200/75'
+              }`}
+            >
+              {toBengaliNumber(counts.all ?? courses.length)}
+            </span>
+          </button>
+
+          {/* Buttons 2-12: Category-Based Types + Subjects */}
+          {orderedOptions.map(renderFilterChip)}
+        </div>
+
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={() => scrollStripBy('right')}
+            aria-label="ডানে আরও ফিল্টার দেখুন"
+            className="lg:hidden ml-1.5 w-7 h-7 rounded-xl bg-white border border-rose-200/90 text-[#B91C1C] hover:bg-rose-50 flex items-center justify-center shrink-0 shadow-xs transition cursor-pointer"
+          >
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};

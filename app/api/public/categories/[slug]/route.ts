@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import {
+  categorySlugsMatch,
   courseMatchesAcademicBatch,
   courseMatchesCategorySlug,
+  normalizeCategorySlugKey,
   resolveCourseDepartments,
 } from '@/src/lib/categoryMatching';
 import { normalizeTargetGroups } from '@/src/lib/courseValidation';
@@ -16,9 +18,7 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const normalizedSlug = decodeURIComponent(slug || '')
-      .trim()
-      .toLowerCase();
+    const normalizedSlug = normalizeCategorySlugKey(slug || '');
 
     if (!normalizedSlug) {
       return NextResponse.json(
@@ -45,8 +45,8 @@ export async function GET(
 
     const effectiveSlug = normalizedSlug === 'free' ? 'free-course' : normalizedSlug;
     const data = await getPublicPortalData();
-    const matchedCategory = data.categories.find(
-      (cat) => cat.slug.toLowerCase() === effectiveSlug
+    const matchedCategory = data.categories.find((cat) =>
+      categorySlugsMatch(cat.slug, effectiveSlug)
     );
 
     const batchFilter = req.nextUrl.searchParams.get('batch')?.trim();

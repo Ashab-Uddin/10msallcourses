@@ -32,6 +32,7 @@ import {
 } from './lib/selectorIconOrder.ts';
 import {
   CLASS_BENGALI_ORDINALS,
+  categorySlugsMatch,
   courseMatchesCategorySlug,
   getCourseCategorySlugs,
 } from './lib/categoryMatching.ts';
@@ -684,7 +685,7 @@ export default function App({
         document.title = `${bnOrdinal} শ্রেণি অনলাইন ব্যাচ — ১০ মিনিট স্কুল`;
       }
     } else if (route.view === 'category') {
-      const cat = categories.find((c) => c.slug === route.slug);
+      const cat = categories.find((c) => categorySlugsMatch(c.slug, route.slug));
       document.title = cat
         ? `${cat.name} — ১০ মিনিট স্কুল`
         : route.slug === 'free-course'
