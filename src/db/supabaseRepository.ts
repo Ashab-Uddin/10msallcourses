@@ -1664,10 +1664,85 @@ export async function sbGetPublicPortalData() {
   };
 }
 
+export async function sbGetCourseOgTarget(slugOrId: string): Promise<{
+  id: number;
+  slug: string;
+  imageUrl: string | null;
+} | null> {
+  const supabase = getSupabaseAdminClient();
+  const raw = (slugOrId || '').trim();
+  if (!raw) return null;
+
+  if (/^\d+$/.test(raw)) {
+    const idNum = Number(raw);
+    if (Number.isInteger(idNum) && idNum > 0) {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, slug, image_url')
+        .eq('id', idNum)
+        .in('status', ['active', 'closed'])
+        .maybeSingle();
+      if (error) throw mapPgError(error, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
+      if (data) {
+        return {
+          id: Number((data as Record<string, unknown>).id),
+          slug: String((data as Record<string, unknown>).slug || ''),
+          imageUrl:
+            typeof (data as Record<string, unknown>).image_url === 'string'
+              ? String((data as Record<string, unknown>).image_url)
+              : null,
+        };
+      }
+    }
+  }
+
+  const cleanSlug = decodeCourseSlug(raw).normalize('NFC') || raw;
+  const { data, error } = await supabase
+    .from('courses')
+    .select('id, slug, image_url')
+    .eq('slug', cleanSlug)
+    .in('status', ['active', 'closed'])
+    .maybeSingle();
+  if (error) throw mapPgError(error, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
+  if (data) {
+    return {
+      id: Number((data as Record<string, unknown>).id),
+      slug: String((data as Record<string, unknown>).slug || ''),
+      imageUrl:
+        typeof (data as Record<string, unknown>).image_url === 'string'
+          ? String((data as Record<string, unknown>).image_url)
+          : null,
+    };
+  }
+
+  const normalizedTarget = generateUnicodeCourseSlug(cleanSlug);
+  const { data: candidates, error: listErr } = await supabase
+    .from('courses')
+    .select('id, slug, image_url')
+    .in('status', ['active', 'closed']);
+  if (listErr) throw mapPgError(listErr, 'কোর্স খুঁজতে সমস্যা হয়েছে।');
+
+  const lowerClean = cleanSlug.toLowerCase();
+  const matched = ((candidates || []) as Array<Record<string, unknown>>).find((row) => {
+    const candidateSlug = String(row.slug || '').trim().normalize('NFC');
+    return (
+      candidateSlug.toLowerCase() === lowerClean ||
+      (normalizedTarget && generateUnicodeCourseSlug(candidateSlug) === normalizedTarget)
+    );
+  });
+
+  if (!matched) return null;
+  return {
+    id: Number(matched.id),
+    slug: String(matched.slug || ''),
+    imageUrl: typeof matched.image_url === 'string' ? matched.image_url : null,
+  };
+}
+
 export async function sbGetCourseBySlug(slug: string): Promise<Course | null> {
   const supabase = getSupabaseAdminClient();
   const rawSlug = (slug || '').trim();
-  const cleanSlug = decodeCourseSlug(rawSlug) || rawSlug;
+  const cleanSlug = (decodeCourseSlug(rawSlug) || rawSlug).normalize('NFC');
   if (!cleanSlug) return null;
 
   let { data, error } = await supabase
@@ -1700,7 +1775,7 @@ export async function sbGetCourseBySlug(slug: string): Promise<Course | null> {
     const lowerClean = cleanSlug.toLowerCase();
     data =
       ((candidates || []) as Array<Record<string, unknown>>).find((row) => {
-        const candidateSlug = String(row.slug || '').trim();
+        const candidateSlug = String(row.slug || '').trim().normalize('NFC');
         return (
           candidateSlug.toLowerCase() === lowerClean ||
           (normalizedTarget && generateUnicodeCourseSlug(candidateSlug) === normalizedTarget)

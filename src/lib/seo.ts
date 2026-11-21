@@ -171,10 +171,61 @@ export function buildCourseOgImageVersion(course: Course): string {
   return `${course.id}-${imgSignal}`;
 }
 
+function buildDirectImageKitOgUrl(rawImageUrl: string | null | undefined, version: string): string | null {
+  if (!rawImageUrl) return null;
+  const cleaned = rawImageUrl.replace(/\?(w=\d+.*)/i, '').trim();
+  try {
+    const parsed = new URL(cleaned);
+    if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'ik.imagekit.io') {
+      return null;
+    }
+    return `${parsed.origin}${parsed.pathname}?tr=w-1200,h-630,cm-pad_resize,bg-blurred,f-jpg,q-88&v=${encodeURIComponent(version)}`;
+  } catch {
+    return null;
+  }
+}
+
 export function buildCourseOgImageUrl(course: Course, baseUrl: string): string {
-  const safeBase = normalizePublicOrigin(baseUrl) || getSiteBaseUrl();
   const version = buildCourseOgImageVersion(course);
-  return `${safeBase}/api/og/course/${encodeURIComponent(course.slug)}?v=${encodeURIComponent(version)}`;
+  const directImageKitUrl = buildDirectImageKitOgUrl(course.imageUrl, version);
+  if (directImageKitUrl) {
+    return directImageKitUrl;
+  }
+  const safeBase = normalizePublicOrigin(baseUrl) || getSiteBaseUrl();
+  if (!course.imageUrl || !course.imageUrl.trim()) {
+    return `${safeBase}${DEFAULT_OG_IMAGE_PATH}?v=1`;
+  }
+  const identifier =
+    Number.isInteger(course.id) && course.id > 0
+      ? String(course.id)
+      : encodeURIComponent(course.slug);
+  return `${safeBase}/api/og/course/${identifier}?v=${encodeURIComponent(version)}`;
+}
+
+function pickFeaturedCategoryOgImage(
+  matchingCourses: Course[],
+  baseUrl: string
+): {
+  ogImageUrl?: string;
+  ogImageType?: 'image/png' | 'image/jpeg';
+  ogImageAlt?: string;
+} {
+  const withThumbnail = matchingCourses
+    .filter((c) => isPublicVisibleCourse(c) && Boolean(c.imageUrl && c.imageUrl.trim()))
+    .sort((a, b) => {
+      const aActive = a.status === 'active' ? 0 : 1;
+      const bActive = b.status === 'active' ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      return (a.displayOrder || 9999) - (b.displayOrder || 9999);
+    });
+
+  const featured = withThumbnail[0];
+  if (!featured) return {};
+  return {
+    ogImageUrl: buildCourseOgImageUrl(featured, baseUrl),
+    ogImageType: 'image/jpeg',
+    ogImageAlt: `${featured.title} — ${COURSE_BRAND_NAME}`,
+  };
 }
 
 interface ResolvedRouteSeo {
@@ -204,6 +255,16 @@ function resolveRouteSeo(
   baseUrlOverride?: string
 ): ResolvedRouteSeo {
   const clean = pathname.replace(/\/+$/, '') || '/';
+  const effectiveBaseUrl = normalizePublicOrigin(baseUrlOverride) || getSiteBaseUrl();
+  const withCourseOgFallback = (base: ResolvedRouteSeo): ResolvedRouteSeo => {
+    if (base.isAdmin || base.noIndex || base.ogImageUrl) return base;
+    const featured = pickFeaturedCategoryOgImage(base.filterCourses(courses), effectiveBaseUrl);
+    return {
+      ...base,
+      siteName: base.siteName || COURSE_BRAND_NAME,
+      ...(featured.ogImageUrl ? featured : {}),
+    };
+  };
 
   if (clean.startsWith('/admin')) {
     return {
@@ -216,7 +277,7 @@ function resolveRouteSeo(
   }
 
   if (clean === '/hsc/hsc-26' || clean === '/academic/hsc/hsc-26') {
-    return {
+    return withCourseOgFallback({
       title: 'HSC 26 অনলাইন ব্যাচ ও এডমিশন প্রস্তুতি — ১০ মিনিট স্কুল',
       description:
         'HSC ২০২৬ পরীক্ষার্থীদের জন্য শেষ মুহূর্তের রিভিশন, মডেল টেস্ট এবং ভার্সিটি, মেডিকেল ও ইঞ্জিনিয়ারিং এডমিশন অনলাইন ব্যাচ।',
@@ -225,11 +286,11 @@ function resolveRouteSeo(
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'hsc-26')
         ),
-    };
+    });
   }
 
   if (clean === '/hsc/hsc-27' || clean === '/academic/hsc/hsc-27') {
-    return {
+    return withCourseOgFallback({
       title: 'HSC 27 অনলাইন ব্যাচ (বিজ্ঞান, মানবিক, ব্যবসা) — ১০ মিনিট স্কুল',
       description:
         'HSC ২০২৭ ব্যাচের সম্পূর্ণ সিলেবাস লাইভ ক্লাস, লেকচার শিট, টেস্ট পেপার সলভ ও ডাউট সলভিং সাপোর্ট।',
@@ -238,7 +299,7 @@ function resolveRouteSeo(
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'hsc-27')
         ),
-    };
+    });
   }
 
   if (
@@ -248,7 +309,7 @@ function resolveRouteSeo(
     clean === '/academic/hsc' ||
     clean === '/academic'
   ) {
-    return {
+    return withCourseOgFallback({
       title: 'HSC 28 অনলাইন ব্যাচ (বিজ্ঞান, মানবিক, ব্যবসা) — ১০ মিনিট স্কুল',
       description:
         'HSC ২০২৮ ব্যাচের প্রথম থেকেই A+ প্রস্তুতি: PCMB, BEI, ব্যবসায় শিক্ষা ও মানবিক বিভাগের পূর্ণাঙ্গ অনলাইন ব্যাচ।',
@@ -257,7 +318,7 @@ function resolveRouteSeo(
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'hsc-28')
         ),
-    };
+    });
   }
 
   if (
@@ -269,7 +330,7 @@ function resolveRouteSeo(
     clean === '/ssc' ||
     clean === '/academic/ssc'
   ) {
-    return {
+    return withCourseOgFallback({
       title: 'SSC 27 (দশম শ্রেণি) অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
       description:
         'দশম শ্রেণি ও SSC ২০২৭ বোর্ড পরীক্ষার পূর্ণাঙ্গ প্রস্তুতি, লাইভ ক্লাস, মডেল টেস্ট ও বোর্ড প্রশ্ন সমাধান।',
@@ -278,7 +339,7 @@ function resolveRouteSeo(
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'ssc-2027')
         ),
-    };
+    });
   }
 
   if (
@@ -288,7 +349,7 @@ function resolveRouteSeo(
     clean === '/academic/class-9' ||
     clean === '/academic/class9'
   ) {
-    return {
+    return withCourseOgFallback({
       title: 'SSC 28 (নবম শ্রেণি) অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
       description:
         'নবম শ্রেণি ও SSC ২০২৮ ব্যাচের বাংলা, ইংরেজি, গণিত, বিজ্ঞান, মানবিক ও ব্যবসায় শিক্ষার পূর্ণাঙ্গ একাডেমিক ব্যাচ।',
@@ -297,7 +358,7 @@ function resolveRouteSeo(
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'ssc-2028')
         ),
-    };
+    });
   }
 
   const classMatch = clean.match(/^\/(?:academic\/)?class-?([5-8])$/);
@@ -305,7 +366,7 @@ function resolveRouteSeo(
     const num = Number(classMatch[1]) as JuniorClassNumber;
     const bnClass = CLASS_BENGALI_ORDINALS[num] || `${toBengaliNumber(num)}ম`;
     const dbCat = categories.find((c) => c.slug === `class-${num}`);
-    return {
+    return withCourseOgFallback({
       title: `${bnClass} শ্রেণি অনলাইন ব্যাচ — ১০ মিনিট স্কুল`,
       description:
         dbCat?.subtitle ||
@@ -313,7 +374,7 @@ function resolveRouteSeo(
       canonicalPath: `/class-${num}`,
       filterCourses: (all) =>
         all.filter((c) => isPublicVisibleCourse(c) && courseMatchesClass(c, num)),
-    };
+    });
   }
 
   if (
@@ -324,7 +385,7 @@ function resolveRouteSeo(
     clean === '/categories/free-course'
   ) {
     const freeCat = categories.find((c) => c.slug === 'free-course');
-    return {
+    return withCourseOgFallback({
       title: `${freeCat?.name || 'ফ্রি কোর্স'} — ১০ মিনিট স্কুল`,
       description:
         freeCat?.subtitle ||
@@ -334,11 +395,11 @@ function resolveRouteSeo(
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, 'free-course')
         ),
-    };
+    });
   }
 
   if (clean === '/categories/language-learning' || clean === '/category/language-learning') {
-    return {
+    return withCourseOgFallback({
       title: 'ভাষা শিক্ষা কোর্স (Spoken English ও IELTS) — ১০ মিনিট স্কুল',
       description:
         'ঘরে বসে Spoken English, IELTS Complete, English Grammar ও বিদেশি ভাষা শেখার জনপ্রিয় অনলাইন কোর্সে সরাসরি ছাড়ে ভর্তি হোন।',
@@ -349,12 +410,12 @@ function resolveRouteSeo(
             isPublicVisibleCourse(c) &&
             courseMatchesCategorySlug(c, 'language-learning')
         ),
-    };
+    });
   }
 
   if (clean === '/skills' || clean === '/category/skills' || clean === '/categories/skills') {
     const skillsCat = categories.find((c) => c.slug === 'skills');
-    return {
+    return withCourseOgFallback({
       title: `${skillsCat?.name || 'স্কিলস ও আইটি'} কোর্সসমূহ — ১০ মিনিট স্কুল`,
       description:
         skillsCat?.subtitle ||
@@ -364,7 +425,7 @@ function resolveRouteSeo(
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, 'skills')
         ),
-    };
+    });
   }
 
   if (
@@ -373,7 +434,7 @@ function resolveRouteSeo(
     clean === '/categories/admission'
   ) {
     const admissionCat = categories.find((c) => c.slug === 'admission');
-    return {
+    return withCourseOgFallback({
       title: `${admissionCat?.name || 'বিশ্ববিদ্যালয় ও মেডিকেল এডমিশন'} — ১০ মিনিট স্কুল`,
       description:
         admissionCat?.subtitle ||
@@ -383,7 +444,7 @@ function resolveRouteSeo(
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, 'admission')
         ),
-    };
+    });
   }
 
   if (
@@ -409,13 +470,14 @@ function resolveRouteSeo(
         'এইচএসসি, এসএসসি, অষ্টম, ৭ম ও ৬ষ্ঠ শ্রেণির সেরা প্রিন্টেড মাস্টারবুক, লেকচার গাইড ও প্রয়োজনীয় শিক্ষাউপকরণ সংগ্রহ।',
       canonicalPath: matchedBookCat ? `/books/${matchedBookCat.slug}` : '/books',
       filterCourses: () => [],
+      siteName: COURSE_BRAND_NAME,
     };
   }
 
   if (clean.startsWith('/category/') || clean.startsWith('/categories/')) {
     const slug = clean.split('/').filter(Boolean)[1] || '';
     const cat = categories.find((c) => c.slug === slug);
-    return {
+    return withCourseOgFallback({
       title: cat ? `${cat.name} — ১০ মিনিট স্কুল` : 'কোর্স ক্যাটালগ — ১০ মিনিট স্কুল',
       description:
         cat?.subtitle ||
@@ -423,20 +485,20 @@ function resolveRouteSeo(
       canonicalPath: `/category/${slug}`,
       filterCourses: (all) =>
         all.filter((c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, slug)),
-    };
+    });
   }
 
   if (clean.startsWith('/courses/')) {
     const rawSlug = clean.slice('/courses/'.length).split('/')[0] || '';
-    const targetSlug = decodeCourseSlug(rawSlug);
+    const targetSlug = decodeCourseSlug(rawSlug).normalize('NFC');
     const normalizedTarget = generateUnicodeCourseSlug(targetSlug);
     const matchedCourse =
       courses.find(
         (c) =>
           isPublicVisibleCourse(c) &&
-          (c.slug === targetSlug ||
+          (c.slug.normalize('NFC') === targetSlug ||
             c.slug === rawSlug ||
-            c.slug.toLowerCase() === targetSlug.toLowerCase())
+            c.slug.normalize('NFC').toLowerCase() === targetSlug.toLowerCase())
       ) ||
       (normalizedTarget
         ? courses.find(
@@ -446,7 +508,6 @@ function resolveRouteSeo(
           )
         : undefined);
     if (matchedCourse) {
-      const effectiveBaseUrl = normalizePublicOrigin(baseUrlOverride) || getSiteBaseUrl();
       const title = buildCourseOgTitle(matchedCourse);
       const description = buildCourseOgDescription(matchedCourse);
       const ogImageUrl = buildCourseOgImageUrl(matchedCourse, effectiveBaseUrl);
@@ -479,11 +540,19 @@ function resolveRouteSeo(
     };
   }
 
+  const homeTitle = settings?.siteTitle?.trim()
+    ? `${sanitizeOgText(settings.siteTitle)} — ১০ মিনিট স্কুল সকল অনলাইন কোর্স ও ব্যাচ`
+    : `${COURSE_BRAND_NAME} — ১০ মিনিট স্কুল সকল অনলাইন কোর্স ও ব্যাচ`;
+  const homeDescription =
+    sanitizeOgText(settings?.heroSubtitle) ||
+    'HSC, SSC, ৫ম–৮ম শ্রেণি, বিশ্ববিদ্যালয় এডমিশন, স্কিলস ও ফ্রি কোর্সসহ ১০ মিনিট স্কুলের সকল জনপ্রিয় অনলাইন কোর্স ও বুক স্টোর বিশেষ ছাড়ে দেখুন।';
+
   return {
-    title: DEFAULT_SITE_TITLE,
-    description: DEFAULT_SITE_DESCRIPTION,
+    title: homeTitle,
+    description: homeDescription,
     canonicalPath: '/',
     filterCourses: (all) => all.filter(isPublicVisibleCourse),
+    siteName: COURSE_BRAND_NAME,
   };
 }
 
@@ -541,7 +610,7 @@ export function buildSeoMetadata(
   const canonicalUrl =
     resolved.canonicalPath === '/' ? baseUrl : `${baseUrl}${resolved.canonicalPath}`;
   const siteName = resolved.siteName || DEFAULT_SITE_NAME;
-  const ogImageUrl = resolved.ogImageUrl || `${baseUrl}${DEFAULT_OG_IMAGE_PATH}`;
+  const ogImageUrl = resolved.ogImageUrl || `${baseUrl}${DEFAULT_OG_IMAGE_PATH}?v=1`;
   const ogImageType = resolved.ogImageType || 'image/png';
   const ogImageAlt =
     resolved.ogImageAlt ||

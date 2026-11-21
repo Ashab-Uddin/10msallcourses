@@ -1,22 +1,45 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import App from '@/src/App';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
-import { buildSeoMetadata, buildStructuredData } from '@/src/lib/seo';
+import {
+  buildSeoMetadata,
+  buildStructuredData,
+  resolveSiteOriginFromHeaders,
+} from '@/src/lib/seo';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
-  const data = await getPublicPortalData();
-  return buildSeoMetadata('/', data.categories, data.settings);
+  const [data, bookData, origin] = await Promise.all([
+    getPublicPortalData(),
+    getPublicBookStoreData(),
+    headers().then((h) => resolveSiteOriginFromHeaders(h)),
+  ]);
+  return buildSeoMetadata(
+    '/',
+    data.categories,
+    data.settings,
+    bookData.bookCategories,
+    data.courses,
+    origin
+  );
 }
 
 export default async function Page() {
-  const [data, bookData] = await Promise.all([
+  const [data, bookData, origin] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
+    headers().then((h) => resolveSiteOriginFromHeaders(h)),
   ]);
-  const structuredData = buildStructuredData('/', data.categories, data.courses, data.settings);
+  const structuredData = buildStructuredData(
+    '/',
+    data.categories,
+    data.courses,
+    data.settings,
+    origin
+  );
 
   return (
     <>

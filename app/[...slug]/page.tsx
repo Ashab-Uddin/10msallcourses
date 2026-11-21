@@ -1,10 +1,15 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import App from '@/src/App';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
-import { buildSeoMetadata, buildStructuredData } from '@/src/lib/seo';
+import {
+  buildSeoMetadata,
+  buildStructuredData,
+  resolveSiteOriginFromHeaders,
+} from '@/src/lib/seo';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 interface CatchAllRouteProps {
   params: Promise<{ slug?: string[] }>;
@@ -16,16 +21,18 @@ export async function generateMetadata({ params }: CatchAllRouteProps): Promise<
   if (pathname.startsWith('/admin')) {
     return buildSeoMetadata(pathname, []);
   }
-  const [data, bookData] = await Promise.all([
+  const [data, bookData, origin] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
+    headers().then((h) => resolveSiteOriginFromHeaders(h)),
   ]);
   return buildSeoMetadata(
     pathname,
     data.categories,
     data.settings,
     bookData.bookCategories,
-    data.courses
+    data.courses,
+    origin
   );
 }
 
@@ -37,15 +44,17 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
     return <App />;
   }
 
-  const [data, bookData] = await Promise.all([
+  const [data, bookData, origin] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
+    headers().then((h) => resolveSiteOriginFromHeaders(h)),
   ]);
   const structuredData = buildStructuredData(
     pathname,
     data.categories,
     data.courses,
-    data.settings
+    data.settings,
+    origin
   );
 
   return (

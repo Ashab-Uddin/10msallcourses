@@ -23,15 +23,16 @@ function isPublicVisibleCourse(course: Course): boolean {
 }
 
 function findMatchingCourse(courses: Course[], rawSlug: string, decodedSlug: string): Course | null {
-  const lowerDecoded = decodedSlug.toLowerCase();
-  const normalizedTarget = generateUnicodeCourseSlug(decodedSlug);
+  const nfcDecoded = decodedSlug.normalize('NFC');
+  const lowerDecoded = nfcDecoded.toLowerCase();
+  const normalizedTarget = generateUnicodeCourseSlug(nfcDecoded);
   return (
     courses.find(
       (c) =>
         isPublicVisibleCourse(c) &&
-        (c.slug === decodedSlug ||
+        (c.slug.normalize('NFC') === nfcDecoded ||
           c.slug === rawSlug ||
-          c.slug.toLowerCase() === lowerDecoded)
+          c.slug.normalize('NFC').toLowerCase() === lowerDecoded)
     ) ??
     (normalizedTarget
       ? courses.find(
@@ -77,7 +78,11 @@ export default async function CoursePage({ params }: CoursePageProps) {
     matchedCourse = await getCourseBySlug(decodedSlug).catch(() => null);
   }
 
-  if (matchedCourse && decodedSlug && decodedSlug !== matchedCourse.slug) {
+  if (
+    matchedCourse &&
+    decodedSlug &&
+    decodedSlug.normalize('NFC') !== matchedCourse.slug.normalize('NFC')
+  ) {
     permanentRedirect(`/courses/${encodeURIComponent(matchedCourse.slug)}`);
   }
 

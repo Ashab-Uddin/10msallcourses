@@ -66,6 +66,7 @@ import {
   sbGetAdminOverviewData,
   sbGetCourseById,
   sbGetCourseBySlug,
+  sbGetCourseOgTarget,
   sbGetCourseFeatures,
   sbGetOfferTimers,
   sbGetPortalSettings,
@@ -351,6 +352,51 @@ export const getPublicPortalData = cache(async () => {
   };
 });
 
+export async function getCourseOgTarget(slugOrId: string): Promise<{
+  id: number;
+  slug: string;
+  imageUrl: string | null;
+} | null> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetCourseOgTarget(slugOrId);
+  }
+
+  const store = await loadStore();
+  const raw = (slugOrId || '').trim();
+  if (!raw) return null;
+
+  if (/^\d+$/.test(raw)) {
+    const idNum = Number(raw);
+    const byId = store.courses.find(
+      (c) => (c.status === 'active' || c.status === 'closed') && c.id === idNum
+    );
+    if (byId) {
+      return { id: byId.id, slug: byId.slug, imageUrl: byId.imageUrl || null };
+    }
+  }
+
+  const cleanSlug = (decodeCourseSlug(raw) || raw).normalize('NFC');
+  const normalizedTarget = generateUnicodeCourseSlug(cleanSlug);
+  const found =
+    store.courses.find(
+      (c) =>
+        (c.status === 'active' || c.status === 'closed') &&
+        (c.slug.normalize('NFC') === cleanSlug ||
+          c.slug === raw ||
+          c.slug.normalize('NFC').toLowerCase() === cleanSlug.toLowerCase())
+    ) ||
+    (normalizedTarget
+      ? store.courses.find(
+          (c) =>
+            (c.status === 'active' || c.status === 'closed') &&
+            generateUnicodeCourseSlug(c.slug) === normalizedTarget
+        )
+      : undefined);
+
+  if (!found) return null;
+  return { id: found.id, slug: found.slug, imageUrl: found.imageUrl || null };
+}
+
 export async function getCourseBySlug(slug: string): Promise<Course | null> {
   if (isSupabaseDatabaseReady()) {
     return sbGetCourseBySlug(slug);
@@ -358,15 +404,15 @@ export async function getCourseBySlug(slug: string): Promise<Course | null> {
 
   const store = await loadStore();
   const rawSlug = slug.trim();
-  const cleanSlug = decodeCourseSlug(rawSlug) || rawSlug;
+  const cleanSlug = (decodeCourseSlug(rawSlug) || rawSlug).normalize('NFC');
   const normalizedTarget = generateUnicodeCourseSlug(cleanSlug);
   const found =
     store.courses.find(
       (c) =>
         (c.status === 'active' || c.status === 'closed') &&
-        (c.slug === cleanSlug ||
+        (c.slug.normalize('NFC') === cleanSlug ||
           c.slug === rawSlug ||
-          c.slug.toLowerCase() === cleanSlug.toLowerCase())
+          c.slug.normalize('NFC').toLowerCase() === cleanSlug.toLowerCase())
     ) ||
     (normalizedTarget
       ? store.courses.find(
