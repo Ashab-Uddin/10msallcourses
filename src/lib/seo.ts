@@ -171,35 +171,13 @@ export function buildCourseOgImageVersion(course: Course): string {
   return `${course.id}-${imgSignal}`;
 }
 
-function buildDirectImageKitOgUrl(rawImageUrl: string | null | undefined, version: string): string | null {
-  if (!rawImageUrl) return null;
-  const cleaned = rawImageUrl.replace(/\?(w=\d+.*)/i, '').trim();
-  try {
-    const parsed = new URL(cleaned);
-    if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'ik.imagekit.io') {
-      return null;
-    }
-    return `${parsed.origin}${parsed.pathname}?tr=w-1200,h-630,cm-pad_resize,bg-blurred,f-jpg,q-88&v=${encodeURIComponent(version)}`;
-  } catch {
-    return null;
-  }
-}
-
 export function buildCourseOgImageUrl(course: Course, baseUrl: string): string {
-  const version = buildCourseOgImageVersion(course);
-  const directImageKitUrl = buildDirectImageKitOgUrl(course.imageUrl, version);
-  if (directImageKitUrl) {
-    return directImageKitUrl;
-  }
   const safeBase = normalizePublicOrigin(baseUrl) || getSiteBaseUrl();
   if (!course.imageUrl || !course.imageUrl.trim()) {
-    return `${safeBase}${DEFAULT_OG_IMAGE_PATH}?v=1`;
+    return `${safeBase}${DEFAULT_OG_IMAGE_PATH}`;
   }
-  const identifier =
-    Number.isInteger(course.id) && course.id > 0
-      ? String(course.id)
-      : encodeURIComponent(course.slug);
-  return `${safeBase}/api/og/course/${identifier}?v=${encodeURIComponent(version)}`;
+  const version = buildCourseOgImageVersion(course);
+  return `${safeBase}/og/course/${encodeURIComponent(version)}.jpg`;
 }
 
 function pickFeaturedCategoryOgImage(
@@ -610,7 +588,7 @@ export function buildSeoMetadata(
   const canonicalUrl =
     resolved.canonicalPath === '/' ? baseUrl : `${baseUrl}${resolved.canonicalPath}`;
   const siteName = resolved.siteName || DEFAULT_SITE_NAME;
-  const ogImageUrl = resolved.ogImageUrl || `${baseUrl}${DEFAULT_OG_IMAGE_PATH}?v=1`;
+  const ogImageUrl = resolved.ogImageUrl || `${baseUrl}${DEFAULT_OG_IMAGE_PATH}`;
   const ogImageType = resolved.ogImageType || 'image/png';
   const ogImageAlt =
     resolved.ogImageAlt ||
@@ -638,7 +616,6 @@ export function buildSeoMetadata(
       images: [
         {
           url: ogImageUrl,
-          secureUrl: ogImageUrl,
           width: 1200,
           height: 630,
           type: ogImageType,
@@ -657,7 +634,6 @@ export function buildSeoMetadata(
         },
       ],
     },
-    ...(resolved.ogExtraMeta ? { other: resolved.ogExtraMeta } : {}),
   };
 }
 

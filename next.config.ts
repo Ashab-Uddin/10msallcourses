@@ -147,6 +147,27 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/og/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, s-maxage=31536000, immutable',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'X-Robots-Tag',
+            value: 'all',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+        ],
+      },
+      {
         source: '/api/og/:path*',
         headers: [
           {
@@ -182,6 +203,18 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+  },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: '/og/course/:file',
+          destination: '/api/og-course?file=:file',
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
   },
   transpilePackages: ['motion'],
   experimental: {
