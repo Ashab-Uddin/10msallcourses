@@ -20,7 +20,13 @@ export async function generateMetadata({ params }: CatchAllRouteProps): Promise<
     getPublicPortalData(),
     getPublicBookStoreData(),
   ]);
-  return buildSeoMetadata(pathname, data.categories, data.settings, bookData.bookCategories);
+  return buildSeoMetadata(
+    pathname,
+    data.categories,
+    data.settings,
+    bookData.bookCategories,
+    data.courses
+  );
 }
 
 export default async function CatchAllPage({ params }: CatchAllRouteProps) {

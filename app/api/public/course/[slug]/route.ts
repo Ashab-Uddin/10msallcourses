@@ -9,7 +9,13 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const course = await getCourseBySlug(slug);
+    let cleanSlug = '';
+    try {
+      cleanSlug = decodeURIComponent(slug || '').trim();
+    } catch {
+      cleanSlug = (slug || '').trim();
+    }
+    const course = await getCourseBySlug(cleanSlug);
     if (!course) {
       return NextResponse.json({ error: 'কোর্সটি খুঁজে পাওয়া যায়নি।' }, { status: 404 });
     }

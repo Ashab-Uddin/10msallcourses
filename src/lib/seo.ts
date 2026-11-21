@@ -64,6 +64,8 @@ interface ResolvedRouteSeo {
   canonicalPath: string;
   filterCourses: (allCourses: Course[]) => Course[];
   isAdmin?: boolean;
+  noIndex?: boolean;
+  ogImageUrl?: string;
 }
 
 function isPublicVisibleCourse(course: Course): boolean {
@@ -74,7 +76,8 @@ function resolveRouteSeo(
   pathname: string,
   categories: Category[],
   settings?: SiteSettings | null,
-  bookCategories: BookCategory[] = []
+  bookCategories: BookCategory[] = [],
+  courses: Course[] = []
 ): ResolvedRouteSeo {
   const clean = pathname.replace(/\/+$/, '') || '/';
 
@@ -295,6 +298,53 @@ function resolveRouteSeo(
     };
   }
 
+  if (clean.startsWith('/courses/')) {
+    const rawSlug = clean.slice('/courses/'.length).split('/')[0] || '';
+    let decodedSlug = rawSlug;
+    try {
+      decodedSlug = decodeURIComponent(rawSlug);
+    } catch {
+      decodedSlug = rawSlug;
+    }
+    const targetSlug = decodedSlug.trim();
+    const matchedCourse = courses.find(
+      (c) =>
+        isPublicVisibleCourse(c) &&
+        (c.slug === targetSlug ||
+          c.slug === rawSlug ||
+          c.slug.toLowerCase() === targetSlug.toLowerCase())
+    );
+    if (matchedCourse) {
+      const priceText =
+        matchedCourse.discountPrice === 0
+          ? 'সম্পূর্ণ ফ্রি'
+          : `৳${toBengaliNumber(matchedCourse.discountPrice)}`;
+      const courseOgImage =
+        matchedCourse.imageUrl && /^https:\/\//i.test(matchedCourse.imageUrl.trim())
+          ? matchedCourse.imageUrl.replace(/\?(w=\d+.*)/i, '').trim()
+          : undefined;
+
+      return {
+        title: `${matchedCourse.title} (${priceText}) — ১০ মিনিট স্কুল`,
+        description:
+          matchedCourse.description?.trim() ||
+          matchedCourse.fullDescription?.trim().slice(0, 160) ||
+          `${matchedCourse.title} কোর্সে সরাসরি ডিসকাউন্টেড মূল্যে ভর্তি হোন।`,
+        canonicalPath: `/courses/${encodeURIComponent(matchedCourse.slug)}`,
+        filterCourses: () => [matchedCourse],
+        ogImageUrl: courseOgImage,
+      };
+    }
+
+    return {
+      title: 'কোর্স পাওয়া যায়নি — ১০ মিনিট স্কুল',
+      description: DEFAULT_SITE_DESCRIPTION,
+      canonicalPath: clean,
+      filterCourses: () => [],
+      noIndex: true,
+    };
+  }
+
   return {
     title: DEFAULT_SITE_TITLE,
     description: DEFAULT_SITE_DESCRIPTION,
@@ -307,10 +357,11 @@ export function buildSeoMetadata(
   pathname: string,
   categories: Category[],
   settings?: SiteSettings | null,
-  bookCategories: BookCategory[] = []
+  bookCategories: BookCategory[] = [],
+  courses: Course[] = []
 ): Metadata {
   const baseUrl = getSiteBaseUrl();
-  const resolved = resolveRouteSeo(pathname, categories, settings, bookCategories);
+  const resolved = resolveRouteSeo(pathname, categories, settings, bookCategories, courses);
 
   if (resolved.isAdmin) {
     return {
@@ -325,7 +376,7 @@ export function buildSeoMetadata(
 
   const canonicalUrl =
     resolved.canonicalPath === '/' ? baseUrl : `${baseUrl}${resolved.canonicalPath}`;
-  const ogImageUrl = `${baseUrl}${DEFAULT_OG_IMAGE_PATH}`;
+  const ogImageUrl = resolved.ogImageUrl || `${baseUrl}${DEFAULT_OG_IMAGE_PATH}`;
   const ogImageAlt =
     resolved.title === DEFAULT_SITE_NAME
       ? `${DEFAULT_SITE_NAME} — 10 Minute School Courses`
@@ -338,8 +389,8 @@ export function buildSeoMetadata(
       canonical: canonicalUrl,
     },
     robots: {
-      index: true,
-      follow: true,
+      index: !resolved.noIndex,
+      follow: !resolved.noIndex,
     },
     openGraph: {
       title: resolved.title,
@@ -380,7 +431,7 @@ export function buildStructuredData(
   settings?: SiteSettings | null
 ) {
   const baseUrl = getSiteBaseUrl();
-  const resolved = resolveRouteSeo(pathname, categories, settings);
+  const resolved = resolveRouteSeo(pathname, categories, settings, [], courses);
   if (resolved.isAdmin) return null;
 
   const matched = resolved

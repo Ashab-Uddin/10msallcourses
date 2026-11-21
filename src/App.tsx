@@ -13,6 +13,7 @@ import { MobileBottomNav, MobileTab } from './components/public/MobileBottomNav.
 import { HeaderNav } from './components/public/HeaderNav.tsx';
 import { AcademicPage, type AcademicLevel } from './components/public/AcademicPage.tsx';
 import { CategoryPage } from './components/public/CategoryPage.tsx';
+import { CourseSharePage } from './components/public/CourseSharePage.tsx';
 import { BookStorePage } from './components/public/BookStorePage.tsx';
 import { AdminLogin } from './components/admin/AdminLogin.tsx';
 import { AdminSessionVerifyingSkeleton } from './components/admin/AdminSkeletons.tsx';
@@ -83,6 +84,7 @@ function subscribeHashChange(callback: () => void) {
 
 type RouteState =
   | { view: 'home' }
+  | { view: 'course'; slug: string }
   | { view: 'bookstore'; categorySlug?: string }
   | { view: 'category'; slug: string; subFilter?: string }
   | { view: 'academic'; level: AcademicLevel; batchOrClass: string; sectionHash?: string }
@@ -191,8 +193,19 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
     }
   }
 
-  // Direct redirect for course link
+  // Dedicated shared course landing page: /courses/:slug
   if (clean.startsWith('/courses/')) {
+    const rawSlug = clean.slice('/courses/'.length).split('/')[0] || '';
+    let decodedSlug = rawSlug;
+    try {
+      decodedSlug = decodeURIComponent(rawSlug);
+    } catch {
+      decodedSlug = rawSlug;
+    }
+    const cleanCourseSlug = decodedSlug.trim();
+    if (cleanCourseSlug) {
+      return { view: 'course', slug: cleanCourseSlug };
+    }
     return { view: 'home' };
   }
 
@@ -577,9 +590,54 @@ export default function App({
     };
   }, [fetchPublicBooks, isPublicRoute]);
 
+  const [fallbackSharedCourses, setFallbackSharedCourses] = useState<
+    Record<string, Course | null>
+  >({});
+  const fetchedCourseSlugsRef = useRef<Set<string>>(new Set());
+
+  const activeCourseSlug = route.view === 'course' ? route.slug : null;
+  const matchedSharedCourse = useMemo(() => {
+    if (!activeCourseSlug) return undefined;
+    const exactOrCaseMatch =
+      courses.find((c) => c.slug === activeCourseSlug) ||
+      courses.find((c) => c.slug.toLowerCase() === activeCourseSlug.toLowerCase());
+    if (exactOrCaseMatch) return exactOrCaseMatch;
+    return fallbackSharedCourses[activeCourseSlug] ?? undefined;
+  }, [activeCourseSlug, courses, fallbackSharedCourses]);
+
+  useEffect(() => {
+    if (!activeCourseSlug || matchedSharedCourse || loading) return;
+    if (fetchedCourseSlugsRef.current.has(activeCourseSlug)) return;
+    fetchedCourseSlugsRef.current.add(activeCourseSlug);
+
+    let cancelled = false;
+    fetch(`/api/public/course/${encodeURIComponent(activeCourseSlug)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: Course | null) => {
+        if (cancelled) return;
+        setFallbackSharedCourses((prev) => ({ ...prev, [activeCourseSlug]: data || null }));
+        if (data) {
+          setCourses((prev) => (prev.some((c) => c.id === data.id) ? prev : [...prev, data]));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFallbackSharedCourses((prev) => ({ ...prev, [activeCourseSlug]: null }));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCourseSlug, matchedSharedCourse, loading]);
+
   // Sync browser document.title for all dynamic academic routes and catalog views
   useEffect(() => {
-    if (route.view === 'bookstore') {
+    if (route.view === 'course') {
+      document.title = matchedSharedCourse
+        ? `${matchedSharedCourse.title} — ১০ মিনিট স্কুল`
+        : 'কোর্স বিস্তারিত — ১০ মিনিট স্কুল';
+    } else if (route.view === 'bookstore') {
       const matchedBookCat = route.categorySlug
         ? bookCategories.find((cat) => cat.slug === route.categorySlug)
         : undefined;
@@ -616,7 +674,7 @@ export default function App({
       document.title =
         settings?.siteTitle || '১০ মিনিট স্কুল কোর্স — ৩D ক্লাস সিলেক্টর ও মডার্ন কোর্স পোর্টাল';
     }
-  }, [route, categories, bookCategories, settings?.siteTitle]);
+  }, [route, matchedSharedCourse, categories, bookCategories, settings?.siteTitle]);
 
   // Record outbound click in background without blocking direct link navigation
   const recordCourseOutboundClick = (course: Pick<Course, 'id' | 'slug'>, referrer = 'course_card') => {
@@ -821,6 +879,74 @@ export default function App({
           }
         />
       </>
+    );
+  }
+
+  if (route.view === 'course') {
+    const isCourseLookupPending =
+      !matchedSharedCourse &&
+      (loading || !Object.prototype.hasOwnProperty.call(fallbackSharedCourses, route.slug));
+
+    return (
+      <SiteContactProvider
+        value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
+      >
+      <div className="relative min-h-screen pb-20 md:pb-0">
+        <GlassAmbientBackdrop />
+
+        <HeaderNav
+          courses={courses}
+          bookCategories={bookCategories}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchSubmit={() => {
+            navigate('/');
+            setTimeout(() => {
+              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
+            }, 80);
+          }}
+          onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
+          onNavigateHome={() => navigate('/')}
+          onEnrollClick={handleEnrollClick}
+          onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
+          onNavigate={navigate}
+          currentPath={currentPath}
+          currentHash={currentHash}
+        />
+
+        <main className="relative z-10 pt-2">
+          <CourseSharePage
+            slug={route.slug}
+            course={matchedSharedCourse}
+            categories={orderedCategories}
+            allCourses={courses}
+            settings={settings}
+            isLoading={isCourseLookupPending}
+            onNavigate={navigate}
+            onEnrollClick={handleEnrollClick}
+            onRecordOutboundClick={recordCourseOutboundClick}
+          />
+        </main>
+
+        <SiteFooter
+          onNavigate={navigate}
+          onQuickFilter={handleQuickFilterSelect}
+          onDirectCourseLink={handleDirectCourseLink}
+          isAdminAuthenticated={Boolean(adminSession)}
+          whatsappNumber={whatsappNumber}
+          whatsappLink={whatsappLink}
+        />
+
+        <MobileBottomNav activeTab={getMobileActiveTab()} onTabChange={handleMobileNav} />
+
+        <FloatingContactWidget
+          whatsappLink={whatsappLink}
+          whatsappNumber={whatsappNumber}
+          callNumber={callNumber}
+          messengerLink={messengerLink}
+        />
+      </div>
+      </SiteContactProvider>
     );
   }
 

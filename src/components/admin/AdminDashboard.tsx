@@ -124,6 +124,8 @@ import {
   AlarmClock,
   ShoppingBag,
   ListOrdered,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 const COURSES_PER_PAGE = 12;
@@ -334,6 +336,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [swappingCatId, setSwappingCatId] = useState<number | null>(null);
   const [deleteModalCat, setDeleteModalCat] = useState<Category | null>(null);
 
+  const [copiedCourseId, setCopiedCourseId] = useState<number | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const showToast = useCallback(
     (message: string, type: 'success' | 'error' | 'info' = 'success') => {
       setToast({ message, type });
@@ -342,6 +347,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }, 3500);
     },
     []
+  );
+
+  const handleCopyCourseShareLink = useCallback(
+    async (course: Course) => {
+      if (typeof window === 'undefined') return;
+      const shareUrl = `${window.location.origin}/courses/${encodeURIComponent(course.slug)}`;
+
+      let copied = false;
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          copied = true;
+        } catch {
+          copied = false;
+        }
+      }
+
+      if (!copied) {
+        try {
+          const textarea = document.createElement('textarea');
+          textarea.value = shareUrl;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.top = '0';
+          textarea.style.left = '-9999px';
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
+          textarea.setSelectionRange(0, shareUrl.length);
+          copied = document.execCommand('copy');
+          document.body.removeChild(textarea);
+        } catch {
+          copied = false;
+        }
+      }
+
+      if (copied) {
+        setCopiedCourseId(course.id);
+        if (copyTimerRef.current) {
+          clearTimeout(copyTimerRef.current);
+        }
+        copyTimerRef.current = setTimeout(() => {
+          setCopiedCourseId((prev) => (prev === course.id ? null : prev));
+        }, 2000);
+        showToast(`কোর্স শেয়ার লিংক কপি হয়েছে: ${course.title}`, 'success');
+      } else {
+        showToast('লিংক কপি করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
+      }
+    },
+    [showToast]
   );
 
   const handleUnauthorizedResponse = useCallback(
@@ -1884,21 +1939,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <h3 className="text-xs font-black text-[#2A0F12] leading-snug break-words min-w-0 flex-1">
                                     {course.title}
                                   </h3>
-                                  <span
-                                    className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-extrabold ${
-                                      course.status === 'active'
-                                        ? 'bg-emerald-100/90 text-emerald-800 border-emerald-300'
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleCopyCourseShareLink(course)}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold transition cursor-pointer shrink-0 ${
+                                        copiedCourseId === course.id
+                                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                          : 'border-rose-200 bg-rose-50/90 text-[#b91c1c] hover:bg-[#eb1c24] hover:text-white hover:border-[#eb1c24]'
+                                      }`}
+                                      title="শেয়ারযোগ্য কোর্স লিংক কপি করুন"
+                                      aria-label={`${course.title} Copy link`}
+                                    >
+                                      {copiedCourseId === course.id ? (
+                                        <>
+                                          <Check className="w-2.5 h-2.5 shrink-0" />
+                                          <span>Copied!</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-2.5 h-2.5 shrink-0" />
+                                          <span>Copy link</span>
+                                        </>
+                                      )}
+                                    </button>
+
+                                    <span
+                                      className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-extrabold ${
+                                        course.status === 'active'
+                                          ? 'bg-emerald-100/90 text-emerald-800 border-emerald-300'
+                                          : course.status === 'closed'
+                                          ? 'bg-amber-100/90 text-amber-800 border-amber-300'
+                                          : 'bg-slate-100 text-slate-700 border-slate-300'
+                                      }`}
+                                    >
+                                      {course.status === 'active'
+                                        ? 'চালু (Active)'
                                         : course.status === 'closed'
-                                        ? 'bg-amber-100/90 text-amber-800 border-amber-300'
-                                        : 'bg-slate-100 text-slate-700 border-slate-300'
-                                    }`}
-                                  >
-                                    {course.status === 'active'
-                                      ? 'চালু (Active)'
-                                      : course.status === 'closed'
-                                      ? 'ভর্তি বন্ধ (Closed)'
-                                      : 'লুকানো (Inactive)'}
-                                  </span>
+                                        ? 'ভর্তি বন্ধ (Closed)'
+                                        : 'লুকানো (Inactive)'}
+                                    </span>
+                                  </div>
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[#6B4C4F]">
@@ -2086,8 +2167,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                   )}
                                   <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-[#2A0F12] truncate">
-                                      {course.title}
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <div className="font-bold text-[#2A0F12] truncate min-w-0">
+                                        {course.title}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleCopyCourseShareLink(course)}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-bold transition cursor-pointer shrink-0 ${
+                                          copiedCourseId === course.id
+                                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                            : 'border-rose-200 bg-rose-50/90 text-[#b91c1c] hover:bg-[#eb1c24] hover:text-white hover:border-[#eb1c24]'
+                                        }`}
+                                        title="শেয়ারযোগ্য কোর্স লিংক কপি করুন"
+                                        aria-label={`${course.title} Copy link`}
+                                      >
+                                        {copiedCourseId === course.id ? (
+                                          <>
+                                            <Check className="w-2.5 h-2.5 shrink-0" />
+                                            <span>Copied!</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-2.5 h-2.5 shrink-0" />
+                                            <span>Copy link</span>
+                                          </>
+                                        )}
+                                      </button>
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-[#6B4C4F] font-medium min-w-0">
                                       <span className="px-1.5 py-0.5 rounded bg-white/80 border border-rose-100 text-[#6B4C4F] font-mono text-[9.5px] truncate min-w-0 max-w-[165px] xl:max-w-[235px]">
