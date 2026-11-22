@@ -328,47 +328,40 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             </>
           )}
 
-          {/* Top-Right Status Badge (Closed) / Lightning Bolt ⚡ & Dynamic Discount Percentage Badge */}
-          <div
-            className={`absolute z-20 pointer-events-none flex items-center justify-end ${
-              compactMobile
-                ? 'top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 gap-1 sm:gap-1.5'
-                : 'top-2.5 right-2.5 gap-1.5'
-            }`}
-          >
-            {isClosed ? (
-              <span
-                className={`inline-flex items-center rounded-full bg-amber-600/95 text-white font-black tracking-tight shadow-md border border-amber-300/60 shrink-0 whitespace-nowrap ${
-                  compactMobile
-                    ? 'px-1.5 sm:px-2.5 py-[1px] sm:py-0.5 text-[8px] sm:text-[11px]'
-                    : 'px-2.5 py-0.5 text-[10px] sm:text-[11px]'
-                }`}
-              >
-                ভর্তি বন্ধ
-              </span>
-            ) : (
-              <svg
-                className={`${
-                  compactMobile ? 'w-3 h-3 sm:w-4 sm:h-4' : 'w-4 h-4'
-                } text-amber-400 drop-shadow-sm fill-amber-400 shrink-0`}
-                viewBox="0 0 24 24"
-              >
-                <path d="M13 2L3 14h8l-2 8 10-12h-8l2-8z" />
-              </svg>
-            )}
+          {/* Top-Right Status Badge (Closed) & Dynamic Discount Percentage Badge */}
+          {(isClosed || computedDiscountPercent > 0) && (
+            <div
+              className={`absolute z-20 pointer-events-none flex items-center justify-end ${
+                compactMobile
+                  ? 'top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 gap-1 sm:gap-1.5'
+                  : 'top-2.5 right-2.5 gap-1.5'
+              }`}
+            >
+              {isClosed && (
+                <span
+                  className={`inline-flex items-center rounded-full bg-amber-600/95 text-white font-black tracking-tight shadow-md border border-amber-300/60 shrink-0 whitespace-nowrap ${
+                    compactMobile
+                      ? 'px-1.5 sm:px-2.5 py-[1px] sm:py-0.5 text-[8px] sm:text-[11px]'
+                      : 'px-2.5 py-0.5 text-[10px] sm:text-[11px]'
+                  }`}
+                >
+                  ভর্তি বন্ধ
+                </span>
+              )}
 
-            {computedDiscountPercent > 0 && (
-              <span
-                className={`inline-flex items-center rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums shrink-0 whitespace-nowrap ${
-                  compactMobile
-                    ? 'px-1.5 sm:px-2.5 py-[1px] sm:py-0.5 text-[8px] sm:text-[11px]'
-                    : 'px-2.5 py-0.5 text-[10px] sm:text-[11px]'
-                }`}
-              >
-                {toBengaliNumber(computedDiscountPercent)}% ছাড়
-              </span>
-            )}
-          </div>
+              {computedDiscountPercent > 0 && (
+                <span
+                  className={`inline-flex items-center rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white font-black tracking-tight shadow-[0_4px_12px_-2px_rgba(249,115,22,0.55)] border border-orange-300/40 tabular-nums shrink-0 whitespace-nowrap ${
+                    compactMobile
+                      ? 'px-1.5 sm:px-2.5 py-[1px] sm:py-0.5 text-[8px] sm:text-[11px]'
+                      : 'px-2.5 py-0.5 text-[10px] sm:text-[11px]'
+                  }`}
+                >
+                  {toBengaliNumber(computedDiscountPercent)}% ছাড়
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Bottom Row Inside Banner - Dynamic Live Batch & Discount Badges */}
           {(bottomLeftBadge || discountBadge) && (
