@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Category, Course, CourseGroupKey } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
@@ -6,7 +6,6 @@ import {
   categorySlugsMatch,
   courseMatchesAcademicBatch,
   courseMatchesCategorySlug,
-  normalizeCategoryMatchText,
   normalizeCategorySlugKey,
   resolveCourseDepartments,
 } from '../../lib/categoryMatching.ts';
@@ -16,11 +15,6 @@ import {
 } from '../../lib/courseSorting.ts';
 import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
-import {
-  updateCurrentSearchParams,
-  useBrowserLocation,
-  useRouteSearchQuery,
-} from '../../lib/universalNavigation.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { Hsc28ScienceCategoryPage } from './categories/Hsc28ScienceCategoryPage.tsx';
 import { Hsc28HumanitiesCategoryPage } from './categories/Hsc28HumanitiesCategoryPage.tsx';
@@ -48,46 +42,13 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   onEnrollClick,
   onSelectCategory,
 }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [priceFilter, setPriceFilter] = useState('all');
+  const [batchFilter, setBatchFilter] = useState<string>('all');
+  const [groupFilter, setGroupFilter] = useState<'all' | CourseGroupKey>('all');
+
   const decodedCategorySlug = normalizeCategorySlugKey(categorySlug);
   const normalizedSlug = decodedCategorySlug === 'free' ? 'free-course' : decodedCategorySlug;
-  const isDelegatedCategory =
-    /^class-([5-8])$/.test(normalizedSlug) ||
-    categorySlugsMatch(normalizedSlug, 'hsc-28-বিজ্ঞান-কোর্স') ||
-    categorySlugsMatch(normalizedSlug, 'hsc-28-মানবিক-কোর্স') ||
-    categorySlugsMatch(normalizedSlug, 'hsc-28-ব্যবসায়-শিক্ষা');
-
-  const browserLoc = useBrowserLocation();
-  const [searchQuery, setSearchQuery, , clearSearchDraft] = useRouteSearchQuery(
-    'q',
-    180,
-    !isDelegatedCategory
-  );
-  const categoryParams = new URLSearchParams(isDelegatedCategory ? '' : browserLoc.search || '');
-
-  const priceFilter = categoryParams.get('price') || 'all';
-  const batchFilter = categoryParams.get('batch') || 'all';
-  const rawGroup = categoryParams.get('group') || 'all';
-  const groupFilter: 'all' | CourseGroupKey =
-    rawGroup === 'science' || rawGroup === 'business' || rawGroup === 'humanities'
-      ? rawGroup
-      : 'all';
-
-  const setBatchFilter = (nextBatch: string) => {
-    if (nextBatch === batchFilter) return;
-    updateCurrentSearchParams(
-      { batch: nextBatch === 'all' ? null : nextBatch },
-      { push: true, noScroll: true }
-    );
-  };
-
-  const setGroupFilter = (nextGroup: 'all' | CourseGroupKey) => {
-    if (nextGroup === groupFilter) return;
-    updateCurrentSearchParams(
-      { group: nextGroup === 'all' ? null : nextGroup },
-      { push: true, noScroll: true }
-    );
-  };
-
   const isLanguageLearning = normalizedSlug === 'language-learning';
   const isSkills = normalizedSlug === 'skills';
   const isAdmission = normalizedSlug === 'admission';
@@ -238,12 +199,14 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   }
 
   const filteredCourses = categoryCourses.filter((c) => {
-    const q = normalizeCategoryMatchText(searchQuery);
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
-      normalizeCategoryMatchText(
-        `${c.title} ${c.description} ${c.headerTitle} ${c.headerSubtitle} ${c.targetStudents || ''}`
-      ).includes(q);
+      c.title.toLowerCase().includes(q) ||
+      c.description.toLowerCase().includes(q) ||
+      c.headerTitle.toLowerCase().includes(q) ||
+      c.headerSubtitle.toLowerCase().includes(q) ||
+      (c.targetStudents || '').toLowerCase().includes(q);
 
     const matchesPrice =
       priceFilter === 'all' ||
@@ -385,11 +348,10 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
             <button
               type="button"
               onClick={() => {
-                clearSearchDraft();
-                updateCurrentSearchParams(
-                  { q: null, price: null, batch: null, group: null },
-                  { push: true, noScroll: true }
-                );
+                setSearchQuery('');
+                setPriceFilter('all');
+                setBatchFilter('all');
+                setGroupFilter('all');
               }}
               className="mt-2 px-5 py-2 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold hover:opacity-95 transition cursor-pointer shadow-sm"
             >

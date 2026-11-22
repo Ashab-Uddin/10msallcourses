@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { BookOpen, RotateCcw, Sparkles } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
@@ -17,10 +17,6 @@ import {
   type Hsc28DepartmentFilterId,
   type Hsc28DepartmentTrack,
 } from '../../../lib/hsc28DepartmentFilters.ts';
-import {
-  updateCurrentSearchParams,
-  useBrowserLocation,
-} from '../../../lib/universalNavigation.ts';
 import { Hsc28DepartmentFilterBar } from './Hsc28DepartmentFilterBar.tsx';
 import { ScienceBackdropAccent } from '../ScienceBackdropAccent.tsx';
 
@@ -41,15 +37,7 @@ export const Hsc28DepartmentCategoryPage: React.FC<Hsc28DepartmentCategoryPagePr
   onBack,
   onEnrollClick,
 }) => {
-  const browserLoc = useBrowserLocation();
-  const filterOptions = useMemo(() => getDepartmentFilterOptions(track), [track]);
-  const selectedFilter: Hsc28DepartmentFilterId | 'all' = useMemo(() => {
-    const raw = new URLSearchParams(browserLoc.search || '').get('filter');
-    if (raw && filterOptions.some((opt) => opt.id === raw)) {
-      return raw as Hsc28DepartmentFilterId;
-    }
-    return 'all';
-  }, [browserLoc.search, filterOptions]);
+  const [selectedFilter, setSelectedFilter] = useState<Hsc28DepartmentFilterId | 'all'>('all');
 
   const defaultSlug =
     track === 'humanities' ? 'hsc-28-মানবিক-কোর্স' : 'hsc-28-ব্যবসায়-শিক্ষা';
@@ -73,6 +61,8 @@ export const Hsc28DepartmentCategoryPage: React.FC<Hsc28DepartmentCategoryPagePr
     [departmentCourses, track, selectedFilter]
   );
 
+  const filterOptions = useMemo(() => getDepartmentFilterOptions(track), [track]);
+
   const activeFilterLabel = useMemo(
     () =>
       selectedFilter === 'all'
@@ -82,17 +72,11 @@ export const Hsc28DepartmentCategoryPage: React.FC<Hsc28DepartmentCategoryPagePr
   );
 
   const handleSelectFilter = (filterId: Hsc28DepartmentFilterId | 'all') => {
-    const nextFilter = toggleDepartmentFilter(selectedFilter, filterId);
-    if (nextFilter === selectedFilter) return;
-    updateCurrentSearchParams(
-      { filter: nextFilter === 'all' ? null : nextFilter },
-      { push: true, noScroll: true }
-    );
+    setSelectedFilter((prev) => toggleDepartmentFilter(prev, filterId));
   };
 
   const resetAll = () => {
-    if (selectedFilter === 'all') return;
-    updateCurrentSearchParams({ filter: null }, { push: true, noScroll: true });
+    setSelectedFilter('all');
   };
 
   const pageBadge = 'HSC 28 একাডেমিক অনলাইন প্রোগ্রাম';

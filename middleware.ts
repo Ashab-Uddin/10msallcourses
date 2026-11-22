@@ -42,11 +42,11 @@ export function middleware(req: NextRequest) {
   const res = NextResponse.next();
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
     res.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
-    res.headers.set('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
+    res.headers.set('Cache-Control', 'private, no-store, max-age=0');
   }
   return res;
 }
 
 export const config = {
-  matcher: ['/admin', '/admin/:path*', '/api/admin/:path*', '/courses/:path*'],
+  matcher: ['/admin/:path*', '/api/admin/:path*', '/courses/:path*'],
 };

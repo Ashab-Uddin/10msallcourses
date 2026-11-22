@@ -6,15 +6,6 @@ import { BookCard } from './BookCard.tsx';
 import { parseFeatures, toBengaliNumber } from '../../utils/format.ts';
 import { buildAffiliateRedirectUrl, validateExternalHttpUrl } from '../../lib/affiliateUrl.ts';
 import {
-  NavigationOptions,
-  dismissModalHistoryState,
-  normalizeComparablePath,
-  performShallowNavigation,
-  pushModalHistoryState,
-  useBrowserLocation,
-  useRouteSearchQuery,
-} from '../../lib/universalNavigation.ts';
-import {
   BookOpen,
   BookMarked,
   BookText,
@@ -39,7 +30,6 @@ interface BookStorePageProps {
   initialCategorySlug?: string;
   settings?: SiteSettings | null;
   onBack?: () => void;
-  onNavigate?: (path: string, options?: NavigationOptions) => void;
   onRefreshBooks?: () => Promise<void>;
 }
 
@@ -141,43 +131,20 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
   initialCategorySlug = 'all',
   settings,
   onBack,
-  onNavigate,
 }) => {
-  const browserLoc = useBrowserLocation('/books');
-  const modalScope = `${normalizeComparablePath(browserLoc.pathname)}|${browserLoc.popEpoch}`;
-  const selectedCategory = initialCategorySlug || 'all';
-  const [searchQuery, setSearchQuery, , clearSearchDraft] = useRouteSearchQuery('q', 180);
-  const [selectedBookState, setSelectedBookState] = useState<{
-    scope: string;
-    book: Book;
-  } | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    initialCategorySlug || 'all'
+  );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [loadingBookDetails, setLoadingBookDetails] = useState(false);
 
-  const selectedBook =
-    selectedBookState?.scope === modalScope ? selectedBookState.book : null;
-  const setSelectedBook = (book: Book | null) => {
-    if (!book && selectedBookState?.book) {
-      dismissModalHistoryState(`book-details-${selectedBookState.book.id}`);
-    }
-    setSelectedBookState(book ? { scope: modalScope, book } : null);
-  };
-
-  const navigateToBookCategory = (
-    slug: string,
-    options?: { clearSearch?: boolean; scrollTopAfter?: boolean }
-  ) => {
-    const targetBase = slug === 'all' ? '/books' : `/books/${encodeURIComponent(slug)}`;
-    const nextQ = options?.clearSearch ? '' : searchQuery.trim();
-    const targetUrl = nextQ ? `${targetBase}?q=${encodeURIComponent(nextQ)}` : targetBase;
-    if (options?.clearSearch) {
-      clearSearchDraft();
-    }
-    const navFn = onNavigate ?? performShallowNavigation;
-    navFn(targetUrl, { noScroll: Boolean(options?.scrollTopAfter) });
-    if (options?.scrollTopAfter && typeof window !== 'undefined') {
-      window.scrollTo({ top: 320, behavior: 'smooth' });
-    }
-  };
+  const normalizedInitialCategory = initialCategorySlug || 'all';
+  const [prevInitialCategory, setPrevInitialCategory] = useState(normalizedInitialCategory);
+  if (normalizedInitialCategory !== prevInitialCategory) {
+    setPrevInitialCategory(normalizedInitialCategory);
+    setSelectedCategory(normalizedInitialCategory);
+  }
 
   const activeCategoryMap = useMemo(() => {
     const map = new Map<string, BookCategory>();
@@ -224,18 +191,14 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
   }, [bookCategories, books]);
 
   const handleOpenBookDetails = async (book: Book) => {
-    pushModalHistoryState(`book-details-${book.id}`);
-    const nextScope = `${normalizeComparablePath(window.location.pathname)}|${browserLoc.popEpoch}`;
-    setSelectedBookState({ scope: nextScope, book });
+    setSelectedBook(book);
     setLoadingBookDetails(true);
     try {
       const res = await fetch(`/api/public/books/${book.id}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data?.book) {
-          setSelectedBookState((prev) =>
-            prev?.book.id === book.id ? { ...prev, book: data.book } : prev
-          );
+          setSelectedBook(data.book);
         }
       }
     } catch {
@@ -330,7 +293,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
                   {searchQuery ? (
                     <button
                       type="button"
-                      onClick={() => setSearchQuery('', true)}
+                      onClick={() => setSearchQuery('')}
                       aria-label="সার্চ মুছুন"
                       className="p-1.5 rounded-full text-[#6B4C4F] hover:text-[#eb1c24] hover:bg-rose-50 transition cursor-pointer mr-1"
                     >
@@ -380,7 +343,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
         <div className="inline-flex flex-wrap sm:flex-nowrap items-center gap-2 glass-strong border border-white/95 rounded-2xl p-2 max-w-full overflow-x-auto shadow-sm">
           <button
             type="button"
-            onClick={() => navigateToBookCategory('all')}
+            onClick={() => setSelectedCategory('all')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-[13px] font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
               selectedCategory === 'all'
                 ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_8px_18px_-6px_rgba(226,43,43,0.48)]'
@@ -396,7 +359,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => navigateToBookCategory(cat.slug)}
+                onClick={() => setSelectedCategory(cat.slug)}
                 className={`px-4 py-2 rounded-xl text-xs sm:text-[13px] font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   isSelected
                     ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_8px_18px_-6px_rgba(226,43,43,0.48)]'
@@ -423,9 +386,12 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
                 books={group.items}
                 index={idx}
                 defaultAffiliateRef={settings?.defaultAffiliateRef}
-                onViewAll={(slug) =>
-                  navigateToBookCategory(slug, { scrollTopAfter: true })
-                }
+                onViewAll={(slug) => {
+                  setSelectedCategory(slug);
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo({ top: 320, behavior: 'smooth' });
+                  }
+                }}
                 onSelectBook={handleOpenBookDetails}
                 onBuyClick={handleRecordBookClick}
               />
@@ -449,9 +415,10 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() =>
-                    navigateToBookCategory('all', { clearSearch: true })
-                  }
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    setSearchQuery('');
+                  }}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full glass-inset hover:bg-white/90 text-xs font-bold text-[#2A0F12] hover:text-[#E22B2B] transition cursor-pointer whitespace-nowrap"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
@@ -507,9 +474,10 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
                 </p>
                 <button
                   type="button"
-                  onClick={() =>
-                    navigateToBookCategory('all', { clearSearch: true })
-                  }
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    setSearchQuery('');
+                  }}
                   className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-sm transition cursor-pointer"
                 >
                   সব ক্যাটাগরি দেখুন

@@ -20,7 +20,6 @@ import {
   ArrowUpDown,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
-import { normalizeComparablePath, useBrowserLocation } from '../../lib/universalNavigation.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
 
 interface AdminNavbarProps {
@@ -51,14 +50,7 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = React.memo(({
   categoriesCount,
   activeOfferTimersCount = 0,
 }) => {
-  const browserLoc = useBrowserLocation('/admin/overview');
-  const navScope = `${normalizeComparablePath(browserLoc.pathname)}|${activeTab}|${browserLoc.popEpoch}`;
-  const [openMenuScope, setOpenMenuScope] = useState<string | null>(null);
-  const mobileMenuOpen = openMenuScope === navScope;
-  const setMobileMenuOpen = (next: boolean | ((prev: boolean) => boolean)) => {
-    const resolved = typeof next === 'function' ? next(mobileMenuOpen) : next;
-    setOpenMenuScope(resolved ? navScope : null);
-  };
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const displayAdminName =
     (adminName || 'Admin Manager').replace(/\s*\(Admin\)\s*/gi, '').trim() || 'Admin Manager';

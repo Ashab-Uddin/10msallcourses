@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { BookCategory, Category, Course } from '../../types.ts';
 import {
@@ -10,7 +10,6 @@ import { getCategoryLucideIcon } from '../../lib/categoryIconComponents.ts';
 import { resolveCategoryCardTheme } from '../../lib/categoryIcons.ts';
 import { categorySlugsMatch } from '../../lib/categoryMatching.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
-import { normalizeComparablePath, useBrowserLocation } from '../../lib/universalNavigation.ts';
 import {
   Home,
   GraduationCap,
@@ -59,50 +58,11 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   onNavigate,
   currentPath = '/',
 }) => {
-  const browserLoc = useBrowserLocation(currentPath);
-  const navScope = `${normalizeComparablePath(currentPath)}|${browserLoc.popEpoch}`;
-
-  const [hoverMenuState, setHoverMenuState] = useState<{
-    scope: string;
-    key: NavKey;
-  } | null>(null);
-  const [pinnedMenuState, setPinnedMenuState] = useState<{
-    scope: string;
-    key: NavKey;
-  } | null>(null);
-  const [mobileMenuState, setMobileMenuState] = useState<{
-    scope: string;
-    open: boolean;
-  } | null>(null);
+  const [hoverMenu, setHoverMenu] = useState<NavKey | null>(null);
+  const [pinnedMenu, setPinnedMenu] = useState<NavKey | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
-
-  const hoverMenu = hoverMenuState?.scope === navScope ? hoverMenuState.key : null;
-  const pinnedMenu = pinnedMenuState?.scope === navScope ? pinnedMenuState.key : null;
-  const mobileMenuOpen = mobileMenuState?.scope === navScope ? mobileMenuState.open : false;
-
-  const setHoverMenu = useCallback(
-    (key: NavKey | null) => {
-      setHoverMenuState(key ? { scope: navScope, key } : null);
-    },
-    [navScope]
-  );
-  const setPinnedMenu = useCallback(
-    (key: NavKey | null) => {
-      setPinnedMenuState(key ? { scope: navScope, key } : null);
-    },
-    [navScope]
-  );
-  const setMobileMenuOpen = useCallback(
-    (updater: boolean | ((prev: boolean) => boolean)) => {
-      setMobileMenuState((prev) => {
-        const prevOpen = prev?.scope === navScope ? prev.open : false;
-        const nextOpen = typeof updater === 'function' ? updater(prevOpen) : updater;
-        return { scope: navScope, open: nextOpen };
-      });
-    },
-    [navScope]
-  );
 
   const activeMenu = pinnedMenu ?? hoverMenu;
 
@@ -110,15 +70,14 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
       if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
-        setPinnedMenuState(null);
-        setHoverMenuState(null);
+        setPinnedMenu(null);
+        setHoverMenu(null);
       }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setPinnedMenuState(null);
-        setHoverMenuState(null);
-        setMobileMenuState(null);
+        setPinnedMenu(null);
+        setHoverMenu(null);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);

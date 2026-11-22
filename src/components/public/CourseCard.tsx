@@ -11,12 +11,6 @@ import {
 } from '../../lib/courseFeatures.ts';
 import { CourseFeatureIcon } from './CourseFeatureIcon.tsx';
 import { CourseDetailsModal } from './CourseDetailsModal.tsx';
-import {
-  dismissModalHistoryState,
-  normalizeComparablePath,
-  pushModalHistoryState,
-  useBrowserLocation,
-} from '../../lib/universalNavigation.ts';
 import { X, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 
 export interface CourseCardProps {
@@ -37,23 +31,9 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   whatsappNumber,
   whatsappLink,
 }) => {
-  const browserLoc = useBrowserLocation('/');
-  const modalScope = `${normalizeComparablePath(browserLoc.pathname)}|${browserLoc.popEpoch}`;
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [imageRatioMap, setImageRatioMap] = useState<Record<string, number>>({});
-  const [detailsOpenScope, setDetailsOpenScope] = useState<string | null>(null);
-  const modalKey = `course-details-${course.id}`;
-  const isDetailsOpen = detailsOpenScope === modalScope;
-  const setIsDetailsOpen = (updater: boolean | ((prev: boolean) => boolean)) => {
-    const currentlyOpen = detailsOpenScope === modalScope;
-    const nextOpen = typeof updater === 'function' ? updater(currentlyOpen) : updater;
-    if (nextOpen && !currentlyOpen) {
-      pushModalHistoryState(modalKey);
-    } else if (!nextOpen && currentlyOpen) {
-      dismissModalHistoryState(modalKey);
-    }
-    setDetailsOpenScope(nextOpen ? modalScope : null);
-  };
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   // Strip downscaling thumbnail query parameters from 10MS CDN to preserve full HD original quality
   const displayImageUrl = course.imageUrl

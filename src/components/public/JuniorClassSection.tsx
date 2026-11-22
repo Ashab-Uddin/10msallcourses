@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BookOpen, RotateCcw } from 'lucide-react';
 import type { Course } from '../../types.ts';
 import {
@@ -10,10 +10,6 @@ import {
   type JuniorClassFilterId,
   type JuniorClassNumber5To8,
 } from '../../lib/juniorClassFilters.ts';
-import {
-  updateCurrentSearchParams,
-  useBrowserLocation,
-} from '../../lib/universalNavigation.ts';
 import { JuniorClassFilterBar } from './JuniorClassFilterBar.tsx';
 import { CourseCard } from './CourseCard.tsx';
 
@@ -33,27 +29,22 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
   onEnrollClick,
 }) => {
   const meta = JUNIOR_CLASS_PAGE_META[classNum];
-  const browserLoc = useBrowserLocation();
+  const classKey = meta.slug;
 
-  const selectedFilter: JuniorClassFilterId = useMemo(() => {
-    const raw = new URLSearchParams(browserLoc.search || '').get('filter');
-    if (raw && JUNIOR_CLASS_FILTERS.some((f) => f.id === raw)) {
-      return raw as JuniorClassFilterId;
-    }
-    return 'all';
-  }, [browserLoc.search]);
+  const [filterOverride, setFilterOverride] = useState<{
+    key: string;
+    filter: JuniorClassFilterId;
+  } | null>(null);
+
+  const selectedFilter: JuniorClassFilterId =
+    filterOverride?.key === classKey ? filterOverride.filter : 'all';
 
   const setSelectedFilter = (filter: JuniorClassFilterId) => {
-    if (filter === selectedFilter) return;
-    updateCurrentSearchParams(
-      { filter: filter === 'all' ? null : filter },
-      { push: true, noScroll: true }
-    );
+    setFilterOverride({ key: classKey, filter });
   };
 
   const handleResetFilters = () => {
-    if (selectedFilter === 'all') return;
-    updateCurrentSearchParams({ filter: null }, { push: true, noScroll: true });
+    setFilterOverride({ key: classKey, filter: 'all' });
   };
 
   const filteredCourses = useMemo(

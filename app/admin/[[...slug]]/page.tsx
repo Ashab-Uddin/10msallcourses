@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { AdminPortalClient } from '@/src/components/admin/AdminPortalClient';
 import { getAdminOverviewData } from '@/src/db/repository';
 import { getServerAuthenticatedAdminFromCookieEntries } from '@/src/lib/adminAuth';
@@ -23,12 +22,19 @@ export default async function AdminPage({ params }: AdminRouteProps) {
   const pathname = slug.length > 0 ? `/admin/${slug.join('/')}` : '/admin';
   const isLoginPath = pathname === '/admin/login';
 
+  if (isLoginPath) {
+    return (
+      <AdminPortalClient
+        initialAuthState="unauthenticated"
+        initialAdmin={null}
+        initialDashboardData={null}
+        initialPath="/admin/login"
+      />
+    );
+  }
+
   const cookieStore = await cookies();
   const authState = await getServerAuthenticatedAdminFromCookieEntries(cookieStore.getAll());
-
-  if (isLoginPath && authState.status === 'authenticated') {
-    redirect('/admin/dashboard');
-  }
 
   if (authState.status === 'authenticated') {
     const initialDashboardData = await getAdminOverviewData().catch((err) => {
@@ -54,7 +60,7 @@ export default async function AdminPage({ params }: AdminRouteProps) {
       initialAuthState={authState.status}
       initialAdmin={null}
       initialDashboardData={null}
-      initialPath={isLoginPath ? '/admin/login' : pathname === '/admin' ? '/admin/dashboard' : pathname}
+      initialPath={pathname === '/admin' ? '/admin/dashboard' : pathname}
     />
   );
 }
