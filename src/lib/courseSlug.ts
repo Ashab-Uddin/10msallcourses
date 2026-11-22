@@ -81,3 +81,26 @@ export function buildReadableCourseShareUrl(origin: string, slug: string): strin
   const path = buildReadableCoursePath(slug);
   return cleanOrigin ? `${cleanOrigin}${path}` : path;
 }
+
+/**
+ * Builds a clean, human-readable Unicode category path:
+ * e.g. "/category/hsc-28-বিজ্ঞান-কোর্স"
+ */
+export function buildReadableCategoryPath(slug: string): string {
+  const decoded = decodeCourseSlug(slug)
+    .normalize('NFC')
+    .replace(/[\s]+/g, '-')
+    .replace(/^\/+|\/+$/g, '');
+  if (!decoded) return '/category';
+  return `/category/${decoded}`;
+}
+
+/**
+ * Builds the full readable Unicode category URL for copying to clipboard:
+ * e.g. "https://10msallcourses.com/category/hsc-28-বিজ্ঞান-কোর্স"
+ */
+export function buildReadableCategoryUrl(origin: string, slug: string): string {
+  const cleanOrigin = (origin || '').trim().replace(/\/+$/, '');
+  const path = buildReadableCategoryPath(slug);
+  return cleanOrigin ? `${cleanOrigin}${path}` : path;
+}

@@ -3985,6 +3985,15 @@ export async function sbUpdateExistingCategory(
     } catch {
       // Ignore optional sync warning
     }
+
+    try {
+      await supabase
+        .from('category_course_orders')
+        .update({ category_slug: nextSlug })
+        .eq('category_slug', existing.slug);
+    } catch {
+      // Ignore optional sort order slug sync warning
+    }
   }
 
   if (!data) return null;

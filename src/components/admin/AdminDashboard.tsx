@@ -44,7 +44,12 @@ import {
   courseMatchesCategorySlug,
   getCourseCategorySlugs,
 } from '../../lib/categoryMatching.ts';
-import { buildReadableCourseShareUrl } from '../../lib/courseSlug.ts';
+import {
+  buildReadableCategoryUrl,
+  buildReadableCourseShareUrl,
+  generateUnicodeCourseSlug,
+  sanitizeEditableUnicodeSlug,
+} from '../../lib/courseSlug.ts';
 import {
   navigateHistory,
   useHistoryViewState,
@@ -363,8 +368,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [swappingCatId, setSwappingCatId] = useState<number | null>(null);
   const [deleteModalCat, setDeleteModalCat] = useState<Category | null>(null);
 
+  const [catSlugManuallyEdited, setCatSlugManuallyEdited] = useState(false);
+
   const [copiedCourseId, setCopiedCourseId] = useState<number | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copiedCategoryId, setCopiedCategoryId] = useState<number | null>(null);
+  const copyCategoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      if (copyCategoryTimerRef.current) clearTimeout(copyCategoryTimerRef.current);
+    };
+  }, []);
 
   const showToast = useCallback(
     (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -376,39 +392,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     []
   );
 
+  const copyTextToClipboard = useCallback(async (text: string): Promise<boolean> => {
+    if (typeof window === 'undefined' || !text) return false;
+    let copied = false;
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+    }
+
+    if (!copied) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.top = '0';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, text.length);
+        copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch {
+        copied = false;
+      }
+    }
+
+    return copied;
+  }, []);
+
   const handleCopyCourseShareLink = useCallback(
     async (course: Course) => {
       if (typeof window === 'undefined') return;
       const shareUrl = buildReadableCourseShareUrl(window.location.origin, course.slug);
-
-      let copied = false;
-      if (navigator.clipboard?.writeText) {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          copied = true;
-        } catch {
-          copied = false;
-        }
-      }
-
-      if (!copied) {
-        try {
-          const textarea = document.createElement('textarea');
-          textarea.value = shareUrl;
-          textarea.setAttribute('readonly', '');
-          textarea.style.position = 'fixed';
-          textarea.style.top = '0';
-          textarea.style.left = '-9999px';
-          document.body.appendChild(textarea);
-          textarea.focus();
-          textarea.select();
-          textarea.setSelectionRange(0, shareUrl.length);
-          copied = document.execCommand('copy');
-          document.body.removeChild(textarea);
-        } catch {
-          copied = false;
-        }
-      }
+      const copied = await copyTextToClipboard(shareUrl);
 
       if (copied) {
         setCopiedCourseId(course.id);
@@ -423,7 +446,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         showToast('লিংক কপি করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
       }
     },
-    [showToast]
+    [copyTextToClipboard, showToast]
+  );
+
+  const handleCopyCategoryLink = useCallback(
+    async (category: Category) => {
+      if (typeof window === 'undefined') return;
+      const categoryUrl = buildReadableCategoryUrl(window.location.origin, category.slug);
+      const copied = await copyTextToClipboard(categoryUrl);
+
+      if (copied) {
+        setCopiedCategoryId(category.id);
+        if (copyCategoryTimerRef.current) {
+          clearTimeout(copyCategoryTimerRef.current);
+        }
+        copyCategoryTimerRef.current = setTimeout(() => {
+          setCopiedCategoryId((prev) => (prev === category.id ? null : prev));
+        }, 2000);
+        showToast('Link Copied Successfully!', 'success');
+      } else {
+        showToast('লিংক কপি করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
+      }
+    },
+    [copyTextToClipboard, showToast]
   );
 
   const handleUnauthorizedResponse = useCallback(
@@ -868,9 +913,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     setSavingCat(true);
     try {
+      const normalizedSlug =
+        generateUnicodeCourseSlug(catSlug) || catSlug.trim().toLowerCase().replace(/\s+/g, '-');
       const payload = {
         name: catName.trim(),
-        slug: catSlug.trim().toLowerCase().replace(/\s+/g, '-'),
+        slug: normalizedSlug,
         subtitle: catSubtitle.trim() || null,
         badgeColor: catBadgeColor,
         displayOrder: orderCheck.value,
@@ -897,6 +944,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         throw new Error(errorData.error || 'ক্যাটাগরি সংরক্ষণ করা সম্ভব হয়নি।');
       }
 
+      const savedCategory = (await res.json().catch(() => null)) as Category | null;
+      if (savedCategory && typeof savedCategory.id === 'number') {
+        setCategories((prev) => {
+          const exists = prev.some((c) => c.id === savedCategory.id);
+          if (exists) {
+            return prev.map((c) => (c.id === savedCategory.id ? savedCategory : c));
+          }
+          return [...prev, savedCategory];
+        });
+      }
+
       await fetchDashboardData({ silent: true });
       onDataMutated();
       setShowCategoryModal(false);
@@ -904,6 +962,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCatFormError(null);
       setCatName('');
       setCatSlug('');
+      setCatSlugManuallyEdited(false);
       setCatSubtitle('');
       setCatDisplayOrderInput('1');
       setCatNavGroup('auto');
@@ -2511,6 +2570,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setEditingCategory(null);
                     setCatName('');
                     setCatSlug('');
+                    setCatSlugManuallyEdited(false);
                     setCatSubtitle('');
                     setCatBadgeColor('red');
                     setCatDisplayOrderInput(String(nextAvailableCategoryOrder));
@@ -2580,8 +2640,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 Navbar: {navDisplay.label}
                               </span>
                             </div>
-                            <div className="text-xs text-[#6B4C4F] font-mono mt-0.5">
-                              /category/{cat.slug}
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <span className="text-xs text-[#6B4C4F] font-mono break-all">
+                                /category/{cat.slug}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => void handleCopyCategoryLink(cat)}
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[11px] font-bold transition cursor-pointer shrink-0 ${
+                                  copiedCategoryId === cat.id
+                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                    : 'border-rose-200 bg-rose-50/90 text-[#b91c1c] hover:bg-[#eb1c24] hover:text-white hover:border-[#eb1c24]'
+                                }`}
+                                title="ক্যাটাগরি লিংক কপি করুন"
+                                aria-label={`${cat.name} Copy Link`}
+                              >
+                                {copiedCategoryId === cat.id ? (
+                                  <>
+                                    <Check className="w-3 h-3 shrink-0" />
+                                    <span>Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3 shrink-0" />
+                                    <span>Copy Link</span>
+                                  </>
+                                )}
+                              </button>
                             </div>
                             {cat.subtitle && (
                               <p className="text-xs text-[#6B4C4F] mt-1 font-medium">{cat.subtitle}</p>
@@ -2636,6 +2721,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               setEditingCategory(cat);
                               setCatName(cat.name);
                               setCatSlug(cat.slug);
+                              setCatSlugManuallyEdited(false);
                               setCatSubtitle(cat.subtitle || '');
                               setCatBadgeColor(cat.badgeColor || 'red');
                               setCatDisplayOrderInput(String(cat.displayOrder || 1));
@@ -3117,16 +3203,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 required
                 value={catName}
                 onChange={(e) => {
-                  setCatName(e.target.value);
+                  const nextName = e.target.value;
+                  setCatName(nextName);
                   if (catFormError) setCatFormError(null);
-                  if (!editingCategory) {
-                    setCatSlug(
-                      e.target.value
-                        .toLowerCase()
-                        .replace(/[^a-z0-9\u0980-\u09FF\s-]/g, '')
-                        .trim()
-                        .replace(/\s+/g, '-')
-                    );
+                  if (!catSlugManuallyEdited) {
+                    setCatSlug(generateUnicodeCourseSlug(nextName));
                   }
                 }}
                 placeholder="যেমন: HSC অনলাইন ব্যাচ"
@@ -3147,13 +3228,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   required
                   value={catSlug}
                   onChange={(e) => {
-                    setCatSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'));
+                    setCatSlug(sanitizeEditableUnicodeSlug(e.target.value));
+                    setCatSlugManuallyEdited(true);
                     if (catFormError) setCatFormError(null);
                   }}
                   placeholder="hsc"
                   className="w-full px-3 py-2 rounded-r-xl border border-slate-200 text-xs font-mono text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                 />
               </div>
+              <p className="mt-1 text-[11px] text-[#6B4C4F]">
+                ক্যাটাগরির নাম পরিবর্তন করলে URL স্লাগ স্বয়ংক্রিয়ভাবে আপডেট হবে।
+              </p>
             </div>
 
             <div>
