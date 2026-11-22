@@ -1,3 +1,5 @@
+import type { CategoryIconKey } from './lib/categoryIcons.ts';
+
 export type NavbarGroupKey = 'school' | 'hsc27' | 'hsc28' | 'admission';
 export type CategoryNavAssignment = NavbarGroupKey | 'auto' | 'none';
 
@@ -10,6 +12,7 @@ export interface Category {
   displayOrder: number;
   status: string;
   navGroup?: CategoryNavAssignment;
+  iconKey?: CategoryIconKey;
   createdAt?: string | null;
 }
 

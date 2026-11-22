@@ -12,6 +12,10 @@ import {
   SiteSettings,
 } from '../types.ts';
 import { normalizeCategoryNavGroup } from '../lib/navbarCategories.ts';
+import {
+  normalizeCategoryIconKey,
+  type CategoryIconKey,
+} from '../lib/categoryIcons.ts';
 import { INITIAL_SETTINGS } from './seedData.ts';
 import { getSupabaseAdminClient } from '../lib/supabase/admin.ts';
 import { CACHE_TAG_PUBLIC_PORTAL } from '../lib/cacheInvalidation.ts';
@@ -80,6 +84,7 @@ const COURSE_FEATURES_CONFIG_OBJECT = 'course-features.json';
 const CATEGORY_COURSE_ORDERS_OBJECT = 'category-course-orders.json';
 const COURSE_CATEGORY_ASSIGNMENTS_OBJECT = 'course-category-assignments.json';
 const CATEGORY_NAV_GROUPS_OBJECT = 'category-nav-groups.json';
+const CATEGORY_ICONS_OBJECT = 'category-icons.json';
 const COURSE_FEATURES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_FEATURES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_ORDERS_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
@@ -87,6 +92,7 @@ const CATEGORY_ORDERS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const COURSE_CATEGORIES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_NAV_GROUPS_STORAGE_CACHE_TTL_MS = 30 * 1000;
+const CATEGORY_ICONS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 
 let courseFeaturesTableMissingUntil = 0;
 let cachedCourseFeaturesStorage: {
@@ -114,6 +120,12 @@ let cachedCategoryNavGroupsStorage: {
   expiresAt: number;
 } | null = null;
 let inFlightCategoryNavGroupsStorageRead: Promise<Record<string, CategoryNavAssignment>> | null = null;
+
+let cachedCategoryIconsStorage: {
+  data: Record<string, CategoryIconKey>;
+  expiresAt: number;
+} | null = null;
+let inFlightCategoryIconsStorageRead: Promise<Record<string, CategoryIconKey>> | null = null;
 
 function normalizeCategoryNavGroupsMap(
   raw: unknown
@@ -242,12 +254,137 @@ async function writeCategoryNavGroupsToStorage(
 
 function attachNavGroupsToCategories(
   categories: Category[],
-  navGroupsMap: Record<string, CategoryNavAssignment>
+  navGroupsMap: Record<string, CategoryNavAssignment>,
+  iconsMap?: Record<string, CategoryIconKey>
 ): Category[] {
   return categories.map((cat) => ({
     ...cat,
     navGroup: navGroupsMap[String(cat.id)] ?? normalizeCategoryNavGroup(cat.navGroup),
+    iconKey: iconsMap?.[String(cat.id)] ?? normalizeCategoryIconKey(cat.iconKey),
   }));
+}
+
+function normalizeCategoryIconsMap(raw: unknown): Record<string, CategoryIconKey> {
+  if (!raw || typeof raw !== 'object') return {};
+  const result: Record<string, CategoryIconKey> = {};
+  for (const [rawId, rawVal] of Object.entries(raw as Record<string, unknown>)) {
+    const idNum = Number(rawId);
+    if (!Number.isInteger(idNum) || idNum <= 0) continue;
+    const normalized = normalizeCategoryIconKey(rawVal);
+    if (normalized !== 'auto') {
+      result[String(idNum)] = normalized;
+    }
+  }
+  return result;
+}
+
+async function readCategoryIconsFromStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  options?: { bypassCache?: boolean }
+): Promise<Record<string, CategoryIconKey>> {
+  if (
+    !options?.bypassCache &&
+    cachedCategoryIconsStorage &&
+    Date.now() < cachedCategoryIconsStorage.expiresAt
+  ) {
+    return { ...cachedCategoryIconsStorage.data };
+  }
+
+  if (!options?.bypassCache && inFlightCategoryIconsStorageRead) {
+    const shared = await inFlightCategoryIconsStorageRead;
+    return { ...shared };
+  }
+
+  const reader = (async (): Promise<Record<string, CategoryIconKey>> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(SELECTOR_ICON_CONFIG_BUCKET)
+        .download(CATEGORY_ICONS_OBJECT);
+      if (error || !data) {
+        cachedCategoryIconsStorage = {
+          data: {},
+          expiresAt: Date.now() + CATEGORY_ICONS_STORAGE_CACHE_TTL_MS,
+        };
+        return {};
+      }
+      const text = await data.text();
+      const parsed = JSON.parse(text) as { icons?: unknown };
+      const normalized = normalizeCategoryIconsMap(parsed?.icons ?? parsed);
+      cachedCategoryIconsStorage = {
+        data: normalized,
+        expiresAt: Date.now() + CATEGORY_ICONS_STORAGE_CACHE_TTL_MS,
+      };
+      return normalized;
+    } catch {
+      return {};
+    } finally {
+      inFlightCategoryIconsStorageRead = null;
+    }
+  })();
+
+  if (!options?.bypassCache) {
+    inFlightCategoryIconsStorageRead = reader;
+  }
+
+  const result = await reader;
+  return { ...result };
+}
+
+async function writeCategoryIconsToStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  map: Record<string, CategoryIconKey>
+): Promise<void> {
+  const normalized = normalizeCategoryIconsMap(map);
+  const payload = Buffer.from(
+    JSON.stringify(
+      {
+        icons: normalized,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
+
+  const attemptUpload = async () =>
+    supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .upload(CATEGORY_ICONS_OBJECT, payload, {
+        upsert: true,
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: '0',
+      });
+
+  const first = await attemptUpload();
+  if (!first.error) {
+    cachedCategoryIconsStorage = {
+      data: normalized,
+      expiresAt: Date.now() + CATEGORY_ICONS_STORAGE_CACHE_TTL_MS,
+    };
+    return;
+  }
+
+  const errMsg = String(first.error.message || '').toLowerCase();
+  if (errMsg.includes('not found') || errMsg.includes('bucket')) {
+    const { error: createErr } = await supabase.storage.createBucket(
+      SELECTOR_ICON_CONFIG_BUCKET,
+      { public: false }
+    );
+    if (createErr && !String(createErr.message || '').toLowerCase().includes('already exists')) {
+      throw new RepositoryError('ক্যাটাগরি আইকন স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
+    }
+    const retry = await attemptUpload();
+    if (!retry.error) {
+      cachedCategoryIconsStorage = {
+        data: normalized,
+        expiresAt: Date.now() + CATEGORY_ICONS_STORAGE_CACHE_TTL_MS,
+      };
+      return;
+    }
+  }
+
+  throw new RepositoryError('ক্যাটাগরি আইকন কনফিগারেশন সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
 }
 
 function cloneCourseFeaturesStorageMap(
@@ -1545,6 +1682,9 @@ function mapCategoryRow(row: Record<string, unknown>): Category {
     ...(row.nav_group !== undefined
       ? { navGroup: normalizeCategoryNavGroup(row.nav_group) }
       : {}),
+    ...(row.icon_key !== undefined
+      ? { iconKey: normalizeCategoryIconKey(row.icon_key) }
+      : {}),
     createdAt: row.created_at ? String(row.created_at) : null,
   };
 }
@@ -1713,6 +1853,7 @@ async function sbFetchPublicPortalBase() {
     categoryCourseOrders,
     courseCategoriesMap,
     categoryNavGroupsMap,
+    categoryIconsMap,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -1738,6 +1879,7 @@ async function sbFetchPublicPortalBase() {
     sbFetchCategoryCourseOrders(supabase),
     sbFetchCourseCategoriesMap(supabase),
     readCategoryNavGroupsFromStorage(supabase),
+    readCategoryIconsFromStorage(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড করতে সমস্যা হয়েছে।');
@@ -1747,7 +1889,8 @@ async function sbFetchPublicPortalBase() {
 
   const categories = attachNavGroupsToCategories(
     (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
-    categoryNavGroupsMap
+    categoryNavGroupsMap,
+    categoryIconsMap
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
@@ -2089,6 +2232,7 @@ export async function sbGetAdminOverviewData() {
     categoryCourseOrders,
     courseCategoriesMap,
     categoryNavGroupsMap,
+    categoryIconsMap,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -2114,6 +2258,7 @@ export async function sbGetAdminOverviewData() {
     sbFetchCategoryCourseOrders(supabase),
     sbFetchCourseCategoriesMap(supabase),
     readCategoryNavGroupsFromStorage(supabase),
+    readCategoryIconsFromStorage(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
@@ -2124,7 +2269,8 @@ export async function sbGetAdminOverviewData() {
 
   const allCategories = attachNavGroupsToCategories(
     (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
-    categoryNavGroupsMap
+    categoryNavGroupsMap,
+    categoryIconsMap
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
@@ -3616,6 +3762,7 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
   };
 
   const requestedNavGroup = normalizeCategoryNavGroup(input.navGroup);
+  const requestedIconKey = normalizeCategoryIconKey(input.iconKey);
 
   const { data, error } = await supabase
     .from('categories')
@@ -3649,9 +3796,22 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
     }
   }
 
+  if (requestedIconKey !== 'auto') {
+    const iconMap = await readCategoryIconsFromStorage(supabase, { bypassCache: true });
+    iconMap[String(created.id)] = requestedIconKey;
+    await writeCategoryIconsToStorage(supabase, iconMap);
+    if (Object.prototype.hasOwnProperty.call(data as Record<string, unknown>, 'icon_key')) {
+      await supabase
+        .from('categories')
+        .update({ icon_key: requestedIconKey })
+        .eq('id', created.id);
+    }
+  }
+
   return {
     ...created,
     navGroup: requestedNavGroup,
+    iconKey: requestedIconKey,
   };
 }
 
@@ -3708,8 +3868,14 @@ export async function sbUpdateExistingCategory(
     existingRow as Record<string, unknown>,
     'nav_group'
   );
+  const hasIconKeyColumn = Object.prototype.hasOwnProperty.call(
+    existingRow as Record<string, unknown>,
+    'icon_key'
+  );
   const requestedNavGroup =
     input.navGroup !== undefined ? normalizeCategoryNavGroup(input.navGroup) : undefined;
+  const requestedIconKey =
+    input.iconKey !== undefined ? normalizeCategoryIconKey(input.iconKey) : undefined;
 
   const updatePayload = {
     name: nextName.slice(0, 120),
@@ -3733,6 +3899,9 @@ export async function sbUpdateExistingCategory(
         : existing.status,
     ...(hasNavGroupColumn && requestedNavGroup !== undefined
       ? { nav_group: requestedNavGroup }
+      : {}),
+    ...(hasIconKeyColumn && requestedIconKey !== undefined
+      ? { icon_key: requestedIconKey }
       : {}),
   };
 
@@ -3760,7 +3929,11 @@ export async function sbUpdateExistingCategory(
     throw mapPgError(error, 'ক্যাটাগরি আপডেট ব্যর্থ হয়েছে।');
   }
 
-  const navMap = await readCategoryNavGroupsFromStorage(supabase, { bypassCache: true });
+  const [navMap, iconMap] = await Promise.all([
+    readCategoryNavGroupsFromStorage(supabase, { bypassCache: true }),
+    readCategoryIconsFromStorage(supabase, { bypassCache: true }),
+  ]);
+
   if (requestedNavGroup !== undefined) {
     if (requestedNavGroup === 'auto') {
       if (Object.prototype.hasOwnProperty.call(navMap, String(id))) {
@@ -3770,6 +3943,18 @@ export async function sbUpdateExistingCategory(
     } else {
       navMap[String(id)] = requestedNavGroup;
       await writeCategoryNavGroupsToStorage(supabase, navMap);
+    }
+  }
+
+  if (requestedIconKey !== undefined) {
+    if (requestedIconKey === 'auto') {
+      if (Object.prototype.hasOwnProperty.call(iconMap, String(id))) {
+        delete iconMap[String(id)];
+        await writeCategoryIconsToStorage(supabase, iconMap);
+      }
+    } else {
+      iconMap[String(id)] = requestedIconKey;
+      await writeCategoryIconsToStorage(supabase, iconMap);
     }
   }
 
@@ -3810,6 +3995,10 @@ export async function sbUpdateExistingCategory(
       requestedNavGroup !== undefined
         ? requestedNavGroup
         : navMap[String(id)] ?? normalizeCategoryNavGroup(mapped.navGroup),
+    iconKey:
+      requestedIconKey !== undefined
+        ? requestedIconKey
+        : iconMap[String(id)] ?? normalizeCategoryIconKey(mapped.iconKey),
   };
 }
 
@@ -3889,19 +4078,21 @@ export async function sbSwapCategoryOrder(
     }
   }
 
-  const [{ data: sortedRows, error: fetchSortedErr }, navGroupsMap] = await Promise.all([
+  const [{ data: sortedRows, error: fetchSortedErr }, navGroupsMap, iconsMap] = await Promise.all([
     supabase
       .from('categories')
       .select('*')
       .order('display_order', { ascending: true })
       .order('id', { ascending: true }),
     readCategoryNavGroupsFromStorage(supabase),
+    readCategoryIconsFromStorage(supabase),
   ]);
 
   if (fetchSortedErr) throw mapPgError(fetchSortedErr, 'ক্যাটাগরি তালিকা লোড ব্যর্থ হয়েছে।');
   return attachNavGroupsToCategories(
     (sortedRows || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
-    navGroupsMap
+    navGroupsMap,
+    iconsMap
   );
 }
 
@@ -3964,10 +4155,17 @@ export async function sbDeleteCategoryById(
   }
 
   try {
-    const navMap = await readCategoryNavGroupsFromStorage(supabase, { bypassCache: true });
+    const [navMap, iconMap] = await Promise.all([
+      readCategoryNavGroupsFromStorage(supabase, { bypassCache: true }),
+      readCategoryIconsFromStorage(supabase, { bypassCache: true }),
+    ]);
     if (Object.prototype.hasOwnProperty.call(navMap, String(id))) {
       delete navMap[String(id)];
       await writeCategoryNavGroupsToStorage(supabase, navMap);
+    }
+    if (Object.prototype.hasOwnProperty.call(iconMap, String(id))) {
+      delete iconMap[String(id)];
+      await writeCategoryIconsToStorage(supabase, iconMap);
     }
   } catch {
     // Non-fatal cleanup

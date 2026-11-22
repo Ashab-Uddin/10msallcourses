@@ -13,6 +13,7 @@ import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
 import { computeDiscountPercent, syncTargetStudentsMetadata } from '../lib/courseValidation.ts';
 import { getCourseCategorySlugs } from '../lib/categoryMatching.ts';
 import { normalizeCategoryNavGroup } from '../lib/navbarCategories.ts';
+import { normalizeCategoryIconKey } from '../lib/categoryIcons.ts';
 import { decodeCourseSlug, generateUnicodeCourseSlug } from '../lib/courseSlug.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import {
@@ -1653,6 +1654,7 @@ export async function createNewCategory(input: Record<string, unknown>) {
     displayOrder,
     status: input.status === 'inactive' ? 'inactive' : 'active',
     navGroup: normalizeCategoryNavGroup(input.navGroup),
+    iconKey: normalizeCategoryIconKey(input.iconKey),
     createdAt: new Date().toISOString(),
   };
 
@@ -1739,6 +1741,10 @@ export async function updateExistingCategory(id: number, input: Record<string, u
       input.navGroup !== undefined
         ? normalizeCategoryNavGroup(input.navGroup)
         : existing.navGroup,
+    iconKey:
+      input.iconKey !== undefined
+        ? normalizeCategoryIconKey(input.iconKey)
+        : existing.iconKey,
   };
 
   store.categories[idx] = updated;

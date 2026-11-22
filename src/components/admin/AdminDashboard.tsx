@@ -17,6 +17,16 @@ import {
   getNavbarGroupDisplayLabel,
   normalizeCategoryNavGroup,
 } from '../../lib/navbarCategories.ts';
+import {
+  CATEGORY_ICON_OPTIONS,
+  normalizeCategoryIconKey,
+  resolveCategoryCardTheme,
+  type CategoryIconKey,
+} from '../../lib/categoryIcons.ts';
+import {
+  getCategoryLucideIcon,
+  getLucideIconByKey,
+} from '../../lib/categoryIconComponents.ts';
 import { computeOfferTimerStatus } from '../../lib/offerTimerUtils.ts';
 import {
   DEFAULT_SELECTOR_ICON_IDS,
@@ -441,6 +451,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [catBadgeColor, setCatBadgeColor] = useState('red');
   const [catDisplayOrderInput, setCatDisplayOrderInput] = useState<string>('1');
   const [catNavGroup, setCatNavGroup] = useState<CategoryNavAssignment>('auto');
+  const [catIconKey, setCatIconKey] = useState<CategoryIconKey>('auto');
   const [catFormError, setCatFormError] = useState<string | null>(null);
   const [savingCat, setSavingCat] = useState(false);
   const [swappingCatId, setSwappingCatId] = useState<number | null>(null);
@@ -969,6 +980,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         badgeColor: catBadgeColor,
         displayOrder: orderCheck.value,
         navGroup: catNavGroup,
+        iconKey: catIconKey,
         status: 'active',
       };
 
@@ -1000,6 +1012,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCatSubtitle('');
       setCatDisplayOrderInput('1');
       setCatNavGroup('auto');
+      setCatIconKey('auto');
       showToast(editingCategory ? 'ক্যাটাগরি আপডেট হয়েছে।' : 'নতুন ক্যাটাগরি তৈরি হয়েছে।', 'success');
     } catch (err: any) {
       const errMsg = err.message || 'ত্রুটি হয়েছে।';
@@ -2590,6 +2603,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setCatBadgeColor('red');
                     setCatDisplayOrderInput(String(nextAvailableCategoryOrder));
                     setCatNavGroup('auto');
+                    setCatIconKey('auto');
                     setCatFormError(null);
                     setShowCategoryModal(true);
                   }}
@@ -2612,45 +2626,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     sortedCategories.filter((c) => Number(c.displayOrder) === Number(cat.displayOrder))
                       .length > 1;
                   const navDisplay = getNavbarGroupDisplayLabel(cat);
+                  const CatIconComp = getCategoryLucideIcon(cat);
+                  const catTheme = resolveCategoryCardTheme(cat, idx);
                   return (
                     <div
                       key={cat.id}
                       className="glass-card rounded-3xl p-5 flex flex-col justify-between space-y-4"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-base font-black text-[#2A0F12]">{cat.name}</h3>
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums ${
-                                hasDuplicateOrder
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                  : 'bg-rose-100 text-[#b91c1c]'
-                              }`}
-                            >
-                              ক্রম: {toBengaliNumber(cat.displayOrder)}
-                            </span>
-                            <span
-                              title={
-                                navDisplay.isAuto
-                                  ? 'নাম/স্লাগ থেকে স্বয়ংক্রিয়ভাবে নির্ধারিত'
-                                  : 'ম্যানুয়ালি নির্ধারিত Navbar ড্রপডাউন'
-                              }
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                navDisplay.group === 'none'
-                                  ? 'bg-slate-100 text-slate-600 border-slate-200'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              }`}
-                            >
-                              Navbar: {navDisplay.label}
-                            </span>
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div
+                            className={`w-10 h-10 rounded-2xl ${catTheme.topGradient} text-white flex items-center justify-center shrink-0 shadow-sm border border-white/60`}
+                            title="ক্যাটাগরি আইকন"
+                          >
+                            <CatIconComp className="w-5 h-5 stroke-[2.2]" />
                           </div>
-                          <div className="text-xs text-[#6B4C4F] font-mono mt-0.5">
-                            /category/{cat.slug}
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-base font-black text-[#2A0F12]">{cat.name}</h3>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums ${
+                                  hasDuplicateOrder
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                    : 'bg-rose-100 text-[#b91c1c]'
+                                }`}
+                              >
+                                ক্রম: {toBengaliNumber(cat.displayOrder)}
+                              </span>
+                              <span
+                                title={
+                                  navDisplay.isAuto
+                                    ? 'নাম/স্লাগ থেকে স্বয়ংক্রিয়ভাবে নির্ধারিত'
+                                    : 'ম্যানুয়ালি নির্ধারিত Navbar ড্রপডাউন'
+                                }
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                  navDisplay.group === 'none'
+                                    ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}
+                              >
+                                Navbar: {navDisplay.label}
+                              </span>
+                            </div>
+                            <div className="text-xs text-[#6B4C4F] font-mono mt-0.5">
+                              /category/{cat.slug}
+                            </div>
+                            {cat.subtitle && (
+                              <p className="text-xs text-[#6B4C4F] mt-1 font-medium">{cat.subtitle}</p>
+                            )}
                           </div>
-                          {cat.subtitle && (
-                            <p className="text-xs text-[#6B4C4F] mt-1 font-medium">{cat.subtitle}</p>
-                          )}
                         </div>
 
                         <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-white/80 border border-rose-100 text-[#2A0F12] whitespace-nowrap tabular-nums shrink-0">
@@ -2703,6 +2727,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               setCatBadgeColor(cat.badgeColor || 'red');
                               setCatDisplayOrderInput(String(cat.displayOrder || 1));
                               setCatNavGroup(normalizeCategoryNavGroup(cat.navGroup));
+                              setCatIconKey(normalizeCategoryIconKey(cat.iconKey));
                               setCatFormError(null);
                               setShowCategoryModal(true);
                             }}
@@ -3141,7 +3166,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <form
             onSubmit={handleSaveCategory}
-            className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-md w-full p-6 space-y-4 border border-white/90 shadow-2xl relative"
+            className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 space-y-4 border border-white/90 shadow-2xl relative"
           >
             <div className="flex items-center justify-between border-b border-rose-100 pb-3">
               <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2">
@@ -3273,11 +3298,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onChange={(e) => setCatBadgeColor(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer font-bold"
                 >
-                  <option value="red">রেড (Red)</option>
-                  <option value="amber">অ্যাম্বার (Amber)</option>
+                  <option value="red">স্বয়ংক্রিয় / রেড (Default)</option>
+                  <option value="sky">স্কাই / সায়ান (Sky)</option>
+                  <option value="purple">পার্পল (Purple)</option>
+                  <option value="orange">অরেঞ্জ (Orange)</option>
+                  <option value="teal">টিল (Teal)</option>
                   <option value="blue">ব্লু (Blue)</option>
                   <option value="rose">রোজ (Rose)</option>
                   <option value="emerald">এমারেল্ড (Emerald)</option>
+                  <option value="amber">অ্যাম্বার (Amber)</option>
+                  <option value="indigo">ইন্ডিগো (Indigo)</option>
                 </select>
               </div>
             </div>
@@ -3299,6 +3329,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </select>
               <p className="text-[10px] text-[#6B4C4F] mt-1">
                 নির্বাচিত Navbar বাটনের ড্রপডাউনে এই ক্যাটাগরিটি প্রদর্শিত হবে।
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-[#2A0F12]">
+                  ক্যাটাগরি আইকন (Mobile & Navbar Icon)
+                </label>
+                <span className="text-[10px] font-bold text-[#6B4C4F]">
+                  {CATEGORY_ICON_OPTIONS.find((o) => o.value === catIconKey)?.label || 'স্বয়ংক্রিয়'}
+                </span>
+              </div>
+              <div className="grid grid-cols-5 sm:grid-cols-7 gap-1.5 p-2 rounded-2xl bg-rose-50/50 border border-rose-100 max-h-40 overflow-y-auto">
+                {CATEGORY_ICON_OPTIONS.map((opt) => {
+                  const IconOptionComp = getLucideIconByKey(opt.value, {
+                    name: catName || 'ক্যাটাগরি',
+                    slug: catSlug || 'category',
+                    subtitle: catSubtitle || null,
+                    navGroup: catNavGroup,
+                  });
+                  const isSelected = catIconKey === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setCatIconKey(opt.value)}
+                      title={opt.label}
+                      className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl border text-[9.5px] font-bold transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-gradient-to-br from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm scale-[1.03]'
+                          : 'bg-white text-[#2A0F12] border-slate-200 hover:border-rose-300 hover:bg-rose-50/60'
+                      }`}
+                    >
+                      <IconOptionComp className="w-4 h-4 shrink-0" />
+                      <span className="truncate max-w-full leading-none">
+                        {opt.value === 'auto' ? 'Auto' : opt.label.split(' ')[0]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-[#6B4C4F] mt-1">
+                এখান থেকে আইকন পরিবর্তন করলে Mobile ও Desktop Navbar-এ স্বয়ংক্রিয়ভাবে আপডেট হবে।
               </p>
             </div>
 

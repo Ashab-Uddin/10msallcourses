@@ -6,6 +6,8 @@ import {
   inferCategoryNavGroup,
   resolveCategoryNavGroup,
 } from '../../lib/navbarCategories.ts';
+import { getCategoryLucideIcon } from '../../lib/categoryIconComponents.ts';
+import { resolveCategoryCardTheme } from '../../lib/categoryIcons.ts';
 import { categorySlugsMatch } from '../../lib/categoryMatching.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { normalizeComparablePath, useBrowserLocation } from '../../lib/universalNavigation.ts';
@@ -43,6 +45,7 @@ interface SubMenuItem {
   label: string;
   categorySlug?: string;
   urlPath: string;
+  category?: Category;
 }
 
 export const HeaderNav: React.FC<HeaderNavProps> = ({
@@ -143,6 +146,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
       label: cat.name,
       categorySlug: cat.slug,
       urlPath: `/category/${cat.slug}`,
+      category: cat,
     }));
 
   const class6to12Items = useMemo(
@@ -417,19 +421,26 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   ক্লাস ৬–১২ ক্যাটাগরি
                 </div>
-                {class6to12Items.map((item) => {
+                {class6to12Items.map((item, idx) => {
                   const isCurrent = isSubItemActive(item);
+                  const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                  const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
                   return (
                     <button
                       key={item.urlPath}
                       type="button"
                       onClick={() => handleSubItemClick(item)}
-                      className={`w-full text-left px-4 py-2.5 text-[13px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-2 text-[13px] font-semibold transition-colors flex items-center gap-2.5 cursor-pointer ${
                         isCurrent
                           ? 'text-[#eb1c24] bg-rose-50/80'
                           : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
                       }`}
                     >
+                      {CatIcon && theme && (
+                        <span className={`w-6 h-6 rounded-lg ${theme.topGradient} text-white flex items-center justify-center shrink-0 shadow-2xs`}>
+                          <CatIcon className="w-3.5 h-3.5 stroke-[2.2]" />
+                        </span>
+                      )}
                       <span className="truncate">{item.label}</span>
                     </button>
                   );
@@ -476,19 +487,26 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   HSC 2027 ক্যাটাগরি
                 </div>
-                {hsc27Items.map((item) => {
+                {hsc27Items.map((item, idx) => {
                   const isCurrent = isSubItemActive(item);
+                  const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                  const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
                   return (
                     <button
                       key={item.urlPath}
                       type="button"
                       onClick={() => handleSubItemClick(item)}
-                      className={`w-full text-left px-4 py-2 text-[12.5px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-2 text-[12.5px] font-semibold transition-colors flex items-center gap-2.5 cursor-pointer ${
                         isCurrent
                           ? 'text-[#eb1c24] bg-rose-50/80'
                           : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
                       }`}
                     >
+                      {CatIcon && theme && (
+                        <span className={`w-6 h-6 rounded-lg ${theme.topGradient} text-white flex items-center justify-center shrink-0 shadow-2xs`}>
+                          <CatIcon className="w-3.5 h-3.5 stroke-[2.2]" />
+                        </span>
+                      )}
                       <span className="truncate">{item.label}</span>
                     </button>
                   );
@@ -535,19 +553,26 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   HSC 2028 ক্যাটাগরি
                 </div>
-                {hsc28Items.map((item) => {
+                {hsc28Items.map((item, idx) => {
                   const isCurrent = isSubItemActive(item);
+                  const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                  const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
                   return (
                     <button
                       key={item.urlPath}
                       type="button"
                       onClick={() => handleSubItemClick(item)}
-                      className={`w-full text-left px-4 py-2 text-[12.5px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-2 text-[12.5px] font-semibold transition-colors flex items-center gap-2.5 cursor-pointer ${
                         isCurrent
                           ? 'text-[#eb1c24] bg-rose-50/80'
                           : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
                       }`}
                     >
+                      {CatIcon && theme && (
+                        <span className={`w-6 h-6 rounded-lg ${theme.topGradient} text-white flex items-center justify-center shrink-0 shadow-2xs`}>
+                          <CatIcon className="w-3.5 h-3.5 stroke-[2.2]" />
+                        </span>
+                      )}
                       <span className="truncate">{item.label}</span>
                     </button>
                   );
@@ -594,19 +619,26 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   ভর্তি পরীক্ষা ক্যাটাগরি
                 </div>
-                {admissionItems.map((item) => {
+                {admissionItems.map((item, idx) => {
                   const isCurrent = isSubItemActive(item);
+                  const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                  const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
                   return (
                     <button
                       key={item.urlPath}
                       type="button"
                       onClick={() => handleSubItemClick(item)}
-                      className={`w-full text-left px-4 py-2 text-[12.5px] font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-2 text-[12.5px] font-semibold transition-colors flex items-center gap-2.5 cursor-pointer ${
                         isCurrent
                           ? 'text-[#eb1c24] bg-rose-50/80'
                           : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
                       }`}
                     >
+                      {CatIcon && theme && (
+                        <span className={`w-6 h-6 rounded-lg ${theme.topGradient} text-white flex items-center justify-center shrink-0 shadow-2xs`}>
+                          <CatIcon className="w-3.5 h-3.5 stroke-[2.2]" />
+                        </span>
+                      )}
                       <span className="truncate">{item.label}</span>
                     </button>
                   );
@@ -750,20 +782,29 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
-                  {class6to12Items.map((item) => (
-                    <button
-                      key={item.urlPath}
-                      type="button"
-                      onClick={() => handleSubItemClick(item)}
-                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                        isSubItemActive(item)
-                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
-                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  {class6to12Items.map((item, idx) => {
+                    const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                    const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
+                    return (
+                      <button
+                        key={item.urlPath}
+                        type="button"
+                        onClick={() => handleSubItemClick(item)}
+                        className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors flex items-center gap-2 ${
+                          isSubItemActive(item)
+                            ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                            : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                        }`}
+                      >
+                        {CatIcon && theme && (
+                          <span className={`w-5 h-5 rounded-md ${theme.topGradient} text-white flex items-center justify-center shrink-0`}>
+                            <CatIcon className="w-3 h-3 stroke-[2.2]" />
+                          </span>
+                        )}
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </details>
             ) : (
@@ -792,20 +833,29 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
-                  {hsc27Items.map((item) => (
-                    <button
-                      key={item.urlPath}
-                      type="button"
-                      onClick={() => handleSubItemClick(item)}
-                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                        isSubItemActive(item)
-                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
-                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  {hsc27Items.map((item, idx) => {
+                    const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                    const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
+                    return (
+                      <button
+                        key={item.urlPath}
+                        type="button"
+                        onClick={() => handleSubItemClick(item)}
+                        className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors flex items-center gap-2 ${
+                          isSubItemActive(item)
+                            ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                            : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                        }`}
+                      >
+                        {CatIcon && theme && (
+                          <span className={`w-5 h-5 rounded-md ${theme.topGradient} text-white flex items-center justify-center shrink-0`}>
+                            <CatIcon className="w-3 h-3 stroke-[2.2]" />
+                          </span>
+                        )}
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </details>
             ) : (
@@ -834,20 +884,29 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
-                  {hsc28Items.map((item) => (
-                    <button
-                      key={item.urlPath}
-                      type="button"
-                      onClick={() => handleSubItemClick(item)}
-                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                        isSubItemActive(item)
-                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
-                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  {hsc28Items.map((item, idx) => {
+                    const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                    const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
+                    return (
+                      <button
+                        key={item.urlPath}
+                        type="button"
+                        onClick={() => handleSubItemClick(item)}
+                        className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors flex items-center gap-2 ${
+                          isSubItemActive(item)
+                            ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                            : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                        }`}
+                      >
+                        {CatIcon && theme && (
+                          <span className={`w-5 h-5 rounded-md ${theme.topGradient} text-white flex items-center justify-center shrink-0`}>
+                            <CatIcon className="w-3 h-3 stroke-[2.2]" />
+                          </span>
+                        )}
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </details>
             ) : (
@@ -876,20 +935,29 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
-                  {admissionItems.map((item) => (
-                    <button
-                      key={item.urlPath}
-                      type="button"
-                      onClick={() => handleSubItemClick(item)}
-                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                        isSubItemActive(item)
-                          ? 'text-[#eb1c24] bg-red-50/80 font-bold'
-                          : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  {admissionItems.map((item, idx) => {
+                    const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                    const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
+                    return (
+                      <button
+                        key={item.urlPath}
+                        type="button"
+                        onClick={() => handleSubItemClick(item)}
+                        className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors flex items-center gap-2 ${
+                          isSubItemActive(item)
+                            ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                            : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                        }`}
+                      >
+                        {CatIcon && theme && (
+                          <span className={`w-5 h-5 rounded-md ${theme.topGradient} text-white flex items-center justify-center shrink-0`}>
+                            <CatIcon className="w-3 h-3 stroke-[2.2]" />
+                          </span>
+                        )}
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </details>
             ) : (
