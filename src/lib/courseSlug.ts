@@ -82,22 +82,56 @@ export function buildReadableCourseShareUrl(origin: string, slug: string): strin
   return cleanOrigin ? `${cleanOrigin}${path}` : path;
 }
 
+const RESERVED_ROOT_CATEGORY_SLUGS = new Set([
+  'admin',
+  'api',
+  'courses',
+  'course',
+  'go',
+  'og',
+  'images',
+  'assets',
+  '_next',
+  'category',
+  'categories',
+  'academic',
+  'book-store',
+  'sitemap.xml',
+  'robots.txt',
+  'favicon.ico',
+  'login',
+  'logout',
+]);
+
+export function stripCategorySlugPrefix(raw: string): string {
+  return String(raw || '').replace(/^\s*\/?(?:categor(?:y|ies)\/)?/i, '');
+}
+
+export function isReservedCategorySlug(slug: string): boolean {
+  const normalized = decodeCourseSlug(slug)
+    .normalize('NFC')
+    .trim()
+    .toLowerCase();
+  if (!normalized) return false;
+  return RESERVED_ROOT_CATEGORY_SLUGS.has(normalized);
+}
+
 /**
  * Builds a clean, human-readable Unicode category path:
- * e.g. "/category/hsc-28-বিজ্ঞান-কোর্স"
+ * e.g. "/hsc-28-science" or "/hsc-28-বিজ্ঞান-কোর্স"
  */
 export function buildReadableCategoryPath(slug: string): string {
-  const decoded = decodeCourseSlug(slug)
+  const decoded = decodeCourseSlug(stripCategorySlugPrefix(slug))
     .normalize('NFC')
     .replace(/[\s]+/g, '-')
     .replace(/^\/+|\/+$/g, '');
-  if (!decoded) return '/category';
-  return `/category/${decoded}`;
+  if (!decoded) return '/';
+  return `/${decoded}`;
 }
 
 /**
  * Builds the full readable Unicode category URL for copying to clipboard:
- * e.g. "https://10msallcourses.com/category/hsc-28-বিজ্ঞান-কোর্স"
+ * e.g. "https://10msallcourses.com/hsc-28-science"
  */
 export function buildReadableCategoryUrl(origin: string, slug: string): string {
   const cleanOrigin = (origin || '').trim().replace(/\/+$/, '');

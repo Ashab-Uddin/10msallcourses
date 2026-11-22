@@ -34,6 +34,7 @@ import {
   categorySlugsMatch,
   getCourseCategorySlugs,
 } from '../../lib/categoryMatching.ts';
+import { buildReadableCategoryPath } from '../../lib/courseSlug.ts';
 
 interface CourseSharePageProps {
   slug: string;
@@ -230,7 +231,7 @@ export const CourseSharePage: React.FC<CourseSharePageProps> = ({
           <>
             <button
               type="button"
-              onClick={() => onNavigate(`/category/${matchedCategory.slug}`)}
+              onClick={() => onNavigate(buildReadableCategoryPath(matchedCategory.slug))}
               className="hover:text-[#E22B2B] transition-colors cursor-pointer"
             >
               {matchedCategory.name}
@@ -324,7 +325,7 @@ export const CourseSharePage: React.FC<CourseSharePageProps> = ({
             <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => onNavigate(`/category/${course.categorySlug}`)}
+                onClick={() => onNavigate(buildReadableCategoryPath(course.categorySlug))}
                 className="inline-flex items-center px-3 py-1 rounded-full bg-rose-50 border border-rose-200/80 text-[#b91c1c] hover:bg-rose-100 text-[11px] font-bold transition cursor-pointer"
               >
                 {categoryLabel}
@@ -497,7 +498,7 @@ export const CourseSharePage: React.FC<CourseSharePageProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => onNavigate(`/category/${course.categorySlug}`)}
+              onClick={() => onNavigate(buildReadableCategoryPath(course.categorySlug))}
               className="px-3.5 py-1.5 rounded-full glass-inset text-xs font-bold text-[#B91C1C] hover:bg-[#E22B2B] hover:text-white transition cursor-pointer shrink-0"
             >
               সব দেখুন

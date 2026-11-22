@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
 import type { Category, Course } from '../../types.ts';
 import { courseMatchesCategorySlug } from '../../lib/categoryMatching.ts';
+import { buildReadableCategoryPath } from '../../lib/courseSlug.ts';
 import {
   Phone,
   Mail,
@@ -376,7 +377,9 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                         <button
                           type="button"
                           onClick={(e) =>
-                            handleLinkClick(e, () => onNavigate(`/category/${cat.slug}`))
+                            handleLinkClick(e, () =>
+                              onNavigate(buildReadableCategoryPath(cat.slug))
+                            )
                           }
                           className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer text-left"
                         >

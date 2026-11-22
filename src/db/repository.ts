@@ -14,7 +14,12 @@ import { computeDiscountPercent, syncTargetStudentsMetadata } from '../lib/cours
 import { getCourseCategorySlugs } from '../lib/categoryMatching.ts';
 import { normalizeCategoryNavGroup } from '../lib/navbarCategories.ts';
 import { normalizeCategoryIconKey } from '../lib/categoryIcons.ts';
-import { decodeCourseSlug, generateUnicodeCourseSlug } from '../lib/courseSlug.ts';
+import {
+  decodeCourseSlug,
+  generateUnicodeCourseSlug,
+  isReservedCategorySlug,
+  stripCategorySlugPrefix,
+} from '../lib/courseSlug.ts';
 import { computeOfferTimerStatus } from '../lib/offerTimerUtils.ts';
 import {
   MAX_COURSE_FEATURES_PER_COURSE,
@@ -1602,10 +1607,17 @@ export async function createNewCategory(input: Record<string, unknown>) {
 
   const store = await loadStore(true);
   const name = String(input.name || '').trim();
-  const slug = normalizeSlug(String(input.slug || name));
+  const rawSlugInput = stripCategorySlugPrefix(String(input.slug || name));
+  const slug = normalizeSlug(rawSlugInput);
 
   if (!name || !slug) {
     throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ পূরণ করা আবশ্যক।', 400);
+  }
+  if (isReservedCategorySlug(slug)) {
+    throw new RepositoryError(
+      `"${slug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+      400
+    );
   }
 
   const dup = store.categories.some((c) => c.slug.toLowerCase() === slug.toLowerCase());
@@ -1684,10 +1696,18 @@ export async function updateExistingCategory(id: number, input: Record<string, u
   const nextName =
     input.name !== undefined ? String(input.name || '').trim() : existing.name;
   const nextSlug =
-    input.slug !== undefined ? normalizeSlug(String(input.slug || '')) : existing.slug;
+    input.slug !== undefined
+      ? normalizeSlug(stripCategorySlugPrefix(String(input.slug || '')))
+      : existing.slug;
 
   if (!nextName || !nextSlug) {
     throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ খালি রাখা যাবে না।', 400);
+  }
+  if (nextSlug !== existing.slug && isReservedCategorySlug(nextSlug)) {
+    throw new RepositoryError(
+      `"${nextSlug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+      400
+    );
   }
 
   const dup = store.categories.some(

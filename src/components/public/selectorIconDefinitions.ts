@@ -20,6 +20,7 @@ import {
   normalizeCategoryMatchText,
 } from '../../lib/categoryMatching.ts';
 import { resolveCategoryNavGroup } from '../../lib/navbarCategories.ts';
+import { buildReadableCategoryPath } from '../../lib/courseSlug.ts';
 import {
   normalizeSelectorIconLabels,
   normalizeSelectorIconOrder,
@@ -334,7 +335,7 @@ function resolveSelectorIconTarget(
       return {
         categoryId: matched.id,
         categorySlug: matched.slug,
-        path: `/category/${matched.slug}`,
+        path: buildReadableCategoryPath(matched.slug),
       };
     }
   }
@@ -371,7 +372,7 @@ function resolveSelectorIconTarget(
       return {
         categoryId: matched.id,
         categorySlug: matched.slug,
-        path: `/category/${matched.slug}`,
+        path: buildReadableCategoryPath(matched.slug),
       };
     }
   }
@@ -397,21 +398,21 @@ function resolveSelectorIconTarget(
       return {
         categoryId: exact.id,
         categorySlug: exact.slug,
-        path: `/category/${exact.slug}`,
+        path: buildReadableCategoryPath(exact.slug),
       };
     }
     if (hsc27Cats.length === 1) {
       return {
         categoryId: hsc27Cats[0].id,
         categorySlug: hsc27Cats[0].slug,
-        path: `/category/${hsc27Cats[0].slug}`,
+        path: buildReadableCategoryPath(hsc27Cats[0].slug),
       };
     }
     if (hsc27Cats.length > 1) {
       return {
         categoryId: hsc27Cats[0].id,
         categorySlug: 'hsc-27',
-        path: '/category/hsc-27',
+        path: '/hsc-27',
       };
     }
   }
@@ -437,21 +438,21 @@ function resolveSelectorIconTarget(
       return {
         categoryId: exact.id,
         categorySlug: exact.slug,
-        path: `/category/${exact.slug}`,
+        path: buildReadableCategoryPath(exact.slug),
       };
     }
     if (hsc28Cats.length === 1) {
       return {
         categoryId: hsc28Cats[0].id,
         categorySlug: hsc28Cats[0].slug,
-        path: `/category/${hsc28Cats[0].slug}`,
+        path: buildReadableCategoryPath(hsc28Cats[0].slug),
       };
     }
     if (hsc28Cats.length > 1) {
       return {
         categoryId: hsc28Cats[0].id,
         categorySlug: 'hsc-28',
-        path: '/category/hsc-28',
+        path: '/hsc-28',
       };
     }
   }
@@ -480,14 +481,14 @@ function resolveSelectorIconTarget(
       return {
         categoryId: admissionCat.id,
         categorySlug: admissionCat.slug,
-        path: `/category/${admissionCat.slug}`,
+        path: buildReadableCategoryPath(admissionCat.slug),
       };
     }
     if (explicitHsc26Cat) {
       return {
         categoryId: explicitHsc26Cat.id,
         categorySlug: explicitHsc26Cat.slug,
-        path: `/category/${explicitHsc26Cat.slug}`,
+        path: buildReadableCategoryPath(explicitHsc26Cat.slug),
       };
     }
   }

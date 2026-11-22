@@ -9,7 +9,7 @@ import {
 import { getCategoryLucideIcon, NavbarGroupIcon } from '../../lib/categoryIconComponents.ts';
 import { resolveCategoryCardTheme } from '../../lib/categoryIcons.ts';
 import { categorySlugsMatch } from '../../lib/categoryMatching.ts';
-import { decodeCourseSlug } from '../../lib/courseSlug.ts';
+import { buildReadableCategoryPath, decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
 import {
   Home,
@@ -121,7 +121,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     list.map((cat) => ({
       label: cat.name,
       categorySlug: cat.slug,
-      urlPath: `/category/${cat.slug}`,
+      urlPath: buildReadableCategoryPath(cat.slug),
       category: cat,
     }));
 
@@ -159,9 +159,18 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   const activeCategorySlugFromPath = useMemo(() => {
     const clean = currentPath.replace(/\/+$/, '') || '/';
     const match = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
-    if (!match) return null;
-    return decodeCourseSlug(match[1]) || match[1];
-  }, [currentPath]);
+    if (match) {
+      return decodeCourseSlug(match[1]) || match[1];
+    }
+    const parts = clean.split('/').filter(Boolean);
+    if (parts.length === 1) {
+      const candidate = decodeCourseSlug(parts[0]) || parts[0];
+      if (categories.some((cat) => categorySlugsMatch(cat.slug, candidate))) {
+        return candidate;
+      }
+    }
+    return null;
+  }, [currentPath, categories]);
 
   // Determine active navigation item based on current URL path and active category
   const getActiveKey = (): 'home' | 'school' | 'hsc27' | 'hsc28' | 'admission' | 'books' => {
@@ -201,6 +210,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
       clean.includes('/ssc/') ||
       clean.includes('/academic/class') ||
       clean.includes('/academic/ssc') ||
+      clean === '/school' ||
       clean === '/category/school'
     ) {
       return 'school';

@@ -45,10 +45,13 @@ import {
   getCourseCategorySlugs,
 } from '../../lib/categoryMatching.ts';
 import {
+  buildReadableCategoryPath,
   buildReadableCategoryUrl,
   buildReadableCourseShareUrl,
   generateUnicodeCourseSlug,
+  isReservedCategorySlug,
   sanitizeEditableUnicodeSlug,
+  stripCategorySlugPrefix,
 } from '../../lib/courseSlug.ts';
 import {
   navigateHistory,
@@ -923,10 +926,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
+    const normalizedSlug =
+      generateUnicodeCourseSlug(stripCategorySlugPrefix(catSlug)) ||
+      stripCategorySlugPrefix(catSlug).trim().toLowerCase().replace(/\s+/g, '-');
+    if (
+      normalizedSlug &&
+      normalizedSlug !== editingCategory?.slug &&
+      isReservedCategorySlug(normalizedSlug)
+    ) {
+      const reservedMsg = `"${normalizedSlug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`;
+      setCatFormError(reservedMsg);
+      showToast(reservedMsg, 'error');
+      return;
+    }
+
     setSavingCat(true);
     try {
-      const normalizedSlug =
-        generateUnicodeCourseSlug(catSlug) || catSlug.trim().toLowerCase().replace(/\s+/g, '-');
       const payload = {
         name: catName.trim(),
         slug: normalizedSlug,
@@ -2657,7 +2672,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </div>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
                               <span className="text-xs text-[#6B4C4F] font-mono break-all">
-                                /category/{cat.slug}
+                                {buildReadableCategoryPath(cat.slug)}
                               </span>
                               <button
                                 type="button"
@@ -3288,25 +3303,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <label className="block text-xs font-bold text-[#2A0F12] mb-1">
                 স্লাগ (URL Slug) <span className="text-red-500">*</span>
               </label>
-              <div className="flex items-center">
-                <span className="px-2.5 py-2 rounded-l-xl bg-rose-50/70 border border-r-0 border-slate-200 text-[#6B4C4F] text-xs font-mono">
-                  /category/
-                </span>
-                <input
-                  type="text"
-                  required
-                  value={catSlug}
-                  onChange={(e) => {
-                    setCatSlug(sanitizeEditableUnicodeSlug(e.target.value));
-                    setCatSlugManuallyEdited(true);
-                    if (catFormError) setCatFormError(null);
-                  }}
-                  placeholder="hsc"
-                  className="w-full px-3 py-2 rounded-r-xl border border-slate-200 text-xs font-mono text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
-                />
-              </div>
+              <input
+                type="text"
+                required
+                value={catSlug}
+                onChange={(e) => {
+                  const stripped = stripCategorySlugPrefix(e.target.value);
+                  setCatSlug(sanitizeEditableUnicodeSlug(stripped));
+                  setCatSlugManuallyEdited(true);
+                  if (catFormError) setCatFormError(null);
+                }}
+                placeholder="hsc-28-science"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
+              />
               <p className="mt-1 text-[11px] text-[#6B4C4F]">
-                ক্যাটাগরির নাম পরিবর্তন করলে URL স্লাগ স্বয়ংক্রিয়ভাবে আপডেট হবে।
+                ক্যাটাগরির নাম পরিবর্তন করলে URL স্লাগ স্বয়ংক্রিয়ভাবে আপডেট হবে। পাবলিক লিংক:{' '}
+                <span className="font-mono text-[#2A0F12] font-semibold">
+                  /{catSlug || 'hsc-28-science'}
+                </span>
               </p>
             </div>
 

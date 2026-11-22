@@ -27,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { path: '/free-course', changeFrequency: 'weekly', priority: 0.85 },
     { path: '/admission', changeFrequency: 'weekly', priority: 0.85 },
     { path: '/books', changeFrequency: 'weekly', priority: 0.8 },
-    { path: '/categories/language-learning', changeFrequency: 'weekly', priority: 0.85 },
+    { path: '/language-learning', changeFrequency: 'weekly', priority: 0.85 },
   ];
 
   const fallbackNow = new Date();
@@ -80,7 +80,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   });
 
   for (const cat of dynamicCategories) {
-    const catUrl = `${baseUrl}/category/${cat.slug}`;
+    const catUrl = `${baseUrl}/${cat.slug}`;
     if (!seenUrls.has(catUrl)) {
       seenUrls.add(catUrl);
       entries.push({

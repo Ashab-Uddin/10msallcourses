@@ -1,11 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isSameOriginMutation } from './src/lib/csrf';
-import { decodeCourseSlug } from './src/lib/courseSlug';
+import { decodeCourseSlug, isReservedCategorySlug } from './src/lib/courseSlug';
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+
+  // 301 Permanent Redirect from legacy /category/{slug} and /categories/{slug} to /{slug}
+  if (
+    pathname === '/category' ||
+    pathname === '/category/' ||
+    pathname.startsWith('/category/') ||
+    pathname === '/categories' ||
+    pathname === '/categories/' ||
+    pathname.startsWith('/categories/')
+  ) {
+    const rawRest = pathname.replace(/^\/categor(?:y|ies)\/?/i, '');
+    const rawSegment = rawRest.split('/')[0] || '';
+    const decoded = decodeCourseSlug(rawSegment)
+      .normalize('NFC')
+      .replace(/[\s]+/g, '-')
+      .replace(/^\/+|\/+$/g, '');
+
+    if (decoded && !isReservedCategorySlug(decoded)) {
+      const canonicalPath = `/${encodeURIComponent(decoded)}${search || ''}`;
+      return NextResponse.redirect(new URL(canonicalPath, req.url), 301);
+    }
+    return NextResponse.redirect(new URL(`/${search || ''}`, req.url), 301);
+  }
 
   // 301 Redirect malformed/double-encoded or trailing-slash legacy course URLs to clean canonical path
   if (pathname.startsWith('/courses/')) {
@@ -48,5 +71,13 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/admin/:path*', '/courses/:path*'],
+  matcher: [
+    '/admin/:path*',
+    '/api/admin/:path*',
+    '/courses/:path*',
+    '/category',
+    '/category/:path*',
+    '/categories',
+    '/categories/:path*',
+  ],
 };

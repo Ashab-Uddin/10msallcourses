@@ -10,7 +10,11 @@ import {
   normalizeCategorySlugKey,
   type JuniorClassNumber,
 } from '@/src/lib/categoryMatching';
-import { decodeCourseSlug, generateUnicodeCourseSlug } from '@/src/lib/courseSlug';
+import {
+  decodeCourseSlug,
+  generateUnicodeCourseSlug,
+  isReservedCategorySlug,
+} from '@/src/lib/courseSlug';
 import { resolveCategoryNavGroup } from '@/src/lib/navbarCategories';
 
 export const DEFAULT_PUBLIC_SITE_URL = 'https://10msallcourse.com';
@@ -379,12 +383,16 @@ function resolveRouteSeo(
     });
   }
 
-  if (clean === '/categories/language-learning' || clean === '/category/language-learning') {
+  if (
+    clean === '/language-learning' ||
+    clean === '/categories/language-learning' ||
+    clean === '/category/language-learning'
+  ) {
     return withCourseOgFallback({
       title: 'ভাষা শিক্ষা কোর্স (Spoken English ও IELTS) — ১০ মিনিট স্কুল',
       description:
         'ঘরে বসে Spoken English, IELTS Complete, English Grammar ও বিদেশি ভাষা শেখার জনপ্রিয় অনলাইন কোর্সে সরাসরি ছাড়ে ভর্তি হোন।',
-      canonicalPath: '/categories/language-learning',
+      canonicalPath: '/language-learning',
       filterCourses: (all) =>
         all.filter(
           (c) =>
@@ -460,11 +468,11 @@ function resolveRouteSeo(
     };
   }
 
-  if (clean.startsWith('/category/') || clean.startsWith('/categories/')) {
-    const rawSlug = clean.split('/').filter(Boolean)[1] || '';
+  const resolveDynamicCategorySeo = (rawSlug: string): ResolvedRouteSeo => {
     const normalizedSlug = normalizeCategorySlugKey(rawSlug);
     const cat = categories.find((c) => categorySlugsMatch(c.slug, normalizedSlug));
     const resolvedSlug = cat?.slug || normalizedSlug;
+    const encodedCanonical = `/${encodeURIComponent(resolvedSlug)}`;
 
     if (!cat && (resolvedSlug === 'hsc-28' || resolvedSlug === 'hsc-27')) {
       const groupKey = resolvedSlug === 'hsc-28' ? 'hsc28' : 'hsc27';
@@ -472,11 +480,14 @@ function resolveRouteSeo(
         (c) => (c.status || 'active') === 'active' && resolveCategoryNavGroup(c) === groupKey
       );
       if (groupCats.length > 0) {
-        const groupLabel = resolvedSlug === 'hsc-28' ? 'HSC 28 অনলাইন ব্যাচ ও বিভাগসমূহ' : 'HSC 27 অনলাইন ব্যাচ';
+        const groupLabel =
+          resolvedSlug === 'hsc-28'
+            ? 'HSC 28 অনলাইন ব্যাচ ও বিভাগসমূহ'
+            : 'HSC 27 অনলাইন ব্যাচ';
         return withCourseOgFallback({
           title: `${groupLabel} — ১০ মিনিট স্কুল`,
           description: `${groupCats.map((c) => c.name).join(', ')} — সকল বিভাগের অনলাইন ব্যাচ ও কোর্সসমূহ বিশেষ ছাড়ে দেখুন।`,
-          canonicalPath: `/category/${resolvedSlug}`,
+          canonicalPath: encodedCanonical,
           filterCourses: (all) =>
             all.filter(
               (c) =>
@@ -493,12 +504,17 @@ function resolveRouteSeo(
       description:
         cat?.subtitle ||
         `টেন মিনিট স্কুলের ${cat?.name || resolvedSlug} ক্যাটাগরির সকল অনলাইন কোর্স ও ব্যাচ ডিসকাউন্টেড মূল্যে দেখুন।`,
-      canonicalPath: `/category/${resolvedSlug}`,
+      canonicalPath: encodedCanonical,
       filterCourses: (all) =>
         all.filter(
           (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, resolvedSlug)
         ),
     });
+  };
+
+  if (clean.startsWith('/category/') || clean.startsWith('/categories/')) {
+    const rawSlug = clean.split('/').filter(Boolean)[1] || '';
+    return resolveDynamicCategorySeo(rawSlug);
   }
 
   if (clean.startsWith('/courses/')) {
@@ -551,6 +567,24 @@ function resolveRouteSeo(
       noIndex: true,
       siteName: COURSE_BRAND_NAME,
     };
+  }
+
+  const cleanSegments = clean.split('/').filter(Boolean);
+  if (cleanSegments.length === 1) {
+    const rawSlug = cleanSegments[0] || '';
+    const decodedSlug = decodeCourseSlug(rawSlug).normalize('NFC');
+    if (decodedSlug && !isReservedCategorySlug(decodedSlug)) {
+      const normalizedSlug = normalizeCategorySlugKey(decodedSlug);
+      const matchedCat = categories.find((c) => categorySlugsMatch(c.slug, normalizedSlug));
+      if (
+        matchedCat ||
+        normalizedSlug === 'hsc-28' ||
+        normalizedSlug === 'hsc-27' ||
+        normalizedSlug === 'school'
+      ) {
+        return resolveDynamicCategorySeo(matchedCat?.slug || decodedSlug);
+      }
+    }
   }
 
   const homeTitle = settings?.siteTitle?.trim()

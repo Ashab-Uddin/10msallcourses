@@ -53,9 +53,11 @@ import {
   type CategoryCourseOrdersMap,
 } from './lib/courseSorting.ts';
 import {
+  buildReadableCategoryPath,
   buildReadableCoursePath,
   decodeCourseSlug,
   generateUnicodeCourseSlug,
+  isReservedCategorySlug,
 } from './lib/courseSlug.ts';
 import {
   inferCategoryNavGroup,
@@ -103,7 +105,23 @@ type RouteState =
   | { view: 'admin_login' }
   | { view: 'admin_dashboard' };
 
-function parseCurrentRoute(pathname: string, hash?: string): RouteState {
+const VIRTUAL_ROOT_CATEGORY_SLUGS = new Set([
+  'language-learning',
+  'skills',
+  'admission',
+  'free-course',
+  'free',
+  'free-courses',
+  'hsc-28',
+  'hsc-27',
+  'school',
+]);
+
+function parseCurrentRoute(
+  pathname: string,
+  hash?: string,
+  categories: Category[] = []
+): RouteState {
   if (pathname.startsWith('/admin')) {
     if (pathname === '/admin/login' || pathname === '/admin/login/') {
       return { view: 'admin_login' };
@@ -115,8 +133,12 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
   const clean = pathname.replace(/\/+$/, '') || '/';
   const cleanHash = (hash || '').replace('#', '');
 
-  // 1. Language Learning: /categories/language-learning/ or /category/language-learning/
-  if (clean === '/categories/language-learning' || clean === '/category/language-learning') {
+  // 1. Language Learning: /language-learning (plus legacy /categories/language-learning or /category/language-learning)
+  if (
+    clean === '/language-learning' ||
+    clean === '/categories/language-learning' ||
+    clean === '/category/language-learning'
+  ) {
     return { view: 'category', slug: 'language-learning' };
   }
 
@@ -220,6 +242,29 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
     return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-28' };
   }
 
+  // Root-level dynamic category route: /:slug (e.g. /hsc-28-science)
+  const segments = clean.split('/').filter(Boolean);
+  if (segments.length === 1) {
+    const rawSlug = segments[0] || '';
+    const decodedSlug = decodeCourseSlug(rawSlug).normalize('NFC');
+    if (
+      decodedSlug &&
+      !isReservedCategorySlug(decodedSlug) &&
+      !/\.[a-z0-9]{1,8}$/i.test(decodedSlug)
+    ) {
+      const matchedCat = categories.find((c) => categorySlugsMatch(c.slug, decodedSlug));
+      if (matchedCat) {
+        return { view: 'category', slug: matchedCat.slug };
+      }
+      if (
+        VIRTUAL_ROOT_CATEGORY_SLUGS.has(decodedSlug.toLowerCase()) ||
+        categories.length === 0
+      ) {
+        return { view: 'category', slug: decodedSlug };
+      }
+    }
+  }
+
   return { view: 'home' };
 }
 
@@ -272,9 +317,12 @@ export default function App({
   const currentPath = navLocation.pathname;
   const currentHash = navLocation.hash;
 
+  // Public categories initialized up front so root-level /{slug} routing resolves immediately
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+
   const route = useMemo(
-    () => parseCurrentRoute(currentPath, currentHash),
-    [currentPath, currentHash]
+    () => parseCurrentRoute(currentPath, currentHash, categories),
+    [currentPath, currentHash, categories]
   );
 
   // Server-verified HttpOnly cookie admin session (zero client-side secret token storage)
@@ -371,7 +419,6 @@ export default function App({
   }, [navigate]);
 
   // Public portal data initialized from Server Component props (zero initial client waterfall)
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [bookCategories, setBookCategories] = useState<BookCategory[]>(initialBookCategories);
   const [books, setBooks] = useState<Book[]>(initialBooks);
@@ -795,9 +842,12 @@ export default function App({
     ) {
       return 'books';
     }
-    const catMatch = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
-    if (catMatch) {
-      const decodedSlug = decodeCourseSlug(catMatch[1]) || catMatch[1];
+    const legacyCatMatch = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
+    const singleSegMatch =
+      !legacyCatMatch && clean !== '/' ? clean.match(/^\/([^/]+)$/) : null;
+    const rawCatSeg = legacyCatMatch ? legacyCatMatch[1] : singleSegMatch ? singleSegMatch[1] : null;
+    if (rawCatSeg) {
+      const decodedSlug = decodeCourseSlug(rawCatSeg) || rawCatSeg;
       const matchedCat = orderedCategories.find((c) =>
         categorySlugsMatch(c.slug, decodedSlug)
       );
@@ -821,6 +871,7 @@ export default function App({
       clean.includes('/ssc/') ||
       clean.includes('/academic/class') ||
       clean.includes('/academic/ssc') ||
+      clean === '/school' ||
       clean === '/category/school'
     ) {
       return 'school';
@@ -856,11 +907,11 @@ export default function App({
     } else if (tab === 'school') {
       navigate('/ssc/ssc-27');
     } else if (tab === 'admission') {
-      navigate('/category/admission');
+      navigate('/admission');
     } else if (tab === 'books') {
       navigate('/books');
     } else if (tab === 'skills') {
-      navigate('/category/skills');
+      navigate('/skills');
     }
   };
 
@@ -966,7 +1017,7 @@ export default function App({
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
           onNavigateHome={handleNavigateHome}
           onEnrollClick={handleEnrollClick}
-          onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
+          onOpenCategoryPage={(slug) => navigate(buildReadableCategoryPath(slug))}
           onNavigate={navigate}
           currentPath={currentPath}
           currentHash={currentHash}
@@ -1038,7 +1089,7 @@ export default function App({
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
           onNavigateHome={handleNavigateHome}
           onEnrollClick={handleEnrollClick}
-          onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
+          onOpenCategoryPage={(slug) => navigate(buildReadableCategoryPath(slug))}
           onNavigate={navigate}
           currentPath={currentPath}
           currentHash={currentHash}
@@ -1110,7 +1161,7 @@ export default function App({
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
           onNavigateHome={handleNavigateHome}
           onEnrollClick={handleEnrollClick}
-          onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
+          onOpenCategoryPage={(slug) => navigate(buildReadableCategoryPath(slug))}
           onNavigate={navigate}
           currentPath={currentPath}
           currentHash={currentHash}
@@ -1124,7 +1175,7 @@ export default function App({
             categoryCourseOrders={categoryCourseOrders}
             onBack={() => navigate('/')}
             onEnrollClick={handleEnrollClick}
-            onSelectCategory={(slug) => navigate(`/category/${slug}`)}
+            onSelectCategory={(slug) => navigate(buildReadableCategoryPath(slug))}
             onNavigate={navigate}
           />
         </main>
@@ -1182,7 +1233,7 @@ export default function App({
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
           onNavigateHome={handleNavigateHome}
           onEnrollClick={handleEnrollClick}
-          onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
+          onOpenCategoryPage={(slug) => navigate(buildReadableCategoryPath(slug))}
           onNavigate={navigate}
           currentPath={currentPath}
           currentHash={currentHash}
@@ -1308,7 +1359,7 @@ export default function App({
         onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
         onNavigateHome={handleNavigateHome}
         onEnrollClick={handleEnrollClick}
-        onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
+        onOpenCategoryPage={(slug) => navigate(buildReadableCategoryPath(slug))}
         onNavigate={navigate}
         currentPath={currentPath}
         currentHash={currentHash}
@@ -1403,7 +1454,7 @@ export default function App({
                       <button
                         key={cat.slug}
                         type="button"
-                        onClick={() => navigate(`/category/${cat.slug}`)}
+                        onClick={() => navigate(buildReadableCategoryPath(cat.slug))}
                         className="px-2.5 py-1 sm:px-3 sm:py-1.5 lg:px-3.5 lg:py-2 rounded-full text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold transition cursor-pointer whitespace-nowrap shrink-0 border border-rose-200/90 bg-white/90 text-[#2A0F12] hover:border-[#b91c1c] hover:bg-white hover:text-[#B91C1C] shadow-2xs"
                       >
                         {cat.name}
@@ -1553,7 +1604,7 @@ export default function App({
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => navigate(`/category/${cat.slug}`)}
+                            onClick={() => navigate(buildReadableCategoryPath(cat.slug))}
                             className="group/va glass-inset hover:bg-gradient-to-r hover:from-[#ff5252] hover:to-[#b91c1c] hover:border-[#dc2626] text-[#B91C1C] hover:text-white font-bold text-[11px] sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-full transition-all duration-200 cursor-pointer flex items-center gap-1 sm:gap-1.5 shadow-xs hover:shadow-md active:scale-95"
                             title={`${cat.name} এর সকল কোর্স দেখুন`}
                           >

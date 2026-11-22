@@ -20,7 +20,7 @@ import {
 import { resolveCategoryCardTheme } from '../../lib/categoryIcons.ts';
 import { getCategoryLucideIcon, getNavbarGroupLucideIcon } from '../../lib/categoryIconComponents.ts';
 import { categorySlugsMatch, courseMatchesCategorySlug } from '../../lib/categoryMatching.ts';
-import { decodeCourseSlug } from '../../lib/courseSlug.ts';
+import { buildReadableCategoryPath, decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 
@@ -73,13 +73,13 @@ const SHEET_HEADER_META: Record<
   admission: {
     title: 'ভর্তি পরীক্ষা ক্যাটাগরি',
     subtitle: 'বিশ্ববিদ্যালয় ও মেডিকেল প্রস্তুতি',
-    overviewPath: '/category/admission',
+    overviewPath: '/admission',
     overviewLabel: 'সব ভর্তি কোর্স',
   },
   skills: {
     title: 'স্কিলস ও বিশেষ কোর্স',
     subtitle: 'ক্যারিয়ার ও আইটি দক্ষতা উন্নয়ন',
-    overviewPath: '/category/skills',
+    overviewPath: '/skills',
     overviewLabel: 'সব স্কিলস',
   },
 };
@@ -146,9 +146,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const activeCategorySlugFromPath = useMemo(() => {
     const clean = currentPath.replace(/\/+$/, '') || '/';
     const match = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
-    if (!match) return null;
-    return decodeCourseSlug(match[1]) || match[1];
-  }, [currentPath]);
+    if (match) {
+      return decodeCourseSlug(match[1]) || match[1];
+    }
+    const parts = clean.split('/').filter(Boolean);
+    if (parts.length === 1) {
+      const candidate = decodeCourseSlug(parts[0]) || parts[0];
+      if (categories.some((cat) => categorySlugsMatch(cat.slug, candidate))) {
+        return candidate;
+      }
+    }
+    return null;
+  }, [currentPath, categories]);
 
   // Close sheet on Escape key
   useEffect(() => {
@@ -239,7 +248,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       }
       setOpenGroup(null);
       if (skillsCategories.length === 1 && onNavigate) {
-        onNavigate(`/category/${skillsCategories[0].slug}`);
+        onNavigate(buildReadableCategoryPath(skillsCategories[0].slug));
         return;
       }
       onTabChange('skills');
@@ -259,7 +268,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const handleCategoryCardSelect = (cat: Category) => {
     setOpenGroup(null);
     if (onNavigate) {
-      onNavigate(`/category/${cat.slug}`);
+      onNavigate(buildReadableCategoryPath(cat.slug));
     } else {
       onTabChange(openGroup && openGroup !== 'skills' ? openGroup : activeTab);
     }

@@ -20,6 +20,10 @@ import { INITIAL_SETTINGS } from './seedData.ts';
 import { getSupabaseAdminClient } from '../lib/supabase/admin.ts';
 import { CACHE_TAG_PUBLIC_PORTAL } from '../lib/cacheInvalidation.ts';
 import {
+  isReservedCategorySlug,
+  stripCategorySlugPrefix,
+} from '../lib/courseSlug.ts';
+import {
   DEFAULT_SELECTOR_ICON_IDS,
   cloneDefaultSelectorIconLabels,
   normalizeSelectorIconLabels,
@@ -3884,10 +3888,16 @@ export async function sbImportCourseFeaturesFromCourse(
 export async function sbCreateNewCategory(input: Record<string, unknown>): Promise<Category> {
   const supabase = getSupabaseAdminClient();
   const name = String(input.name || '').trim();
-  const slug = normalizeSlug(String(input.slug || name));
+  const slug = normalizeSlug(stripCategorySlugPrefix(String(input.slug || name)));
 
   if (!name || !slug) {
     throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ পূরণ করা আবশ্যক।', 400);
+  }
+  if (isReservedCategorySlug(slug)) {
+    throw new RepositoryError(
+      `"${slug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+      400
+    );
   }
 
   let displayOrder: number;
@@ -4012,10 +4022,18 @@ export async function sbUpdateExistingCategory(
   const nextName =
     input.name !== undefined ? String(input.name || '').trim() : existing.name;
   const nextSlug =
-    input.slug !== undefined ? normalizeSlug(String(input.slug || '')) : existing.slug;
+    input.slug !== undefined
+      ? normalizeSlug(stripCategorySlugPrefix(String(input.slug || '')))
+      : existing.slug;
 
   if (!nextName || !nextSlug) {
     throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ খালি রাখা যাবে না।', 400);
+  }
+  if (nextSlug !== existing.slug && isReservedCategorySlug(nextSlug)) {
+    throw new RepositoryError(
+      `"${nextSlug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+      400
+    );
   }
 
   let nextDisplayOrder = existing.displayOrder;

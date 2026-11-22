@@ -179,7 +179,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     );
   }
 
-  if (categorySlugsMatch(currentCategory.slug, 'hsc-28-বিজ্ঞান-কোর্স')) {
+  if (
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-বিজ্ঞান-কোর্স') ||
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-science') ||
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-science-course')
+  ) {
     return (
       <Hsc28ScienceCategoryPage
         category={currentCategory}
@@ -191,7 +195,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     );
   }
 
-  if (categorySlugsMatch(currentCategory.slug, 'hsc-28-মানবিক-কোর্স')) {
+  if (
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-মানবিক-কোর্স') ||
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-humanities') ||
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-arts')
+  ) {
     return (
       <Hsc28HumanitiesCategoryPage
         category={currentCategory}
@@ -203,7 +211,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     );
   }
 
-  if (categorySlugsMatch(currentCategory.slug, 'hsc-28-ব্যবসায়-শিক্ষা')) {
+  if (
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-ব্যবসায়-শিক্ষা') ||
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-business') ||
+    categorySlugsMatch(currentCategory.slug, 'hsc-28-commerce')
+  ) {
     return (
       <Hsc28BusinessCategoryPage
         category={currentCategory}
