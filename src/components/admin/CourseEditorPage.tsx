@@ -1621,7 +1621,7 @@ export const CourseEditorPage: React.FC<CourseEditorPageProps> = ({
                       {toBengaliNumber(computedDiscountPercent)}%)
                     </span>
                     <span className="text-[11px] text-emerald-700 font-semibold">
-                      কার্ডের উপরের বাম কোণে “{toBengaliNumber(computedDiscountPercent)}% ছাড়” ব্যাজ দেখাবে
+                      কার্ডের উপরের ডান কোণে “{toBengaliNumber(computedDiscountPercent)}% ছাড়” ব্যাজ দেখাবে
                     </span>
                   </>
                 ) : (
