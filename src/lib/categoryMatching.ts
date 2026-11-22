@@ -372,7 +372,21 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
   }
 
   if (normalizedTarget === 'ssc-2027') {
-    if (!assignedSlugs.includes('school')) return false;
+    const inSsc27Scope =
+      assignedSlugs.includes('school') ||
+      assignedSlugs.some((s) =>
+        matchesAnyNormalizedKeyword(s, [
+          'ssc-27',
+          'ssc27',
+          'ssc-2027',
+          'ssc2027',
+          '১০ম',
+          'দশম',
+          'class-10',
+          'class10',
+        ])
+      );
+    if (!inSsc27Scope) return false;
     if (resolvedBatch !== null) {
       return resolvedBatch === 'ssc-2027';
     }
@@ -394,7 +408,21 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
   }
 
   if (normalizedTarget === 'ssc-2028') {
-    if (!assignedSlugs.includes('school')) return false;
+    const inSsc28Scope =
+      assignedSlugs.includes('school') ||
+      assignedSlugs.some((s) =>
+        matchesAnyNormalizedKeyword(s, [
+          'ssc-28',
+          'ssc28',
+          'ssc-2028',
+          'ssc2028',
+          '৯ম',
+          'নবম',
+          'class-9',
+          'class9',
+        ])
+      );
+    if (!inSsc28Scope) return false;
     if (resolvedBatch !== null) {
       return resolvedBatch === 'ssc-2028';
     }

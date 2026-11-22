@@ -30,8 +30,8 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
   }, [categories]);
 
   const orderedIcons = useMemo(
-    () => getOrderedSelectorIcons(selectorIconOrder, selectorIconLabels),
-    [selectorIconOrder, selectorIconLabels]
+    () => getOrderedSelectorIcons(selectorIconOrder, selectorIconLabels, categories),
+    [selectorIconOrder, selectorIconLabels, categories]
   );
 
   return (
@@ -53,14 +53,16 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
       <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 p-2.5 sm:p-5 rounded-3xl glass-surface">
         {orderedIcons.map((item) => {
           const IconComponent = item.Icon;
-          const linkedCategory = item.categorySlug
-            ? categoryBySlug.get(item.categorySlug)
-            : undefined;
+          const linkedCategory =
+            (item.categoryId
+              ? categories.find((c) => c.id === item.categoryId)
+              : undefined) ||
+            (item.categorySlug ? categoryBySlug.get(item.categorySlug) : undefined);
           return (
             <button
               key={item.id}
               type="button"
-              data-category-id={linkedCategory?.id ?? undefined}
+              data-category-id={linkedCategory?.id ?? item.categoryId ?? undefined}
               data-category-slug={item.categorySlug}
               onClick={() => onNavigate(item.path)}
               className="group min-w-0 w-full flex flex-col items-center cursor-pointer text-left focus:outline-none"

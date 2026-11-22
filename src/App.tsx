@@ -640,7 +640,11 @@ export default function App({
         ? `${cat.name} — ১০ মিনিট স্কুল`
         : route.slug === 'free-course'
           ? 'ফ্রি কোর্স — ১০ মিনিট স্কুল'
-          : 'কোর্স ক্যাটালগ — ১০ মিনিট স্কুল';
+          : route.slug === 'hsc-28'
+            ? 'HSC 28 অনলাইন ব্যাচ ও বিভাগসমূহ — ১০ মিনিট স্কুল'
+            : route.slug === 'hsc-27'
+              ? 'HSC 27 অনলাইন ব্যাচ — ১০ মিনিট স্কুল'
+              : 'কোর্স ক্যাটালগ — ১০ মিনিট স্কুল';
     } else if (route.view === 'home') {
       document.title =
         settings?.siteTitle || '১০ মিনিট স্কুল কোর্স — ৩D ক্লাস সিলেক্টর ও মডার্ন কোর্স পোর্টাল';

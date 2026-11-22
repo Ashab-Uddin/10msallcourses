@@ -20,6 +20,8 @@ import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { Hsc28ScienceCategoryPage } from './categories/Hsc28ScienceCategoryPage.tsx';
 import { Hsc28HumanitiesCategoryPage } from './categories/Hsc28HumanitiesCategoryPage.tsx';
 import { Hsc28BusinessCategoryPage } from './categories/Hsc28BusinessCategoryPage.tsx';
+import { Hsc28OverviewCategoryPage } from './categories/Hsc28OverviewCategoryPage.tsx';
+import { resolveCategoryNavGroup } from '../../lib/navbarCategories.ts';
 import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
 import { Search, Sparkles } from 'lucide-react';
 
@@ -41,6 +43,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   categoryCourseOrders,
   onBack,
   onEnrollClick,
+  onSelectCategory,
 }) => {
   const decodedCategorySlug = normalizeCategorySlugKey(categorySlug);
   const normalizedSlug = decodedCategorySlug === 'free' ? 'free-course' : decodedCategorySlug;
@@ -210,6 +213,34 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
         onEnrollClick={onEnrollClick}
       />
     );
+  }
+
+  const hasExactDbCategory = categories.some((c) =>
+    categorySlugsMatch(c.slug, normalizedSlug)
+  );
+  if (
+    !hasExactDbCategory &&
+    (normalizedSlug === 'hsc-28' || normalizedSlug === 'hsc-27')
+  ) {
+    const overviewGroupKey = normalizedSlug === 'hsc-28' ? 'hsc28' : 'hsc27';
+    const hasOverviewSubcategories = categories.some(
+      (c) =>
+        (c.status || 'active') === 'active' &&
+        resolveCategoryNavGroup(c) === overviewGroupKey
+    );
+    if (hasOverviewSubcategories) {
+      return (
+        <Hsc28OverviewCategoryPage
+          groupKey={overviewGroupKey}
+          categories={categories}
+          courses={courses}
+          categoryCourseOrders={categoryCourseOrders}
+          onBack={onBack}
+          onEnrollClick={onEnrollClick}
+          onSelectCategory={onSelectCategory}
+        />
+      );
+    }
   }
 
   const filteredCourses = categoryCourses.filter((c) => {

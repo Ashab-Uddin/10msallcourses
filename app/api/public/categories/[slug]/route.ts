@@ -9,6 +9,7 @@ import {
   resolveCourseDepartments,
 } from '@/src/lib/categoryMatching';
 import { normalizeTargetGroups } from '@/src/lib/courseValidation';
+import { resolveCategoryNavGroup } from '@/src/lib/navbarCategories';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,9 +55,31 @@ export async function GET(
     const targetGroupsFilter =
       groupFilter && groupFilter !== 'all' ? normalizeTargetGroups(groupFilter) : [];
 
-    let matchedCourses = data.courses.filter((course) =>
-      courseMatchesCategorySlug(course, effectiveSlug)
-    );
+    const aggregateGroupKey =
+      !matchedCategory && (effectiveSlug === 'hsc-28' || effectiveSlug === 'hsc-27')
+        ? effectiveSlug === 'hsc-28'
+          ? 'hsc28'
+          : 'hsc27'
+        : null;
+    const aggregateSubcategories = aggregateGroupKey
+      ? data.categories.filter(
+          (cat) =>
+            (cat.status || 'active') === 'active' &&
+            resolveCategoryNavGroup(cat) === aggregateGroupKey
+        )
+      : [];
+
+    let matchedCourses =
+      aggregateSubcategories.length > 0
+        ? data.courses.filter(
+            (course) =>
+              aggregateSubcategories.some((subCat) =>
+                courseMatchesCategorySlug(course, subCat.slug)
+              ) || courseMatchesAcademicBatch(course, effectiveSlug)
+          )
+        : data.courses.filter((course) =>
+            courseMatchesCategorySlug(course, effectiveSlug)
+          );
 
     if (batchFilter && batchFilter !== 'all') {
       matchedCourses = matchedCourses.filter((course) =>
@@ -72,6 +95,7 @@ export async function GET(
 
     if (
       !matchedCategory &&
+      aggregateSubcategories.length === 0 &&
       !['class-5', 'class-6', 'class-7', 'class-8', 'free-course', 'skills', 'language-learning'].includes(
         effectiveSlug
       )
@@ -85,15 +109,30 @@ export async function GET(
     return NextResponse.json(
       {
         type: 'courses',
-        category: matchedCategory || {
-          id: 0,
-          name: effectiveSlug,
-          slug: effectiveSlug,
-          subtitle: null,
-          badgeColor: 'red',
-          displayOrder: 99,
-          status: 'active',
-        },
+        category: matchedCategory ||
+          (aggregateSubcategories.length > 0
+            ? {
+                id: aggregateSubcategories[0].id,
+                name:
+                  effectiveSlug === 'hsc-28'
+                    ? 'HSC 28 অনলাইন ব্যাচ'
+                    : 'HSC 27 অনলাইন ব্যাচ',
+                slug: effectiveSlug,
+                subtitle: aggregateSubcategories.map((c) => c.name).join(' • '),
+                badgeColor: '#0284c7',
+                displayOrder: aggregateSubcategories[0].displayOrder,
+                status: 'active',
+              }
+            : {
+                id: 0,
+                name: effectiveSlug,
+                slug: effectiveSlug,
+                subtitle: null,
+                badgeColor: 'red',
+                displayOrder: 99,
+                status: 'active',
+              }),
+        subcategories: aggregateSubcategories,
         courses: matchedCourses,
         totalItems: matchedCourses.length,
         serverNow: data.serverNow,

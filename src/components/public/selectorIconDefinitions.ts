@@ -13,6 +13,12 @@ import {
   Laptop,
   Gift,
 } from 'lucide-react';
+import type { Category } from '../../types.ts';
+import {
+  categorySlugsMatch,
+  normalizeCategoryMatchText,
+} from '../../lib/categoryMatching.ts';
+import { resolveCategoryNavGroup } from '../../lib/navbarCategories.ts';
 import {
   normalizeSelectorIconLabels,
   normalizeSelectorIconOrder,
@@ -22,6 +28,7 @@ import {
 
 export interface SelectorIconDefinition {
   id: SelectorIconId;
+  categoryId?: number;
   categorySlug?: string;
   tag: string;
   title: string;
@@ -248,21 +255,284 @@ export const SELECTOR_ICON_MAP = new Map<SelectorIconId, SelectorIconDefinition>
   SELECTOR_ICON_DEFINITIONS.map((item) => [item.id, item])
 );
 
+function categoryMatchesAnyToken(
+  cat: Pick<Category, 'name' | 'slug'>,
+  tokens: readonly string[],
+  excludeTokens: readonly string[] = []
+): boolean {
+  const text = normalizeCategoryMatchText(`${cat.name || ''} ${cat.slug || ''}`);
+  if (excludeTokens.some((tok) => text.includes(normalizeCategoryMatchText(tok)))) {
+    return false;
+  }
+  return tokens.some((tok) => text.includes(normalizeCategoryMatchText(tok)));
+}
+
+function resolveSelectorIconTarget(
+  def: SelectorIconDefinition,
+  effectiveTitle: string,
+  effectiveSubLabel: string,
+  activeCategories: ReadonlyArray<Category>
+): Pick<SelectorIconDefinition, 'categoryId' | 'categorySlug' | 'path'> {
+  if (activeCategories.length === 0) {
+    return {
+      categoryId: def.categoryId,
+      categorySlug: def.categorySlug,
+      path: def.path,
+    };
+  }
+
+  // Keep already-working icons' navigation paths untouched; only attach matching DB categoryId if present.
+  if (
+    def.id === 'class-5' ||
+    def.id === 'class-6' ||
+    def.id === 'class-7' ||
+    def.id === 'class-8' ||
+    def.id === 'book-store' ||
+    def.id === 'skills' ||
+    def.id === 'free-course'
+  ) {
+    const matched = def.categorySlug
+      ? activeCategories.find((c) => categorySlugsMatch(c.slug, def.categorySlug))
+      : undefined;
+    return {
+      categoryId: matched?.id,
+      categorySlug: def.categorySlug,
+      path: def.path,
+    };
+  }
+
+  // 1. ৯ম শ্রেণি (CLASS 9 / SSC 28)
+  if (def.id === 'ssc-28') {
+    const matched =
+      activeCategories.find(
+        (c) => categorySlugsMatch(c.slug, 'ssc-28') || categorySlugsMatch(c.slug, 'class-9')
+      ) ||
+      activeCategories.find((c) =>
+        categoryMatchesAnyToken(
+          c,
+          [
+            'ssc-28',
+            'ssc 28',
+            'ssc28',
+            'ssc-2028',
+            'ssc 2028',
+            'ssc2028',
+            'ssc ২৮',
+            'ssc ২০২৮',
+            'এসএসসি ২৮',
+            '৯ম',
+            'নবম',
+            'class-9',
+            'class 9',
+            'class9',
+          ],
+          ['hsc', 'এইচএসসি']
+        )
+      );
+    if (matched) {
+      return {
+        categoryId: matched.id,
+        categorySlug: matched.slug,
+        path: `/category/${matched.slug}`,
+      };
+    }
+  }
+
+  // 2. দশম শ্রেণি (SSC 27)
+  if (def.id === 'ssc-27') {
+    const matched =
+      activeCategories.find(
+        (c) => categorySlugsMatch(c.slug, 'ssc-27') || categorySlugsMatch(c.slug, 'class-10')
+      ) ||
+      activeCategories.find((c) =>
+        categoryMatchesAnyToken(
+          c,
+          [
+            'ssc-27',
+            'ssc 27',
+            'ssc27',
+            'ssc-2027',
+            'ssc 2027',
+            'ssc2027',
+            'ssc ২৭',
+            'ssc ২০২৭',
+            'এসএসসি ২৭',
+            '১০ম',
+            'দশম',
+            'class-10',
+            'class 10',
+            'class10',
+          ],
+          ['hsc', 'এইচএসসি']
+        )
+      );
+    if (matched) {
+      return {
+        categoryId: matched.id,
+        categorySlug: matched.slug,
+        path: `/category/${matched.slug}`,
+      };
+    }
+  }
+
+  // 3. HSC 27
+  if (def.id === 'hsc-27') {
+    const hsc27Cats = activeCategories.filter(
+      (c) =>
+        resolveCategoryNavGroup(c) === 'hsc27' ||
+        categoryMatchesAnyToken(c, [
+          'hsc-27',
+          'hsc 27',
+          'hsc27',
+          'hsc-2027',
+          'hsc 2027',
+          'hsc ২৭',
+          'hsc ২০২৭',
+          'এইচএসসি ২৭',
+        ])
+    );
+    const exact = hsc27Cats.find((c) => categorySlugsMatch(c.slug, 'hsc-27'));
+    if (exact) {
+      return {
+        categoryId: exact.id,
+        categorySlug: exact.slug,
+        path: `/category/${exact.slug}`,
+      };
+    }
+    if (hsc27Cats.length === 1) {
+      return {
+        categoryId: hsc27Cats[0].id,
+        categorySlug: hsc27Cats[0].slug,
+        path: `/category/${hsc27Cats[0].slug}`,
+      };
+    }
+    if (hsc27Cats.length > 1) {
+      return {
+        categoryId: hsc27Cats[0].id,
+        categorySlug: 'hsc-27',
+        path: '/category/hsc-27',
+      };
+    }
+  }
+
+  // 4. HSC 28
+  if (def.id === 'hsc-28') {
+    const hsc28Cats = activeCategories.filter(
+      (c) =>
+        resolveCategoryNavGroup(c) === 'hsc28' ||
+        categoryMatchesAnyToken(c, [
+          'hsc-28',
+          'hsc 28',
+          'hsc28',
+          'hsc-2028',
+          'hsc 2028',
+          'hsc ২৮',
+          'hsc ২০২৮',
+          'এইচএসসি ২৮',
+        ])
+    );
+    const exact = hsc28Cats.find((c) => categorySlugsMatch(c.slug, 'hsc-28'));
+    if (exact) {
+      return {
+        categoryId: exact.id,
+        categorySlug: exact.slug,
+        path: `/category/${exact.slug}`,
+      };
+    }
+    if (hsc28Cats.length === 1) {
+      return {
+        categoryId: hsc28Cats[0].id,
+        categorySlug: hsc28Cats[0].slug,
+        path: `/category/${hsc28Cats[0].slug}`,
+      };
+    }
+    if (hsc28Cats.length > 1) {
+      return {
+        categoryId: hsc28Cats[0].id,
+        categorySlug: 'hsc-28',
+        path: '/category/hsc-28',
+      };
+    }
+  }
+
+  // 5. এডমিশন (Admission / HSC 26 slot)
+  if (def.id === 'hsc-26') {
+    const iconLabelText = normalizeCategoryMatchText(`${effectiveTitle} ${effectiveSubLabel}`);
+    const labeledAsAdmission =
+      iconLabelText.includes('admission') ||
+      iconLabelText.includes('এডমিশন') ||
+      iconLabelText.includes('ভর্তি');
+    const explicitHsc26Cat = activeCategories.find(
+      (c) =>
+        categorySlugsMatch(c.slug, 'hsc-26') ||
+        categoryMatchesAnyToken(c, ['hsc-26', 'hsc 26', 'hsc26', 'hsc ২৬', 'এইচএসসি ২৬'])
+    );
+    const admissionCat =
+      activeCategories.find((c) => categorySlugsMatch(c.slug, 'admission')) ||
+      activeCategories.find(
+        (c) =>
+          resolveCategoryNavGroup(c) === 'admission' ||
+          categoryMatchesAnyToken(c, ['admission', 'এডমিশন'])
+      );
+
+    if ((labeledAsAdmission || !explicitHsc26Cat) && admissionCat) {
+      return {
+        categoryId: admissionCat.id,
+        categorySlug: admissionCat.slug,
+        path: `/category/${admissionCat.slug}`,
+      };
+    }
+    if (explicitHsc26Cat) {
+      return {
+        categoryId: explicitHsc26Cat.id,
+        categorySlug: explicitHsc26Cat.slug,
+        path: `/category/${explicitHsc26Cat.slug}`,
+      };
+    }
+  }
+
+  return {
+    categoryId: def.categoryId,
+    categorySlug: def.categorySlug,
+    path: def.path,
+  };
+}
+
 export function getOrderedSelectorIcons(
   orderedIds?: ReadonlyArray<string> | null,
-  customLabels?: Partial<Record<string, Partial<SelectorIconText>>> | null
+  customLabels?: Partial<Record<string, Partial<SelectorIconText>>> | null,
+  categories?: ReadonlyArray<Category> | null
 ): SelectorIconDefinition[] {
   const normalized = normalizeSelectorIconOrder(orderedIds);
   const normalizedLabels = normalizeSelectorIconLabels(customLabels);
+  const activeCategories = Array.isArray(categories)
+    ? [...categories]
+        .filter((c) => (c.status || 'active') === 'active')
+        .sort(
+          (a, b) =>
+            (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0) ||
+            (Number(a.id) || 0) - (Number(b.id) || 0)
+        )
+    : [];
+
   return normalized
     .map((id) => {
       const def = SELECTOR_ICON_MAP.get(id);
       if (!def) return null;
       const custom = normalizedLabels[id];
+      const title = custom?.title || def.title;
+      const subLabel = custom?.subLabel || def.subLabel;
+      const resolvedTarget = resolveSelectorIconTarget(
+        def,
+        title,
+        subLabel,
+        activeCategories
+      );
       return {
         ...def,
-        title: custom?.title || def.title,
-        subLabel: custom?.subLabel || def.subLabel,
+        ...resolvedTarget,
+        title,
+        subLabel,
       };
     })
     .filter((item): item is SelectorIconDefinition => Boolean(item));

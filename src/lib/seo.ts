@@ -11,6 +11,7 @@ import {
   type JuniorClassNumber,
 } from '@/src/lib/categoryMatching';
 import { decodeCourseSlug, generateUnicodeCourseSlug } from '@/src/lib/courseSlug';
+import { resolveCategoryNavGroup } from '@/src/lib/navbarCategories';
 
 export const DEFAULT_PUBLIC_SITE_URL = 'https://10msallcourse.com';
 export const DEFAULT_SITE_NAME = '10ms All Courses';
@@ -459,6 +460,29 @@ function resolveRouteSeo(
     const normalizedSlug = normalizeCategorySlugKey(rawSlug);
     const cat = categories.find((c) => categorySlugsMatch(c.slug, normalizedSlug));
     const resolvedSlug = cat?.slug || normalizedSlug;
+
+    if (!cat && (resolvedSlug === 'hsc-28' || resolvedSlug === 'hsc-27')) {
+      const groupKey = resolvedSlug === 'hsc-28' ? 'hsc28' : 'hsc27';
+      const groupCats = categories.filter(
+        (c) => (c.status || 'active') === 'active' && resolveCategoryNavGroup(c) === groupKey
+      );
+      if (groupCats.length > 0) {
+        const groupLabel = resolvedSlug === 'hsc-28' ? 'HSC 28 অনলাইন ব্যাচ ও বিভাগসমূহ' : 'HSC 27 অনলাইন ব্যাচ';
+        return withCourseOgFallback({
+          title: `${groupLabel} — ১০ মিনিট স্কুল`,
+          description: `${groupCats.map((c) => c.name).join(', ')} — সকল বিভাগের অনলাইন ব্যাচ ও কোর্সসমূহ বিশেষ ছাড়ে দেখুন।`,
+          canonicalPath: `/category/${resolvedSlug}`,
+          filterCourses: (all) =>
+            all.filter(
+              (c) =>
+                isPublicVisibleCourse(c) &&
+                (groupCats.some((g) => courseMatchesCategorySlug(c, g.slug)) ||
+                  courseMatchesAcademicBatch(c, resolvedSlug))
+            ),
+        });
+      }
+    }
+
     return withCourseOgFallback({
       title: cat ? `${cat.name} — ১০ মিনিট স্কুল` : 'কোর্স ক্যাটালগ — ১০ মিনিট স্কুল',
       description:
