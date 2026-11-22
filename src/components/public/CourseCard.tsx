@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Course } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { computeDiscountPercent } from '../../lib/courseValidation.ts';
@@ -9,6 +9,7 @@ import {
   CARD_VISIBLE_COURSE_FEATURES,
   getCourseFeatureItems,
 } from '../../lib/courseFeatures.ts';
+import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
 import { CourseFeatureIcon } from './CourseFeatureIcon.tsx';
 import { CourseDetailsModal } from './CourseDetailsModal.tsx';
 import { X, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
@@ -34,6 +35,12 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [imageRatioMap, setImageRatioMap] = useState<Record<string, number>>({});
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
+  const closeDetailsModal = useCallback(() => {
+    setIsDetailsOpen(false);
+  }, []);
+
+  useHistoryOverlay(`course-details-${course.id}`, isDetailsOpen, closeDetailsModal);
 
   // Strip downscaling thumbnail query parameters from 10MS CDN to preserve full HD original quality
   const displayImageUrl = course.imageUrl

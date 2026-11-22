@@ -45,6 +45,10 @@ import {
   getCourseCategorySlugs,
 } from '../../lib/categoryMatching.ts';
 import { buildReadableCourseShareUrl } from '../../lib/courseSlug.ts';
+import {
+  navigateHistory,
+  useHistoryViewState,
+} from '../../lib/navigationHistory.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
@@ -332,10 +336,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Course Management Filters & State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCat, setFilterCat] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [searchQuery, setSearchQuery] = useHistoryViewState('adminSearchQuery', '', currentPath);
+  const [filterCat, setFilterCat] = useHistoryViewState('adminFilterCat', 'all', currentPath);
+  const [filterStatus, setFilterStatus] = useHistoryViewState('adminFilterStatus', 'all', currentPath);
+  const [currentPage, setCurrentPage] = useHistoryViewState('adminCurrentPage', 1, currentPath);
   const [statusTogglingId, setStatusTogglingId] = useState<number | null>(null);
 
   // Modals & Editor State
@@ -446,7 +450,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (currentPath) {
       const nextTab = getTabFromPath(currentPath);
       setActiveTab(nextTab);
-      setCurrentPage(1);
       if (nextTab === 'add_course') {
         setEditingCourse(null);
       }
@@ -457,7 +460,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleTabSwitch = useCallback(
     (tab: AdminPageTab) => {
       setActiveTab(tab);
-      setCurrentPage(1);
       setMobileSidebarOpen(false);
       if (tab === 'add_course') setEditingCourse(null);
 
@@ -480,11 +482,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const targetPath = pathMap[tab] || '/admin/overview';
       if (onNavigate) {
         onNavigate(targetPath);
-      } else if (typeof window !== 'undefined') {
-        window.history.pushState(null, '', targetPath);
-      }
-      if (typeof window !== 'undefined' && window.scrollY > 40) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        navigateHistory(targetPath);
       }
     },
     [onNavigate]
@@ -671,7 +670,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Synchronize browser URL on popstate
   useEffect(() => {
     const handlePopState = () => {
-      setActiveTab(getTabFromPath(window.location.pathname));
+      if (window.location.pathname.startsWith('/admin')) {
+        setActiveTab(getTabFromPath(window.location.pathname));
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -1378,6 +1379,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onShowToast={showToast}
               onStatsChange={setBookStats}
               onOpenPublicBookStore={handleOpenPublicBookStore}
+              onSelectSubView={(view) =>
+                handleTabSwitch(
+                  view === 'list'
+                    ? 'book_store'
+                    : view === 'categories'
+                    ? 'book_categories'
+                    : 'book_add'
+                )
+              }
             />
           ) : error && courses.length === 0 ? (
             <div className="glass-strong rounded-3xl p-8 text-center space-y-3">

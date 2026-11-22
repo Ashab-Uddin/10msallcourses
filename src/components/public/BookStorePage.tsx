@@ -1,10 +1,18 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Book, BookCategory, BookShelfTheme, SiteSettings } from '../../types.ts';
 import { BookCard } from './BookCard.tsx';
 import { parseFeatures, toBengaliNumber } from '../../utils/format.ts';
 import { buildAffiliateRedirectUrl, validateExternalHttpUrl } from '../../lib/affiliateUrl.ts';
+import {
+  getPreviousHistoryUrl,
+  navigateBack,
+  normalizeUrlParts,
+  useHistoryOverlay,
+  useHistoryViewState,
+  type NavigateOptions,
+} from '../../lib/navigationHistory.ts';
 import {
   BookOpen,
   BookMarked,
@@ -30,6 +38,7 @@ interface BookStorePageProps {
   initialCategorySlug?: string;
   settings?: SiteSettings | null;
   onBack?: () => void;
+  onNavigate?: (path: string, options?: NavigateOptions) => void;
   onRefreshBooks?: () => Promise<void>;
 }
 
@@ -131,20 +140,55 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
   initialCategorySlug = 'all',
   settings,
   onBack,
+  onNavigate,
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<string>(
-    initialCategorySlug || 'all'
+  const normalizedInitialCategory = initialCategorySlug || 'all';
+  const [localSelectedCategory, setLocalSelectedCategory] = useState<string>(
+    normalizedInitialCategory
   );
-  const [searchQuery, setSearchQuery] = useState('');
+  const selectedCategory = onNavigate
+    ? normalizedInitialCategory
+    : localSelectedCategory;
+  const [searchQuery, setSearchQuery] = useHistoryViewState(
+    'bookSearchQuery',
+    '',
+    normalizedInitialCategory
+  );
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [loadingBookDetails, setLoadingBookDetails] = useState(false);
 
-  const normalizedInitialCategory = initialCategorySlug || 'all';
-  const [prevInitialCategory, setPrevInitialCategory] = useState(normalizedInitialCategory);
-  if (normalizedInitialCategory !== prevInitialCategory) {
-    setPrevInitialCategory(normalizedInitialCategory);
-    setSelectedCategory(normalizedInitialCategory);
-  }
+  const closeBookModal = useCallback(() => {
+    setSelectedBook(null);
+  }, []);
+
+  useHistoryOverlay('book-details-modal', Boolean(selectedBook), closeBookModal);
+
+  const navigateToBookCategory = (slug: string, scrollTop?: number) => {
+    if (onNavigate) {
+      const targetUrl = slug === 'all' ? '/books' : `/books/${slug}`;
+      onNavigate(targetUrl, typeof scrollTop === 'number' ? { scrollTop } : { noScroll: true });
+    } else {
+      setLocalSelectedCategory(slug);
+      if (typeof window !== 'undefined' && typeof scrollTop === 'number') {
+        window.scrollTo({ top: scrollTop, behavior: 'smooth' });
+      }
+    }
+  };
+
+  const handleBackToAllBooks = () => {
+    setSearchQuery('');
+    const prevUrl = getPreviousHistoryUrl();
+    if (
+      onNavigate &&
+      selectedCategory !== 'all' &&
+      prevUrl &&
+      normalizeUrlParts(prevUrl).decodedPathname === '/books'
+    ) {
+      navigateBack('/books');
+      return;
+    }
+    navigateToBookCategory('all');
+  };
 
   const activeCategoryMap = useMemo(() => {
     const map = new Map<string, BookCategory>();
@@ -343,7 +387,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
         <div className="inline-flex flex-wrap sm:flex-nowrap items-center gap-2 glass-strong border border-white/95 rounded-2xl p-2 max-w-full overflow-x-auto shadow-sm">
           <button
             type="button"
-            onClick={() => setSelectedCategory('all')}
+            onClick={() => navigateToBookCategory('all')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-[13px] font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
               selectedCategory === 'all'
                 ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_8px_18px_-6px_rgba(226,43,43,0.48)]'
@@ -359,7 +403,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => setSelectedCategory(cat.slug)}
+                onClick={() => navigateToBookCategory(cat.slug)}
                 className={`px-4 py-2 rounded-xl text-xs sm:text-[13px] font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   isSelected
                     ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_8px_18px_-6px_rgba(226,43,43,0.48)]'
@@ -387,10 +431,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
                 index={idx}
                 defaultAffiliateRef={settings?.defaultAffiliateRef}
                 onViewAll={(slug) => {
-                  setSelectedCategory(slug);
-                  if (typeof window !== 'undefined') {
-                    window.scrollTo({ top: 320, behavior: 'smooth' });
-                  }
+                  navigateToBookCategory(slug, 320);
                 }}
                 onSelectBook={handleOpenBookDetails}
                 onBuyClick={handleRecordBookClick}
@@ -415,10 +456,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedCategory('all');
-                    setSearchQuery('');
-                  }}
+                  onClick={handleBackToAllBooks}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full glass-inset hover:bg-white/90 text-xs font-bold text-[#2A0F12] hover:text-[#E22B2B] transition cursor-pointer whitespace-nowrap"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
@@ -474,10 +512,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedCategory('all');
-                    setSearchQuery('');
-                  }}
+                  onClick={handleBackToAllBooks}
                   className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-sm transition cursor-pointer"
                 >
                   সব ক্যাটাগরি দেখুন

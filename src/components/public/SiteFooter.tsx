@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import Image from 'next/image';
+import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
 import {
   Phone,
   Mail,
@@ -37,6 +38,12 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
 }) => {
   // Modal for Policy / Information popups
   const [activeModal, setActiveModal] = useState<string | null>(null);
+
+  const closeFooterModal = useCallback(() => {
+    setActiveModal(null);
+  }, []);
+
+  useHistoryOverlay('footer-info-modal', Boolean(activeModal), closeFooterModal);
 
   const handleLinkClick = (e: React.MouseEvent, action: () => void) => {
     e.preventDefault();

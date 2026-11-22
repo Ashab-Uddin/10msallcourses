@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic';
 import { Book, BookCategory, BookShelfTheme, BookStoreAdminPayload } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
+import { useHistoryViewState } from '../../lib/navigationHistory.ts';
 import { BookStoreListSkeleton } from './AdminSkeletons.tsx';
 import {
   BookOpen,
@@ -61,6 +62,7 @@ interface BookStoreAdminManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   onStatsChange?: (stats: { totalBooks: number; activeBooks: number }) => void;
   onOpenPublicBookStore?: () => void;
+  onSelectSubView?: (view: BookAdminSubView) => void;
 }
 
 const SHELF_THEME_OPTIONS: Array<{ value: BookShelfTheme; label: string; dotClass: string }> = [
@@ -80,6 +82,7 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
   onShowToast,
   onStatsChange,
   onOpenPublicBookStore,
+  onSelectSubView,
 }) => {
   const hasInitialCacheRef = useRef<boolean>(Boolean(cachedData));
   const [subView, setSubView] = useState<BookAdminSubView>(initialView);
@@ -103,10 +106,10 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
   );
 
   // Directory filters & pagination
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useHistoryViewState('bookAdminSearchQuery', '', subView);
+  const [filterCategory, setFilterCategory] = useHistoryViewState('bookAdminFilterCat', 'all', subView);
+  const [filterStatus, setFilterStatus] = useHistoryViewState('bookAdminFilterStatus', 'all', subView);
+  const [currentPage, setCurrentPage] = useHistoryViewState('bookAdminCurrentPage', 1, subView);
   const [busyBookId, setBusyBookId] = useState<number | null>(null);
   const [previewBook, setPreviewBook] = useState<Book | null>(null);
   const [deleteTargetBook, setDeleteTargetBook] = useState<Book | null>(null);
@@ -459,7 +462,11 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
             type="button"
             onClick={() => {
               setEditingBook(null);
-              setSubView('add');
+              if (onSelectSubView) {
+                onSelectSubView('add');
+              } else {
+                setSubView('add');
+              }
             }}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               subView === 'add'
@@ -475,7 +482,11 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
             type="button"
             onClick={() => {
               setEditingBook(null);
-              setSubView('list');
+              if (onSelectSubView) {
+                onSelectSubView('list');
+              } else {
+                setSubView('list');
+              }
             }}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               subView === 'list'
@@ -491,7 +502,11 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
             type="button"
             onClick={() => {
               setEditingBook(null);
-              setSubView('categories');
+              if (onSelectSubView) {
+                onSelectSubView('categories');
+              } else {
+                setSubView('categories');
+              }
             }}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
               subView === 'categories'
@@ -541,10 +556,20 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
           bookCategories={bookCategories}
           onBackToList={() => {
             setEditingBook(null);
-            setSubView('list');
+            if (onSelectSubView) {
+              onSelectSubView('list');
+            } else {
+              setSubView('list');
+            }
           }}
           onSave={handleSaveBook}
-          onOpenCategories={() => setSubView('categories')}
+          onOpenCategories={() => {
+            if (onSelectSubView) {
+              onSelectSubView('categories');
+            } else {
+              setSubView('categories');
+            }
+          }}
         />
       ) : subView === 'list' ? (
         /* SUB-VIEW 2: ALL BOOKS DIRECTORY (Manage, Filter, Toggle Status, Edit, Delete) */

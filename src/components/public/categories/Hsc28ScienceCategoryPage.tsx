@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { BookOpen, RotateCcw, Sparkles } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
+import { useHistoryViewState } from '../../../lib/navigationHistory.ts';
 import { CourseCard } from '../CourseCard.tsx';
 import { courseMatchesCategorySlug } from '../../../lib/categoryMatching.ts';
 import {
@@ -34,9 +35,13 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
   onBack,
   onEnrollClick,
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<Hsc28ScienceFilterId | 'all'>('all');
-
   const targetSlug = (category?.slug || 'hsc-28-বিজ্ঞান-কোর্স').normalize('NFC');
+  const [storedFilter, setStoredFilter] = useHistoryViewState(
+    'subFilter',
+    'all',
+    targetSlug
+  );
+  const selectedFilter = storedFilter as Hsc28ScienceFilterId | 'all';
 
   const hsc28Courses = useMemo(
     () =>
@@ -62,11 +67,13 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
   );
 
   const handleSelectFilter = (filterId: Hsc28ScienceFilterId | 'all') => {
-    setSelectedFilter((prev) => toggleHsc28ScienceFilter(prev, filterId));
+    setStoredFilter((prev) =>
+      toggleHsc28ScienceFilter(prev as Hsc28ScienceFilterId | 'all', filterId)
+    );
   };
 
   const resetAll = () => {
-    setSelectedFilter('all');
+    setStoredFilter('all');
   };
 
   const pageBadge = 'HSC 28 একাডেমিক অনলাইন প্রোগ্রাম';

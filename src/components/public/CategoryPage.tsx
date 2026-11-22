@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Category, Course, CourseGroupKey } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
+import { useHistoryViewState } from '../../lib/navigationHistory.ts';
 import {
   categorySlugsMatch,
   courseMatchesAcademicBatch,
@@ -40,15 +41,28 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   categoryCourseOrders,
   onBack,
   onEnrollClick,
-  onSelectCategory,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [priceFilter, setPriceFilter] = useState('all');
-  const [batchFilter, setBatchFilter] = useState<string>('all');
-  const [groupFilter, setGroupFilter] = useState<'all' | CourseGroupKey>('all');
-
   const decodedCategorySlug = normalizeCategorySlugKey(categorySlug);
   const normalizedSlug = decodedCategorySlug === 'free' ? 'free-course' : decodedCategorySlug;
+
+  const [searchQuery, setSearchQuery] = useHistoryViewState(
+    'categorySearchQuery',
+    '',
+    normalizedSlug
+  );
+  const [priceFilter, setPriceFilter] = useHistoryViewState(
+    'categoryPriceFilter',
+    'all',
+    normalizedSlug
+  );
+  const [batchFilter, setBatchFilter] = useHistoryViewState(
+    'categoryBatchFilter',
+    'all',
+    normalizedSlug
+  );
+  const [groupFilter, setGroupFilter] = useHistoryViewState<
+    'categoryGroupFilter'
+  >('categoryGroupFilter', 'all', normalizedSlug);
   const isLanguageLearning = normalizedSlug === 'language-learning';
   const isSkills = normalizedSlug === 'skills';
   const isAdmission = normalizedSlug === 'admission';

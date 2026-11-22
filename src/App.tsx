@@ -1,8 +1,19 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import {
+  ensureCurrentHistoryEntry,
+  getEntrySavedScrollY,
+  navigateBack,
+  navigateHistory,
+  normalizeUrlParts,
+  replaceCurrentUrlPreserveEntry,
+  useHistoryViewState,
+  useNavigationLocation,
+  type NavigateOptions,
+} from './lib/navigationHistory.ts';
 import { AdminOverviewData, Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
 import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
@@ -81,16 +92,6 @@ export interface AppProps {
   initialServerNow?: string;
   initialBookCategories?: BookCategory[];
   initialBooks?: Book[];
-}
-
-function subscribeHashChange(callback: () => void) {
-  if (typeof window === 'undefined') return () => {};
-  window.addEventListener('hashchange', callback);
-  window.addEventListener('popstate', callback);
-  return () => {
-    window.removeEventListener('hashchange', callback);
-    window.removeEventListener('popstate', callback);
-  };
 }
 
 type RouteState =
@@ -265,23 +266,10 @@ export default function App({
     return () => window.clearTimeout(timer);
   }, []);
 
-  const currentPathname = usePathname() || '/';
-  const [navOverride, setNavOverride] = useState<{
-    basePathname: string;
-    path: string;
-    hash: string;
-  } | null>(null);
-
-  const windowHash = useSyncExternalStore(
-    subscribeHashChange,
-    () => (typeof window !== 'undefined' ? window.location.hash || '' : ''),
-    () => ''
-  );
-
-  const currentPath =
-    navOverride?.basePathname === currentPathname ? navOverride.path : currentPathname;
-  const currentHash =
-    navOverride?.basePathname === currentPathname ? navOverride.hash : windowHash;
+  const ssrPathname = usePathname() || '/';
+  const navLocation = useNavigationLocation(ssrPathname);
+  const currentPath = navLocation.pathname;
+  const currentHash = navLocation.hash;
 
   const route = useMemo(
     () => parseCurrentRoute(currentPath, currentHash),
@@ -351,34 +339,9 @@ export default function App({
     };
   }, [route.view, adminSession]);
 
-  const navigate = useCallback((fullUrl: string, options?: { noScroll?: boolean }) => {
-    const [pathPart, hashPart] = fullUrl.split('#');
-    const targetPath = pathPart || (typeof window !== 'undefined' ? window.location.pathname : '');
-    const targetHash = hashPart ? `#${hashPart}` : '';
-
-    const isSamePath = typeof window !== 'undefined' && (
-      window.location.pathname.replace(/\/$/, '') === targetPath.replace(/\/$/, '')
-    );
-
-    if (typeof window !== 'undefined') {
-      if (options?.noScroll || isSamePath) {
-        window.history.replaceState({}, '', fullUrl);
-      } else {
-        window.history.pushState({}, '', fullUrl);
-      }
-    }
-    setNavOverride({
-      basePathname: currentPathname,
-      path: targetPath,
-      hash: targetHash,
-    });
-
-    if (options?.noScroll || isSamePath) {
-      return;
-    }
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentPathname]);
+  const navigate = useCallback((fullUrl: string, options?: NavigateOptions) => {
+    navigateHistory(fullUrl, options);
+  }, []);
 
   const handleAdminLogin = useCallback(
     (email: string, name: string, preloadedOverview?: AdminOverviewData | null) => {
@@ -439,51 +402,36 @@ export default function App({
     route.view !== 'admin_login' && route.view !== 'admin_dashboard';
 
   const [loading, setLoading] = useState<boolean>(
-    () => !hasInitialPortalData && !currentPathname.startsWith('/admin')
+    () => !hasInitialPortalData && !ssrPathname.startsWith('/admin')
   );
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Search & Discovery Filter States
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [priceFilter, setPriceFilter] = useState<string>('all');
-  const [onlyPopular, setOnlyPopular] = useState<boolean>(false);
+  // Search & Discovery Filter States (persisted per navigation history entry)
+  const [searchQuery, setSearchQuery] = useHistoryViewState('homeSearchQuery', '');
+  const [selectedCategory, setSelectedCategory] = useHistoryViewState('homeSelectedCategory', 'all');
+  const [priceFilter, setPriceFilter] = useHistoryViewState('homePriceFilter', 'all');
+  const [onlyPopular, setOnlyPopular] = useHistoryViewState('homeOnlyPopular', false);
 
   // Mobile Bottom Navigation State
   const [, setMobileTab] = useState<MobileTab>('home');
 
+  // Initialize history tracking, scroll restoration & optional initial non-department hash scroll
   useEffect(() => {
-    const handlePopState = () => {
-      const p = window.location.pathname;
-      const h = window.location.hash || '';
-      setNavOverride({
-        basePathname: currentPathname,
-        path: p,
-        hash: h,
-      });
-    };
+    const activeEntryId = ensureCurrentHistoryEntry();
+    const savedScroll = getEntrySavedScrollY(activeEntryId);
 
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('hashchange', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('hashchange', handlePopState);
-    };
-  }, [currentPathname]);
-
-  // Initial scroll to hash if page loaded directly with non-department section (e.g. #courses, #reviews)
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.hash) {
+    if (savedScroll === 0 && typeof window !== 'undefined' && window.location.hash) {
       const targetId = window.location.hash.replace('#', '');
       if (['science', 'business-studies', 'humanities'].includes(targetId)) {
         return; // Department tabs are handled in-place by state without jumping
       }
-      setTimeout(() => {
+      const timer = window.setTimeout(() => {
         const el = document.getElementById(targetId);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 150);
+      return () => window.clearTimeout(timer);
     }
   }, []);
 
@@ -646,11 +594,9 @@ export default function App({
       return;
     }
     const readablePath = buildReadableCoursePath(matchedSharedCourse.slug);
-    const currentBrowserPath = window.location.pathname;
-    if (currentBrowserPath.includes('%') || currentBrowserPath.replace(/\/+$/, '') !== readablePath) {
-      window.history.replaceState(
-        window.history.state,
-        '',
+    const currentDecodedPath = normalizeUrlParts(window.location.pathname).decodedPathname;
+    if (currentDecodedPath !== readablePath.normalize('NFC')) {
+      replaceCurrentUrlPreserveEntry(
         `${readablePath}${window.location.search || ''}${window.location.hash || ''}`
       );
     }
@@ -741,24 +687,69 @@ export default function App({
     }
   };
 
-  const handleQuickFilterSelect = (catSlug: string, queryText = '') => {
+  const handleNavigateHome = useCallback(() => {
+    setMobileTab('home');
     if (route.view !== 'home') {
-      window.history.pushState({}, '', '/');
-      setNavOverride({
-        basePathname: currentPathname,
-        path: '/',
-        hash: '',
+      navigate('/', {
+        initialViewState: {
+          homeSelectedCategory: 'all',
+          homeSearchQuery: '',
+          homePriceFilter: 'all',
+          homeOnlyPopular: false,
+        },
       });
+    } else {
+      setSelectedCategory('all');
+      setSearchQuery('');
+      setPriceFilter('all');
+      setOnlyPopular(false);
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
-    setSelectedCategory(catSlug);
-    setSearchQuery(queryText);
+  }, [route.view, navigate, setSelectedCategory, setSearchQuery, setPriceFilter, setOnlyPopular]);
 
+  const handleHeaderSearchSubmit = useCallback(() => {
+    if (route.view !== 'home') {
+      navigate('/', {
+        scrollToId: 'courses',
+        initialViewState: {
+          homeSelectedCategory: 'all',
+          homeSearchQuery: searchQuery,
+          homePriceFilter: 'all',
+          homeOnlyPopular: false,
+        },
+      });
+      return;
+    }
+    document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
+  }, [route.view, navigate, searchQuery]);
+
+  const handleQuickFilterSelect = (catSlug: string, queryText = '') => {
     if (catSlug === 'school') setMobileTab('school');
     else if (catSlug === 'skills') setMobileTab('skills');
     else if (catSlug === 'admission') setMobileTab('admission');
     else if (catSlug === 'hsc' && queryText.includes('27')) setMobileTab('hsc27');
     else if (catSlug === 'hsc' && queryText.includes('28')) setMobileTab('hsc28');
     else if (catSlug === 'all') setMobileTab('home');
+
+    if (route.view !== 'home') {
+      navigate('/', {
+        scrollToId: 'courses',
+        initialViewState: {
+          homeSelectedCategory: catSlug,
+          homeSearchQuery: queryText,
+          homePriceFilter: 'all',
+          homeOnlyPopular: false,
+        },
+      });
+      return;
+    }
+
+    setSelectedCategory(catSlug);
+    setSearchQuery(queryText);
+    setPriceFilter('all');
+    setOnlyPopular(false);
 
     setTimeout(() => {
       const coursesEl = document.getElementById('courses');
@@ -832,9 +823,7 @@ export default function App({
   const handleMobileNav = (tab: MobileTab) => {
     setMobileTab(tab);
     if (tab === 'home') {
-      setSelectedCategory('all');
-      setSearchQuery('');
-      navigate('/');
+      handleNavigateHome();
     } else if (tab === 'hsc27') {
       navigate('/hsc/hsc-27');
     } else if (tab === 'hsc28') {
@@ -870,7 +859,7 @@ export default function App({
     return (
       <AdminLogin
         onLoginSuccess={handleAdminLogin}
-        onBackToSite={() => navigate('/')}
+        onBackToSite={() => navigateBack('/')}
       />
     );
   }
@@ -885,7 +874,7 @@ export default function App({
       return (
         <AdminLogin
           onLoginSuccess={handleAdminLogin}
-          onBackToSite={() => navigate('/')}
+          onBackToSite={() => navigateBack('/')}
         />
       );
     }
@@ -943,14 +932,9 @@ export default function App({
           bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          onSearchSubmit={() => {
-            navigate('/');
-            setTimeout(() => {
-              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-            }, 80);
-          }}
+          onSearchSubmit={handleHeaderSearchSubmit}
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
-          onNavigateHome={() => navigate('/')}
+          onNavigateHome={handleNavigateHome}
           onEnrollClick={handleEnrollClick}
           onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
           onNavigate={navigate}
@@ -1015,14 +999,9 @@ export default function App({
           bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          onSearchSubmit={() => {
-            navigate('/');
-            setTimeout(() => {
-              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-            }, 80);
-          }}
+          onSearchSubmit={handleHeaderSearchSubmit}
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
-          onNavigateHome={() => navigate('/')}
+          onNavigateHome={handleNavigateHome}
           onEnrollClick={handleEnrollClick}
           onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
           onNavigate={navigate}
@@ -1037,6 +1016,7 @@ export default function App({
             initialCategorySlug={route.categorySlug}
             settings={settings}
             onBack={() => navigate('/')}
+            onNavigate={navigate}
             onRefreshBooks={fetchPublicBooks}
           />
         </main>
@@ -1084,14 +1064,9 @@ export default function App({
           bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          onSearchSubmit={() => {
-            navigate('/');
-            setTimeout(() => {
-              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-            }, 80);
-          }}
+          onSearchSubmit={handleHeaderSearchSubmit}
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
-          onNavigateHome={() => navigate('/')}
+          onNavigateHome={handleNavigateHome}
           onEnrollClick={handleEnrollClick}
           onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
           onNavigate={navigate}
@@ -1156,14 +1131,9 @@ export default function App({
           bookCategories={bookCategories}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          onSearchSubmit={() => {
-            navigate('/');
-            setTimeout(() => {
-              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-            }, 80);
-          }}
+          onSearchSubmit={handleHeaderSearchSubmit}
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
-          onNavigateHome={() => navigate('/')}
+          onNavigateHome={handleNavigateHome}
           onEnrollClick={handleEnrollClick}
           onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
           onNavigate={navigate}
@@ -1282,15 +1252,9 @@ export default function App({
         bookCategories={bookCategories}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onSearchSubmit={() => {
-          document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-        }}
+        onSearchSubmit={handleHeaderSearchSubmit}
         onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
-        onNavigateHome={() => {
-          setSelectedCategory('all');
-          setSearchQuery('');
-          navigate('/');
-        }}
+        onNavigateHome={handleNavigateHome}
         onEnrollClick={handleEnrollClick}
         onOpenCategoryPage={(slug) => navigate(`/category/${slug}`)}
         onNavigate={navigate}

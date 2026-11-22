@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { BookCategory, Category, Course } from '../../types.ts';
 import {
@@ -10,6 +10,7 @@ import { getCategoryLucideIcon } from '../../lib/categoryIconComponents.ts';
 import { resolveCategoryCardTheme } from '../../lib/categoryIcons.ts';
 import { categorySlugsMatch } from '../../lib/categoryMatching.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
+import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
 import {
   Home,
   GraduationCap,
@@ -60,13 +61,29 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 }) => {
   const [hoverMenu, setHoverMenu] = useState<NavKey | null>(null);
   const [pinnedMenu, setPinnedMenu] = useState<NavKey | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMenuOpenPath, setMobileMenuOpenPath] = useState<string | null>(null);
+  const mobileMenuOpen = mobileMenuOpenPath === currentPath;
+  const setMobileMenuOpen = (
+    next: boolean | ((prev: boolean) => boolean)
+  ) => {
+    setMobileMenuOpenPath((prevPath) => {
+      const currentlyOpen = prevPath === currentPath;
+      const resolved = typeof next === 'function' ? next(currentlyOpen) : next;
+      return resolved ? currentPath : null;
+    });
+  };
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
 
   const activeMenu = pinnedMenu ?? hoverMenu;
 
-  // Close pinned/hover dropdown when clicking outside the header or pressing Escape
+  const closeMobileDrawer = useCallback(() => {
+    setMobileMenuOpenPath(null);
+  }, []);
+
+  useHistoryOverlay('header-mobile-drawer', mobileMenuOpen, closeMobileDrawer);
+
+  // Close pinned/hover dropdown and mobile drawer when clicking outside or pressing Escape
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
       if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
@@ -78,6 +95,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
       if (event.key === 'Escape') {
         setPinnedMenu(null);
         setHoverMenu(null);
+        setMobileMenuOpenPath(null);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);

@@ -1,7 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Category, Course } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
+import {
+  useHistoryViewState,
+  type NavigateOptions,
+} from '../../lib/navigationHistory.ts';
 import {
   CLASS_BENGALI_ORDINALS,
   courseMatchesAcademicBatch,
@@ -36,7 +40,7 @@ interface AcademicPageProps {
   courses: Course[];
   categories?: Category[];
   categoryCourseOrders?: CategoryCourseOrdersMap;
-  onNavigate: (path: string, options?: { noScroll?: boolean }) => void;
+  onNavigate: (path: string, options?: NavigateOptions) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   sectionHash?: string;
 }
@@ -71,29 +75,23 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
         : defaultHash === 'humanities'
           ? 'humanities'
           : 'all';
-  const propKey = `${batchOrClass}|${defaultHash}`;
+  const [storedDept, setStoredDept] = useHistoryViewState(
+    'academicDept',
+    'all',
+    `${level}|${batchOrClass}`
+  );
 
-  const [deptOverride, setDeptOverride] = useState<{
-    key: string;
-    dept: DepartmentType;
-    hash: string;
-  } | null>(null);
-
-  const selectedDept = deptOverride?.key === propKey ? deptOverride.dept : defaultDept;
+  const selectedDept: DepartmentType = level === 'hsc' ? defaultDept : storedDept;
 
   const setSelectedDept = (dept: DepartmentType) => {
-    const hash =
-      dept === 'science'
-        ? 'science'
-        : dept === 'business'
-          ? 'business-studies'
-          : dept === 'humanities'
-            ? 'humanities'
-            : '';
-    setDeptOverride({ key: propKey, dept, hash });
+    setStoredDept(dept);
   };
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useHistoryViewState(
+    'academicSearchQuery',
+    '',
+    `${level}|${batchOrClass}`
+  );
 
   const parsedJuniorClass =
     level === 'class' ? parseInt(batchOrClass.replace('class', ''), 10) : 0;
@@ -276,25 +274,10 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
     );
   }
 
-  // Switch department tab smoothly with ZERO page scrolling (in-place tab state)
+  // Switch department tab smoothly with ZERO page scrolling while pushing real navigation history
   const handleDepartmentJump = (dept: 'science' | 'business-studies' | 'humanities' | '') => {
-    const mappedDept: DepartmentType =
-      dept === 'science'
-        ? 'science'
-        : dept === 'business-studies'
-          ? 'business'
-          : dept === 'humanities'
-            ? 'humanities'
-            : 'all';
-    setDeptOverride({ key: propKey, dept: mappedDept, hash: dept });
-
     const targetHash = dept ? `#${dept}` : '';
     const fullPath = `${currentBaseRoute}${targetHash}`;
-
-    // Silently update address bar URL without triggering browser native jump/scroll
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', fullPath);
-    }
     onNavigate(fullPath, { noScroll: true });
   };
 

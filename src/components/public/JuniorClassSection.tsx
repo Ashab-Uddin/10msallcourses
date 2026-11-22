@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { BookOpen, RotateCcw } from 'lucide-react';
 import type { Course } from '../../types.ts';
+import { useHistoryViewState } from '../../lib/navigationHistory.ts';
 import {
   JUNIOR_CLASS_FILTERS,
   JUNIOR_CLASS_PAGE_META,
@@ -31,20 +32,19 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
   const meta = JUNIOR_CLASS_PAGE_META[classNum];
   const classKey = meta.slug;
 
-  const [filterOverride, setFilterOverride] = useState<{
-    key: string;
-    filter: JuniorClassFilterId;
-  } | null>(null);
-
-  const selectedFilter: JuniorClassFilterId =
-    filterOverride?.key === classKey ? filterOverride.filter : 'all';
+  const [storedFilter, setStoredFilter] = useHistoryViewState(
+    'subFilter',
+    'all',
+    classKey
+  );
+  const selectedFilter = storedFilter as JuniorClassFilterId;
 
   const setSelectedFilter = (filter: JuniorClassFilterId) => {
-    setFilterOverride({ key: classKey, filter });
+    setStoredFilter(filter);
   };
 
   const handleResetFilters = () => {
-    setFilterOverride({ key: classKey, filter: 'all' });
+    setStoredFilter('all');
   };
 
   const filteredCourses = useMemo(

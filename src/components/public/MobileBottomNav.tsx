@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   Home,
@@ -21,6 +21,7 @@ import { resolveCategoryCardTheme } from '../../lib/categoryIcons.ts';
 import { getCategoryLucideIcon } from '../../lib/categoryIconComponents.ts';
 import { categorySlugsMatch, courseMatchesCategorySlug } from '../../lib/categoryMatching.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
+import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 
 export type MobileTab = 'home' | 'hsc27' | 'hsc28' | 'school' | 'admission' | 'skills';
@@ -111,6 +112,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     });
   };
   const prefersReducedMotion = useReducedMotion();
+
+  const closeBottomSheet = useCallback(() => {
+    setOpenSheetState(null);
+  }, []);
+
+  useHistoryOverlay('mobile-bottom-sheet', Boolean(openGroup), closeBottomSheet);
 
   const groupedCategories = useMemo(
     () => getNavbarCategoriesByGroup(categories),

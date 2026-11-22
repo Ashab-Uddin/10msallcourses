@@ -4,6 +4,16 @@ import React, { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import type { AdminOverviewData } from '../../types.ts';
+import {
+  canGoBackInApp,
+  ensureCurrentHistoryEntry,
+  flushCurrentScrollPosition,
+  navigateBack,
+  navigateHistory,
+  normalizeUrlParts,
+  recordCrossRouterBridge,
+  useNavigationLocation,
+} from '../../lib/navigationHistory.ts';
 import { AdminLogin } from './AdminLogin.tsx';
 import { AdminSessionVerifyingSkeleton } from './AdminSkeletons.tsx';
 
@@ -38,21 +48,15 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
   const [dashboardData, setDashboardData] = useState<AdminOverviewData | null>(
     initialDashboardData
   );
-  const [currentPath, setCurrentPath] = useState<string>(initialPath || '/admin/dashboard');
+  const navLocation = useNavigationLocation(initialPath || '/admin/dashboard');
+  const currentPath = navLocation.pathname.startsWith('/admin')
+    ? navLocation.pathname
+    : initialPath || '/admin/dashboard';
 
-  // Keep internal admin path synced with browser back/forward buttons
+  // Ensure initial admin history entry and scroll listeners are registered
   useEffect(() => {
-    const handlePopState = () => {
-      const nextPath = window.location.pathname || '/admin/dashboard';
-      if (!nextPath.startsWith('/admin')) {
-        router.replace(nextPath);
-        return;
-      }
-      setCurrentPath(nextPath);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [router]);
+    ensureCurrentHistoryEntry();
+  }, []);
 
   // Only perform client session recovery when SSR detected an expired access token with a refresh cookie
   useEffect(() => {
@@ -103,18 +107,13 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
     (targetPath: string) => {
       const cleanTarget = targetPath || '/admin/overview';
       if (!cleanTarget.startsWith('/admin')) {
+        flushCurrentScrollPosition({ force: true });
+        recordCrossRouterBridge(cleanTarget);
         router.push(cleanTarget);
         return;
       }
 
-      if (typeof window !== 'undefined') {
-        const currentPathname = window.location.pathname.replace(/\/$/, '');
-        const normalizedTarget = cleanTarget.replace(/\/$/, '');
-        if (currentPathname !== normalizedTarget) {
-          window.history.pushState(null, '', cleanTarget);
-        }
-      }
-      setCurrentPath(cleanTarget);
+      navigateHistory(cleanTarget);
     },
     [router]
   );
@@ -131,10 +130,12 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
         currentPath === '/admin/login' || currentPath === '/admin'
           ? '/admin/dashboard'
           : currentPath;
-      if (typeof window !== 'undefined' && window.location.pathname !== nextPath) {
-        window.history.replaceState(null, '', nextPath);
+      if (
+        typeof window !== 'undefined' &&
+        normalizeUrlParts(window.location.pathname).decodedPathname !== nextPath
+      ) {
+        navigateHistory(nextPath, { replace: true, noScroll: true });
       }
-      setCurrentPath(nextPath);
     },
     [currentPath]
   );
@@ -149,10 +150,18 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
     setAdminSession(null);
     setDashboardData(null);
     setAuthState('unauthenticated');
+    flushCurrentScrollPosition({ force: true });
+    recordCrossRouterBridge('/');
     router.push('/');
   }, [router]);
 
   const handleBackToSite = useCallback(() => {
+    if (canGoBackInApp()) {
+      navigateBack('/');
+      return;
+    }
+    flushCurrentScrollPosition({ force: true });
+    recordCrossRouterBridge('/');
     router.push('/');
   }, [router]);
 
