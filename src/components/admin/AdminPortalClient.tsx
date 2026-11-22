@@ -4,6 +4,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import type { AdminOverviewData } from '../../types.ts';
+import {
+  isAdminRoutePath,
+  markPushNavigation,
+  markReplaceNavigation,
+  normalizeComparablePath,
+  performShallowNavigation,
+  recordCurrentScrollSnapshot,
+  useBrowserLocation,
+} from '../../lib/universalNavigation.ts';
 import { AdminLogin } from './AdminLogin.tsx';
 import { AdminSessionVerifyingSkeleton } from './AdminSkeletons.tsx';
 
@@ -29,6 +38,7 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
   initialPath,
 }) => {
   const router = useRouter();
+  const browserLoc = useBrowserLocation(initialPath || '/admin/dashboard');
   const [authState, setAuthState] = useState<'authenticated' | 'needs_refresh' | 'unauthenticated'>(
     initialAuthState
   );
@@ -38,21 +48,54 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
   const [dashboardData, setDashboardData] = useState<AdminOverviewData | null>(
     initialDashboardData
   );
-  const [currentPath, setCurrentPath] = useState<string>(initialPath || '/admin/dashboard');
 
-  // Keep internal admin path synced with browser back/forward buttons
+  const normalizedPath = normalizeComparablePath(
+    browserLoc.pathname || initialPath || '/admin/dashboard'
+  );
+  const currentPath = isAdminRoutePath(normalizedPath) ? normalizedPath : '/admin/dashboard';
+  const isLoginPath = currentPath === '/admin/login';
+
+  // Ensure BFCache back/forward restores (Safari iOS/macOS, Samsung Internet, Chrome) always
+  // re-verify the active HttpOnly admin cookie so a logged-out user never sees stale admin screens.
   useEffect(() => {
-    const handlePopState = () => {
-      const nextPath = window.location.pathname || '/admin/dashboard';
-      if (!nextPath.startsWith('/admin')) {
-        router.replace(nextPath);
-        return;
-      }
-      setCurrentPath(nextPath);
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      void fetch('/api/admin/session?includeOverview=1', {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data?.authenticated) {
+              setAdminSession({
+                email: data.email || '',
+                name: data.name || 'Site Admin',
+              });
+              if (data.initialDashboardData) {
+                setDashboardData(data.initialDashboardData as AdminOverviewData);
+              }
+              setAuthState('authenticated');
+              return;
+            }
+          }
+          setAdminSession(null);
+          setDashboardData(null);
+          setAuthState('unauthenticated');
+          if (window.location.pathname.startsWith('/admin') && window.location.pathname !== '/admin/login') {
+            performShallowNavigation('/admin/login', { replace: true });
+          }
+        })
+        .catch(() => {
+          setAdminSession(null);
+          setDashboardData(null);
+          setAuthState('unauthenticated');
+        });
     };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [router]);
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
+  }, []);
 
   // Only perform client session recovery when SSR detected an expired access token with a refresh cookie
   useEffect(() => {
@@ -99,22 +142,24 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
     };
   }, [authState]);
 
+  // Prevent authenticated admins who navigate Back/Forward onto /admin/login from getting stuck on login UI
+  useEffect(() => {
+    if (authState === 'authenticated' && adminSession && isLoginPath) {
+      performShallowNavigation('/admin/dashboard', { replace: true });
+    }
+  }, [authState, adminSession, isLoginPath]);
+
   const handleNavigate = useCallback(
     (targetPath: string) => {
       const cleanTarget = targetPath || '/admin/overview';
-      if (!cleanTarget.startsWith('/admin')) {
+      if (!isAdminRoutePath(cleanTarget)) {
+        recordCurrentScrollSnapshot();
+        markPushNavigation();
         router.push(cleanTarget);
         return;
       }
 
-      if (typeof window !== 'undefined') {
-        const currentPathname = window.location.pathname.replace(/\/$/, '');
-        const normalizedTarget = cleanTarget.replace(/\/$/, '');
-        if (currentPathname !== normalizedTarget) {
-          window.history.pushState(null, '', cleanTarget);
-        }
-      }
-      setCurrentPath(cleanTarget);
+      performShallowNavigation(cleanTarget);
     },
     [router]
   );
@@ -131,10 +176,7 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
         currentPath === '/admin/login' || currentPath === '/admin'
           ? '/admin/dashboard'
           : currentPath;
-      if (typeof window !== 'undefined' && window.location.pathname !== nextPath) {
-        window.history.replaceState(null, '', nextPath);
-      }
-      setCurrentPath(nextPath);
+      performShallowNavigation(nextPath, { replace: true });
     },
     [currentPath]
   );
@@ -149,10 +191,13 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
     setAdminSession(null);
     setDashboardData(null);
     setAuthState('unauthenticated');
-    router.push('/');
+    markReplaceNavigation();
+    router.replace('/');
   }, [router]);
 
   const handleBackToSite = useCallback(() => {
+    recordCurrentScrollSnapshot();
+    markPushNavigation();
     router.push('/');
   }, [router]);
 
@@ -163,17 +208,6 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
   // No-op in dedicated admin shell: server-side cache tags are already invalidated on mutation,
   // so navigating to the public site automatically serves fresh SSR data without wasted admin fetches.
   const handleDataMutated = useCallback(() => {}, []);
-
-  const isLoginPath = currentPath === '/admin/login';
-
-  if (isLoginPath) {
-    return (
-      <AdminLogin
-        onLoginSuccess={handleLoginSuccess}
-        onBackToSite={handleBackToSite}
-      />
-    );
-  }
 
   if (authState === 'needs_refresh') {
     return <AdminSessionVerifyingSkeleton />;
@@ -188,11 +222,13 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
     );
   }
 
+  const effectiveDashboardPath = isLoginPath ? '/admin/dashboard' : currentPath;
+
   return (
     <AdminDashboard
       adminEmail={adminSession.email}
       adminName={adminSession.name}
-      currentPath={currentPath}
+      currentPath={effectiveDashboardPath}
       initialData={dashboardData}
       onNavigate={handleNavigate}
       onLogout={handleLogout}
@@ -201,3 +237,4 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
     />
   );
 };
+

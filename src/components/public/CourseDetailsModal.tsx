@@ -23,6 +23,7 @@ import {
 import { buildWhatsAppCourseInquiryUrl } from '../../lib/courseFeatures.ts';
 import { CourseFeatureIcon } from './CourseFeatureIcon.tsx';
 import { useSiteContact } from './SiteContactContext.tsx';
+import { resetStuckScrollLocks } from '../../lib/universalNavigation.ts';
 
 interface CourseDetailsModalProps {
   course: Course;
@@ -59,7 +60,11 @@ export const CourseDetailsModal: React.FC<CourseDetailsModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = prevOverflow;
+      if (prevOverflow && prevOverflow !== 'hidden') {
+        document.body.style.overflow = prevOverflow;
+      } else {
+        resetStuckScrollLocks();
+      }
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);

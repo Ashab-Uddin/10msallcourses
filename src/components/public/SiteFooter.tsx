@@ -3,6 +3,12 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import {
+  dismissModalHistoryState,
+  normalizeComparablePath,
+  pushModalHistoryState,
+  useBrowserLocation,
+} from '../../lib/universalNavigation.ts';
+import {
   Phone,
   Mail,
   MapPin,
@@ -30,13 +36,30 @@ export interface SiteFooterProps {
 export const SiteFooter: React.FC<SiteFooterProps> = ({
   onNavigate,
   onQuickFilter,
-  isAdminAuthenticated = false,
-  authToken,
   whatsappNumber = '+880 1625171822',
   whatsappLink = 'https://wa.me/8801625171822',
 }) => {
-  // Modal for Policy / Information popups
-  const [activeModal, setActiveModal] = useState<string | null>(null);
+  const browserLoc = useBrowserLocation('/');
+  const modalScope = `${normalizeComparablePath(browserLoc.pathname)}|${browserLoc.popEpoch}`;
+
+  // Modal for Policy / Information popups (auto-closes on Back/Forward & route change)
+  const [activeModalState, setActiveModalState] = useState<{
+    scope: string;
+    key: string;
+  } | null>(null);
+  const activeModal =
+    activeModalState?.scope === modalScope ? activeModalState.key : null;
+  const setActiveModal = (key: string | null) => {
+    if (key) {
+      pushModalHistoryState(`footer-modal-${key}`);
+      setActiveModalState({ scope: modalScope, key });
+    } else {
+      if (activeModal) {
+        dismissModalHistoryState(`footer-modal-${activeModal}`);
+      }
+      setActiveModalState(null);
+    }
+  };
 
   const handleLinkClick = (e: React.MouseEvent, action: () => void) => {
     e.preventDefault();
@@ -583,13 +606,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() =>
-                    onNavigate(
-                      isAdminAuthenticated || authToken
-                        ? '/admin/dashboard'
-                        : '/admin/login'
-                    )
-                  }
+                  onClick={() => onNavigate('/admin')}
                   className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-rose-100 font-bold px-3 py-1.5 rounded-full border border-white/20 transition cursor-pointer text-xs"
                 >
                   <Lock className="w-3.5 h-3.5 text-amber-400" />

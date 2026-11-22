@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import App from '@/src/App';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
@@ -41,7 +42,7 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
   const pathname = `/${slug.join('/')}`;
 
   if (pathname.startsWith('/admin')) {
-    return <App />;
+    redirect('/admin');
   }
 
   const [data, bookData, origin] = await Promise.all([

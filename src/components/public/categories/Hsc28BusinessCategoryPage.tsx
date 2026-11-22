@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { BookOpen, RotateCcw, Sparkles } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
@@ -16,6 +16,10 @@ import {
   toggleHsc28BusinessFilter,
   type Hsc28BusinessFilterId,
 } from '../../../lib/hsc28BusinessFilters.ts';
+import {
+  updateCurrentSearchParams,
+  useBrowserLocation,
+} from '../../../lib/universalNavigation.ts';
 import { Hsc28BusinessFilterBar } from './Hsc28BusinessFilterBar.tsx';
 import { ScienceBackdropAccent } from '../ScienceBackdropAccent.tsx';
 
@@ -34,7 +38,14 @@ export const Hsc28BusinessCategoryPage: React.FC<Hsc28BusinessCategoryPageProps>
   onBack,
   onEnrollClick,
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<Hsc28BusinessFilterId | 'all'>('all');
+  const browserLoc = useBrowserLocation();
+  const selectedFilter: Hsc28BusinessFilterId | 'all' = useMemo(() => {
+    const raw = new URLSearchParams(browserLoc.search || '').get('filter');
+    if (raw && HSC28_BUSINESS_ALL_FILTERS.some((opt) => opt.id === raw)) {
+      return raw as Hsc28BusinessFilterId;
+    }
+    return 'all';
+  }, [browserLoc.search]);
 
   const targetSlug = (category?.slug || 'hsc-28-ব্যবসায়-শিক্ষা').normalize('NFC');
 
@@ -62,11 +73,17 @@ export const Hsc28BusinessCategoryPage: React.FC<Hsc28BusinessCategoryPageProps>
   );
 
   const handleSelectFilter = (filterId: Hsc28BusinessFilterId | 'all') => {
-    setSelectedFilter((prev) => toggleHsc28BusinessFilter(prev, filterId));
+    const nextFilter = toggleHsc28BusinessFilter(selectedFilter, filterId);
+    if (nextFilter === selectedFilter) return;
+    updateCurrentSearchParams(
+      { filter: nextFilter === 'all' ? null : nextFilter },
+      { push: true, noScroll: true }
+    );
   };
 
   const resetAll = () => {
-    setSelectedFilter('all');
+    if (selectedFilter === 'all') return;
+    updateCurrentSearchParams({ filter: null }, { push: true, noScroll: true });
   };
 
   const pageBadge = 'HSC 28 একাডেমিক অনলাইন প্রোগ্রাম';

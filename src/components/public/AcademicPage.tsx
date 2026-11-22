@@ -13,6 +13,12 @@ import {
   type CategoryCourseOrdersMap,
 } from '../../lib/courseSorting.ts';
 import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
+import {
+  updateCurrentSearchParams,
+  useBrowserLocation,
+  useRouteSearchQuery,
+  type NavigationOptions,
+} from '../../lib/universalNavigation.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
 import {
   Search,
@@ -36,7 +42,7 @@ interface AcademicPageProps {
   courses: Course[];
   categories?: Category[];
   categoryCourseOrders?: CategoryCourseOrdersMap;
-  onNavigate: (path: string, options?: { noScroll?: boolean }) => void;
+  onNavigate: (path: string, options?: NavigationOptions) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   sectionHash?: string;
 }
@@ -58,42 +64,43 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   onEnrollClick,
   sectionHash,
 }) => {
-  const rawPropHash = (sectionHash || '').replace('#', '');
-  const defaultHash =
-    rawPropHash === 'science' || rawPropHash === 'business-studies' || rawPropHash === 'humanities'
-      ? rawPropHash
-      : '';
-  const defaultDept: DepartmentType =
-    defaultHash === 'science'
-      ? 'science'
-      : defaultHash === 'business-studies'
-        ? 'business'
-        : defaultHash === 'humanities'
-          ? 'humanities'
-          : 'all';
-  const propKey = `${batchOrClass}|${defaultHash}`;
+  const browserLoc = useBrowserLocation();
+  const [searchQuery, setSearchQuery, , clearSearchDraft] = useRouteSearchQuery(
+    'q',
+    180,
+    level !== 'class'
+  );
 
-  const [deptOverride, setDeptOverride] = useState<{
-    key: string;
-    dept: DepartmentType;
-    hash: string;
-  } | null>(null);
+  const rawPropHash = (sectionHash || browserLoc.hash || '').replace('#', '');
+  const deptParam = useMemo(() => {
+    if (level !== 'ssc') return '';
+    return new URLSearchParams(browserLoc.search || '').get('dept') || '';
+  }, [level, browserLoc.search]);
 
-  const selectedDept = deptOverride?.key === propKey ? deptOverride.dept : defaultDept;
+  const selectedDept: DepartmentType =
+    level === 'hsc'
+      ? rawPropHash === 'science'
+        ? 'science'
+        : rawPropHash === 'business-studies'
+          ? 'business'
+          : rawPropHash === 'humanities'
+            ? 'humanities'
+            : 'all'
+      : deptParam === 'science'
+        ? 'science'
+        : deptParam === 'business'
+          ? 'business'
+          : deptParam === 'humanities'
+            ? 'humanities'
+            : 'all';
 
   const setSelectedDept = (dept: DepartmentType) => {
-    const hash =
-      dept === 'science'
-        ? 'science'
-        : dept === 'business'
-          ? 'business-studies'
-          : dept === 'humanities'
-            ? 'humanities'
-            : '';
-    setDeptOverride({ key: propKey, dept, hash });
+    if (dept === selectedDept) return;
+    updateCurrentSearchParams(
+      { dept: dept === 'all' ? null : dept },
+      { push: true, noScroll: true }
+    );
   };
-
-  const [searchQuery, setSearchQuery] = useState('');
 
   const parsedJuniorClass =
     level === 'class' ? parseInt(batchOrClass.replace('class', ''), 10) : 0;
@@ -276,9 +283,9 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
     );
   }
 
-  // Switch department tab smoothly with ZERO page scrolling (in-place tab state)
+  // Switch department tab smoothly with ZERO page scrolling and full Back/Forward history step
   const handleDepartmentJump = (dept: 'science' | 'business-studies' | 'humanities' | '') => {
-    const mappedDept: DepartmentType =
+    const targetDept: DepartmentType =
       dept === 'science'
         ? 'science'
         : dept === 'business-studies'
@@ -286,16 +293,10 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
           : dept === 'humanities'
             ? 'humanities'
             : 'all';
-    setDeptOverride({ key: propKey, dept: mappedDept, hash: dept });
-
+    if (targetDept === selectedDept) return;
     const targetHash = dept ? `#${dept}` : '';
-    const fullPath = `${currentBaseRoute}${targetHash}`;
-
-    // Silently update address bar URL without triggering browser native jump/scroll
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', fullPath);
-    }
-    onNavigate(fullPath, { noScroll: true });
+    const fullPath = `${currentBaseRoute}${browserLoc.search || ''}${targetHash}`;
+    onNavigate(fullPath, { replace: false, noScroll: true });
   };
 
   return (
@@ -842,7 +843,10 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               {searchQuery.trim() !== '' && (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    clearSearchDraft();
+                    updateCurrentSearchParams({ q: null }, { push: true, noScroll: true });
+                  }}
                   className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold shadow-md shadow-red-500/20 hover:opacity-95 transition cursor-pointer"
                 >
                   <span>সব কোর্স দেখুন</span>

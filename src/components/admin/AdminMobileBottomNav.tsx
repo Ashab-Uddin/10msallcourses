@@ -21,6 +21,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
+import { normalizeComparablePath, useBrowserLocation } from '../../lib/universalNavigation.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
 
 interface AdminMobileBottomNavProps {
@@ -60,22 +61,20 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = React.m
   stats,
   activeOfferTimersCount = 0,
 }) => {
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-
-  // Automatically close the More menu if activeTab changes externally (e.g., browser back/forward)
-  const [prevActiveTab, setPrevActiveTab] = useState(activeTab);
-  if (activeTab !== prevActiveTab) {
-    setPrevActiveTab(activeTab);
-    if (moreMenuOpen) {
-      setMoreMenuOpen(false);
-    }
-  }
+  const browserLoc = useBrowserLocation('/admin/overview');
+  const menuScope = `${normalizeComparablePath(browserLoc.pathname)}|${activeTab}|${browserLoc.popEpoch}`;
+  const [openMenuScope, setOpenMenuScope] = useState<string | null>(null);
+  const moreMenuOpen = openMenuScope === menuScope;
+  const setMoreMenuOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const resolved = typeof next === 'function' ? next(moreMenuOpen) : next;
+    setOpenMenuScope(resolved ? menuScope : null);
+  };
 
   useEffect(() => {
     if (!moreMenuOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setMoreMenuOpen(false);
+        setOpenMenuScope(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);

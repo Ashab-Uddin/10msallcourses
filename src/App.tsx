@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
-import { usePathname } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import { AdminOverviewData, Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
 import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
 import { MobileCategoryCarousel } from './components/public/MobileCategoryCarousel.tsx';
@@ -15,8 +14,6 @@ import { AcademicPage, type AcademicLevel } from './components/public/AcademicPa
 import { CategoryPage } from './components/public/CategoryPage.tsx';
 import { CourseSharePage } from './components/public/CourseSharePage.tsx';
 import { BookStorePage } from './components/public/BookStorePage.tsx';
-import { AdminLogin } from './components/admin/AdminLogin.tsx';
-import { AdminSessionVerifyingSkeleton } from './components/admin/AdminSkeletons.tsx';
 import { ClassSelectorStrip } from './components/public/ClassSelectorStrip.tsx';
 import { GlassAmbientBackdrop } from './components/public/GlassAmbientBackdrop.tsx';
 import { FloatingContactWidget } from './components/public/FloatingContactWidget.tsx';
@@ -47,6 +44,19 @@ import {
   generateUnicodeCourseSlug,
 } from './lib/courseSlug.ts';
 import {
+  isAdminRoutePath,
+  markPushNavigation,
+  normalizeComparablePath,
+  performShallowNavigation,
+  recordCurrentScrollSnapshot,
+  splitUrlParts,
+  updateCurrentSearchParams,
+  useBrowserLocation,
+  useRouteSearchQuery,
+  useUniversalScrollRestoration,
+  type NavigationOptions,
+} from './lib/universalNavigation.ts';
+import {
   AlertCircle,
   ChevronRight,
   GraduationCap,
@@ -56,14 +66,6 @@ import {
   Phone,
   X,
 } from 'lucide-react';
-
-const AdminDashboard = dynamic(
-  () => import('./components/admin/AdminDashboard.tsx').then((m) => m.AdminDashboard),
-  {
-    ssr: false,
-    loading: () => <AdminSessionVerifyingSkeleton />,
-  }
-);
 
 export interface AppProps {
   initialCategories?: Category[];
@@ -79,33 +81,14 @@ export interface AppProps {
   initialBooks?: Book[];
 }
 
-function subscribeHashChange(callback: () => void) {
-  if (typeof window === 'undefined') return () => {};
-  window.addEventListener('hashchange', callback);
-  window.addEventListener('popstate', callback);
-  return () => {
-    window.removeEventListener('hashchange', callback);
-    window.removeEventListener('popstate', callback);
-  };
-}
-
 type RouteState =
   | { view: 'home' }
   | { view: 'course'; slug: string }
   | { view: 'bookstore'; categorySlug?: string }
   | { view: 'category'; slug: string; subFilter?: string }
-  | { view: 'academic'; level: AcademicLevel; batchOrClass: string; sectionHash?: string }
-  | { view: 'admin_login' }
-  | { view: 'admin_dashboard' };
+  | { view: 'academic'; level: AcademicLevel; batchOrClass: string; sectionHash?: string };
 
 function parseCurrentRoute(pathname: string, hash?: string): RouteState {
-  if (pathname.startsWith('/admin')) {
-    if (pathname === '/admin/login' || pathname === '/admin/login/') {
-      return { view: 'admin_login' };
-    }
-    return { view: 'admin_dashboard' };
-  }
-
   // Normalize path without trailing slashes
   const clean = pathname.replace(/\/+$/, '') || '/';
   const cleanHash = (hash || '').replace('#', '');
@@ -261,36 +244,25 @@ export default function App({
     return () => window.clearTimeout(timer);
   }, []);
 
-  const currentPathname = usePathname() || '/';
-  const [navOverride, setNavOverride] = useState<{
-    basePathname: string;
-    path: string;
-    hash: string;
-  } | null>(null);
+  const router = useRouter();
+  const nextPathname = usePathname() || '/';
+  const browserLoc = useBrowserLocation(nextPathname);
+  const currentPath = browserLoc.pathname || nextPathname;
+  const currentHash = browserLoc.hash || '';
 
-  const windowHash = useSyncExternalStore(
-    subscribeHashChange,
-    () => (typeof window !== 'undefined' ? window.location.hash || '' : ''),
-    () => ''
-  );
+  const isAdminPath = isAdminRoutePath(currentPath);
 
-  const currentPath =
-    navOverride?.basePathname === currentPathname ? navOverride.path : currentPathname;
-  const currentHash =
-    navOverride?.basePathname === currentPathname ? navOverride.hash : windowHash;
+  useEffect(() => {
+    if (isAdminPath) {
+      router.replace(`${currentPath}${browserLoc.search || ''}`);
+    }
+  }, [isAdminPath, currentPath, browserLoc.search, router]);
 
   const route = useMemo(
     () => parseCurrentRoute(currentPath, currentHash),
     [currentPath, currentHash]
   );
 
-  // Server-verified HttpOnly cookie admin session (zero client-side secret token storage)
-  const [adminSession, setAdminSession] = useState<{
-    email: string;
-    name: string;
-  } | null>(null);
-  const [adminInitialOverview, setAdminInitialOverview] = useState<AdminOverviewData | null>(null);
-  const [adminSessionChecked, setAdminSessionChecked] = useState<boolean>(false);
   const [appToast, setAppToast] = useState<{ message: string; type: 'error' | 'info' } | null>(null);
 
   const showAppToast = useCallback((message: string, type: 'error' | 'info' = 'info') => {
@@ -300,107 +272,24 @@ export default function App({
     }, 4000);
   }, []);
 
-  // Verify admin session against /api/admin/session via HttpOnly cookie (+ overview in single round-trip)
-  useEffect(() => {
-    if (route.view !== 'admin_dashboard') return;
-    if (adminSession) return;
-
-    let cancelled = false;
-    const verifySession = async () => {
-      try {
-        const res = await fetch('/api/admin/session?includeOverview=1', {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (cancelled) return;
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.authenticated) {
-            if (data.initialDashboardData) {
-              setAdminInitialOverview(data.initialDashboardData as AdminOverviewData);
-            }
-            setAdminSession({
-              email: data.email || '',
-              name: data.name || 'Site Admin',
-            });
-            setAdminSessionChecked(true);
-            return;
-          }
+  const navigate = useCallback(
+    (fullUrl: string, options?: NavigationOptions) => {
+      const targetParts = splitUrlParts(fullUrl);
+      if (isAdminRoutePath(targetParts.pathname)) {
+        recordCurrentScrollSnapshot();
+        markPushNavigation();
+        if (options?.replace) {
+          router.replace(fullUrl);
+        } else {
+          router.push(fullUrl);
         }
-
-        setAdminSession(null);
-      } catch {
-        if (!cancelled) {
-          setAdminSession(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setAdminSessionChecked(true);
-        }
+        return;
       }
-    };
 
-    void verifySession();
-    return () => {
-      cancelled = true;
-    };
-  }, [route.view, adminSession]);
-
-  const navigate = useCallback((fullUrl: string, options?: { noScroll?: boolean }) => {
-    const [pathPart, hashPart] = fullUrl.split('#');
-    const targetPath = pathPart || (typeof window !== 'undefined' ? window.location.pathname : '');
-    const targetHash = hashPart ? `#${hashPart}` : '';
-
-    const isSamePath = typeof window !== 'undefined' && (
-      window.location.pathname.replace(/\/$/, '') === targetPath.replace(/\/$/, '')
-    );
-
-    if (typeof window !== 'undefined') {
-      if (options?.noScroll || isSamePath) {
-        window.history.replaceState({}, '', fullUrl);
-      } else {
-        window.history.pushState({}, '', fullUrl);
-      }
-    }
-    setNavOverride({
-      basePathname: currentPathname,
-      path: targetPath,
-      hash: targetHash,
-    });
-
-    if (options?.noScroll || isSamePath) {
-      return;
-    }
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentPathname]);
-
-  const handleAdminLogin = useCallback(
-    (email: string, name: string, preloadedOverview?: AdminOverviewData | null) => {
-      if (preloadedOverview) {
-        setAdminInitialOverview(preloadedOverview);
-      }
-      setAdminSession({ email, name });
-      setAdminSessionChecked(true);
-      if (!currentPath.startsWith('/admin/') || currentPath === '/admin/login') {
-        navigate('/admin/dashboard');
-      }
+      performShallowNavigation(fullUrl, options);
     },
-    [currentPath, navigate]
+    [router]
   );
-
-  const handleAdminLogout = useCallback(() => {
-    fetch('/api/admin/logout', {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => {});
-
-    setAdminSession(null);
-    setAdminInitialOverview(null);
-    setAdminSessionChecked(true);
-    navigate('/');
-  }, [navigate]);
 
   // Public portal data initialized from Server Component props (zero initial client waterfall)
   const [categories, setCategories] = useState<Category[]>(initialCategories);
@@ -431,43 +320,87 @@ export default function App({
     hasServerPortalProps || initialBookCategories.length > 0 || initialBooks.length > 0;
   const portalDataLoadedRef = useRef<boolean>(hasInitialPortalData);
   const bookDataLoadedRef = useRef<boolean>(hasInitialBookData);
-  const isPublicRoute =
-    route.view !== 'admin_login' && route.view !== 'admin_dashboard';
+  const isPublicRoute = !isAdminPath;
 
   const [loading, setLoading] = useState<boolean>(
-    () => !hasInitialPortalData && !currentPathname.startsWith('/admin')
+    () => !hasInitialPortalData && !isAdminPath
   );
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Search & Discovery Filter States
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [priceFilter, setPriceFilter] = useState<string>('all');
-  const [onlyPopular, setOnlyPopular] = useState<boolean>(false);
+  // Universal scroll restoration across Back/Forward & Refresh
+  const scrollRouteKey = `${normalizeComparablePath(currentPath)}${browserLoc.search || ''}`;
+  useUniversalScrollRestoration(scrollRouteKey, !loading && !isAdminPath);
+
+  // Search & Discovery Filter States synced to URL on Homepage ('/')
+  const isHomeRoute = route.view === 'home';
+  const [homeSearchQuery, setHomeSearchQuery, flushHomeSearch, clearHomeSearchDraft] =
+    useRouteSearchQuery('q', 180, isHomeRoute);
+
+  const navSearchScope = `${normalizeComparablePath(currentPath)}|${browserLoc.popEpoch}`;
+  const [offHomeSearchDraft, setOffHomeSearchDraft] = useState<{
+    scope: string;
+    value: string;
+  } | null>(null);
+
+  const searchQuery = isHomeRoute
+    ? homeSearchQuery
+    : offHomeSearchDraft?.scope === navSearchScope
+      ? offHomeSearchDraft.value
+      : '';
+
+  const handleHeaderSearchChange = useCallback(
+    (val: string) => {
+      if (isHomeRoute) {
+        setHomeSearchQuery(val);
+      } else {
+        setOffHomeSearchDraft({ scope: navSearchScope, value: val });
+      }
+    },
+    [isHomeRoute, navSearchScope, setHomeSearchQuery]
+  );
+
+  const homeParams = useMemo(
+    () => new URLSearchParams(isHomeRoute ? browserLoc.search || '' : ''),
+    [isHomeRoute, browserLoc.search]
+  );
+  const selectedCategory = isHomeRoute ? homeParams.get('cat') || 'all' : 'all';
+  const priceFilter = isHomeRoute ? homeParams.get('price') || 'all' : 'all';
+  const onlyPopular = isHomeRoute && homeParams.get('popular') === '1';
+
+  const setSelectedCategory = useCallback(
+    (cat: string) => {
+      if (!isHomeRoute || cat === selectedCategory) return;
+      updateCurrentSearchParams(
+        { cat: cat === 'all' ? null : cat },
+        { push: true, noScroll: true }
+      );
+    },
+    [isHomeRoute, selectedCategory]
+  );
+
+  const setOnlyPopular = useCallback(
+    (popular: boolean) => {
+      if (!isHomeRoute || popular === onlyPopular) return;
+      updateCurrentSearchParams(
+        { popular: popular ? '1' : null },
+        { push: true, noScroll: true }
+      );
+    },
+    [isHomeRoute, onlyPopular]
+  );
+
+  const resetHomeFilters = useCallback(() => {
+    clearHomeSearchDraft();
+    updateCurrentSearchParams(
+      { q: null, cat: null, price: null, popular: null },
+      { push: true, noScroll: true }
+    );
+  }, [clearHomeSearchDraft]);
 
   // Mobile Bottom Navigation State
   const [, setMobileTab] = useState<MobileTab>('home');
 
-  useEffect(() => {
-    const handlePopState = () => {
-      const p = window.location.pathname;
-      const h = window.location.hash || '';
-      setNavOverride({
-        basePathname: currentPathname,
-        path: p,
-        hash: h,
-      });
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('hashchange', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('hashchange', handlePopState);
-    };
-  }, [currentPathname]);
-
-  // Initial scroll to hash if page loaded directly with non-department section (e.g. #courses, #reviews)
+  // Initial scroll handled automatically for non-popstate; if page loaded directly with non-department section
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const targetId = window.location.hash.replace('#', '');
@@ -547,12 +480,6 @@ export default function App({
     } catch (err) {
       console.warn('Book store data fetch fallback:', err);
     }
-  }, []);
-
-  const handleAdminDataMutated = useCallback(() => {
-    // Mark cached public portal & book data stale so it auto-refreshes when returning to public routes
-    portalDataLoadedRef.current = false;
-    bookDataLoadedRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -636,18 +563,25 @@ export default function App({
     };
   }, [activeCourseSlug, matchedSharedCourse, loading]);
 
-  // Keep browser address bar showing clean readable Bengali Unicode URL
+  // Canonicalize course slug path cleanly using Unicode-safe normalization (prevents %-encoding loops)
   useEffect(() => {
     if (typeof window === 'undefined' || route.view !== 'course' || !matchedSharedCourse) {
       return;
     }
     const readablePath = buildReadableCoursePath(matchedSharedCourse.slug);
-    const currentBrowserPath = window.location.pathname;
-    if (currentBrowserPath.includes('%') || currentBrowserPath.replace(/\/+$/, '') !== readablePath) {
-      window.history.replaceState(
-        window.history.state,
-        '',
-        `${readablePath}${window.location.search || ''}${window.location.hash || ''}`
+    const currentBrowserPath = window.location.pathname || '/';
+    const rawSegment = currentBrowserPath.slice('/courses/'.length);
+    const isDoubleEncoded = /%25[0-9a-fA-F]{2}/.test(rawSegment);
+    const hasTrailingSlash = /\/+$/.test(currentBrowserPath);
+
+    if (
+      isDoubleEncoded ||
+      hasTrailingSlash ||
+      normalizeComparablePath(currentBrowserPath) !== normalizeComparablePath(readablePath)
+    ) {
+      performShallowNavigation(
+        `${readablePath}${window.location.search || ''}${window.location.hash || ''}`,
+        { replace: true, noScroll: true }
       );
     }
   }, [route.view, matchedSharedCourse]);
@@ -737,36 +671,57 @@ export default function App({
     }
   };
 
-  const handleQuickFilterSelect = (catSlug: string, queryText = '') => {
-    if (route.view !== 'home') {
-      window.history.pushState({}, '', '/');
-      setNavOverride({
-        basePathname: currentPathname,
-        path: '/',
-        hash: '',
-      });
-    }
-    setSelectedCategory(catSlug);
-    setSearchQuery(queryText);
+  const handleQuickFilterSelect = useCallback(
+    (catSlug: string, queryText = '') => {
+      const params = new URLSearchParams();
+      if (catSlug && catSlug !== 'all') params.set('cat', catSlug);
+      if (queryText.trim()) params.set('q', queryText.trim());
+      const qs = params.toString();
+      const targetHomeUrl = qs ? `/?${qs}` : '/';
 
-    if (catSlug === 'school') setMobileTab('school');
-    else if (catSlug === 'skills') setMobileTab('skills');
-    else if (catSlug === 'admission') setMobileTab('admission');
-    else if (catSlug === 'hsc' && queryText.includes('27')) setMobileTab('hsc27');
-    else if (catSlug === 'hsc' && queryText.includes('28')) setMobileTab('hsc28');
-    else if (catSlug === 'all') setMobileTab('home');
-
-    setTimeout(() => {
-      const coursesEl = document.getElementById('courses');
-      if (coursesEl) {
-        coursesEl.scrollIntoView({ behavior: 'smooth' });
+      if (route.view !== 'home') {
+        performShallowNavigation(targetHomeUrl, { replace: false, noScroll: true });
+      } else {
+        clearHomeSearchDraft();
+        updateCurrentSearchParams(
+          {
+            cat: catSlug === 'all' ? null : catSlug,
+            q: queryText.trim() ? queryText.trim() : null,
+          },
+          { push: true, noScroll: true }
+        );
       }
-    }, 60);
-  };
+
+      if (catSlug === 'school') setMobileTab('school');
+      else if (catSlug === 'skills') setMobileTab('skills');
+      else if (catSlug === 'admission') setMobileTab('admission');
+      else if (catSlug === 'hsc' && queryText.includes('27')) setMobileTab('hsc27');
+      else if (catSlug === 'hsc' && queryText.includes('28')) setMobileTab('hsc28');
+      else if (catSlug === 'all') setMobileTab('home');
+
+      setTimeout(() => {
+        const coursesEl = document.getElementById('courses');
+        if (coursesEl) {
+          coursesEl.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 80);
+    },
+    [clearHomeSearchDraft, route.view]
+  );
+
+  const handleOffHomeSearchSubmit = useCallback(() => {
+    const trimmed = searchQuery.trim();
+    const target = trimmed ? `/?q=${encodeURIComponent(trimmed)}` : '/';
+    setOffHomeSearchDraft(null);
+    performShallowNavigation(target, { replace: false, noScroll: true });
+    setTimeout(() => {
+      document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
+    }, 90);
+  }, [searchQuery]);
 
   // Dynamic calculation of active bottom navigation tab based on URL path, category, and state
   const getMobileActiveTab = (): MobileTab => {
-    const clean = currentPath.replace(/\/+$/, '') || '/';
+    const clean = normalizeComparablePath(currentPath);
     if (clean.includes('hsc-27') || clean.includes('/academic/hsc/hsc-27')) return 'hsc27';
     if (clean.includes('hsc-28') || clean.includes('/academic/hsc/hsc-28')) return 'hsc28';
     if (
@@ -801,8 +756,6 @@ export default function App({
   const handleMobileNav = (tab: MobileTab) => {
     setMobileTab(tab);
     if (tab === 'home') {
-      setSelectedCategory('all');
-      setSearchQuery('');
       navigate('/');
     } else if (tab === 'hsc27') {
       navigate('/hsc/hsc-27');
@@ -840,67 +793,9 @@ export default function App({
   const messengerLink = settings?.messengerLink?.trim() || 'https://m.me/10minuteschool';
   const telHref = `tel:${callNumber.replace(/[^+\d]/g, '') || '01608949565'}`;
 
-  // =========================================================
-  // ADMIN ROUTES (/admin/login & /admin/dashboard)
-  // =========================================================
-
-  if (route.view === 'admin_login') {
-    return (
-      <AdminLogin
-        onLoginSuccess={handleAdminLogin}
-        onBackToSite={() => navigate('/')}
-      />
-    );
-  }
-
-  if (route.view === 'admin_dashboard') {
-    const isVerified = Boolean(adminSession);
-    if (!adminSessionChecked && !isVerified) {
-      return <AdminSessionVerifyingSkeleton />;
-    }
-
-    if (!adminSession) {
-      return (
-        <AdminLogin
-          onLoginSuccess={handleAdminLogin}
-          onBackToSite={() => navigate('/')}
-        />
-      );
-    }
-
-    return (
-      <>
-        {appToast && (
-          <div
-            role="alert"
-            className="fixed top-20 right-4 sm:right-6 z-[70] max-w-md px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-xl text-xs sm:text-sm font-bold flex items-center gap-2.5 bg-rose-50/95 text-rose-900 border-rose-300"
-          >
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{appToast.message}</span>
-            <button
-              type="button"
-              onClick={() => setAppToast(null)}
-              className="ml-auto text-slate-400 hover:text-slate-700 cursor-pointer"
-              aria-label="Close notification"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-        <AdminDashboard
-          adminEmail={adminSession.email}
-          adminName={adminSession.name}
-          currentPath={currentPath}
-          initialData={adminInitialOverview}
-          onNavigate={navigate}
-          onLogout={handleAdminLogout}
-          onDataMutated={handleAdminDataMutated}
-          onAdminNameUpdated={(nextName) =>
-            setAdminSession((prev) => (prev ? { ...prev, name: nextName } : prev))
-          }
-        />
-      </>
-    );
+  // Render clean empty placeholder while Next.js router transitions any /admin path to App Router /admin route
+  if (isAdminPath) {
+    return <div className="min-h-screen" />;
   }
 
   if (route.view === 'course') {
@@ -920,13 +815,8 @@ export default function App({
           categories={orderedCategories}
           bookCategories={bookCategories}
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onSearchSubmit={() => {
-            navigate('/');
-            setTimeout(() => {
-              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-            }, 80);
-          }}
+          onSearchChange={handleHeaderSearchChange}
+          onSearchSubmit={handleOffHomeSearchSubmit}
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
           onNavigateHome={() => navigate('/')}
           onEnrollClick={handleEnrollClick}
@@ -954,7 +844,6 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
-          isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
         />
@@ -985,13 +874,8 @@ export default function App({
           categories={orderedCategories}
           bookCategories={bookCategories}
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onSearchSubmit={() => {
-            navigate('/');
-            setTimeout(() => {
-              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-            }, 80);
-          }}
+          onSearchChange={handleHeaderSearchChange}
+          onSearchSubmit={handleOffHomeSearchSubmit}
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
           onNavigateHome={() => navigate('/')}
           onEnrollClick={handleEnrollClick}
@@ -1008,6 +892,7 @@ export default function App({
             initialCategorySlug={route.categorySlug}
             settings={settings}
             onBack={() => navigate('/')}
+            onNavigate={navigate}
             onRefreshBooks={fetchPublicBooks}
           />
         </main>
@@ -1016,7 +901,6 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
-          isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
         />
@@ -1047,13 +931,8 @@ export default function App({
           categories={orderedCategories}
           bookCategories={bookCategories}
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onSearchSubmit={() => {
-            navigate('/');
-            setTimeout(() => {
-              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-            }, 80);
-          }}
+          onSearchChange={handleHeaderSearchChange}
+          onSearchSubmit={handleOffHomeSearchSubmit}
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
           onNavigateHome={() => navigate('/')}
           onEnrollClick={handleEnrollClick}
@@ -1081,7 +960,6 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
-          isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
         />
@@ -1112,13 +990,8 @@ export default function App({
           categories={orderedCategories}
           bookCategories={bookCategories}
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onSearchSubmit={() => {
-            navigate('/');
-            setTimeout(() => {
-              document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
-            }, 80);
-          }}
+          onSearchChange={handleHeaderSearchChange}
+          onSearchSubmit={handleOffHomeSearchSubmit}
           onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
           onNavigateHome={() => navigate('/')}
           onEnrollClick={handleEnrollClick}
@@ -1146,7 +1019,6 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
-          isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
         />
@@ -1231,14 +1103,14 @@ export default function App({
         categories={orderedCategories}
         bookCategories={bookCategories}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={handleHeaderSearchChange}
         onSearchSubmit={() => {
+          flushHomeSearch();
           document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
         }}
         onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
         onNavigateHome={() => {
-          setSelectedCategory('all');
-          setSearchQuery('');
+          clearHomeSearchDraft();
           navigate('/');
         }}
         onEnrollClick={handleEnrollClick}
@@ -1368,12 +1240,7 @@ export default function App({
                     {isFilteringActive && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setSearchQuery('');
-                          setSelectedCategory('all');
-                          setPriceFilter('all');
-                          setOnlyPopular(false);
-                        }}
+                        onClick={resetHomeFilters}
                         className="text-[10.5px] sm:text-[11px] lg:text-xs leading-tight lg:leading-normal font-bold text-[#B91C1C] hover:underline px-2.5 py-1 sm:px-2.5 sm:py-1.5 lg:px-3 lg:py-1.5 rounded-full border border-rose-200 bg-rose-50 hover:bg-rose-100 cursor-pointer whitespace-nowrap shrink-0 transition shadow-2xs"
                       >
                         ফিল্টার রিসেট ✕
@@ -1426,12 +1293,7 @@ export default function App({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setSearchQuery('');
-                          setSelectedCategory('all');
-                          setPriceFilter('all');
-                          setOnlyPopular(false);
-                        }}
+                        onClick={resetHomeFilters}
                         className="px-5 py-2 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
                       >
                         সকল কোর্স দেখুন
@@ -1675,7 +1537,6 @@ export default function App({
         onNavigate={navigate}
         onQuickFilter={handleQuickFilterSelect}
         onDirectCourseLink={handleDirectCourseLink}
-        isAdminAuthenticated={Boolean(adminSession)}
         whatsappNumber={whatsappNumber}
         whatsappLink={whatsappLink}
       />

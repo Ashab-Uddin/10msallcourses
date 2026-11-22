@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
 import { BookOpen, RotateCcw, Sparkles } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
@@ -16,6 +16,10 @@ import {
   toggleHsc28HumanitiesFilter,
   type Hsc28HumanitiesFilterId,
 } from '../../../lib/hsc28HumanitiesFilters.ts';
+import {
+  updateCurrentSearchParams,
+  useBrowserLocation,
+} from '../../../lib/universalNavigation.ts';
 import { Hsc28HumanitiesFilterBar } from './Hsc28HumanitiesFilterBar.tsx';
 import { ScienceBackdropAccent } from '../ScienceBackdropAccent.tsx';
 
@@ -34,7 +38,14 @@ export const Hsc28HumanitiesCategoryPage: React.FC<Hsc28HumanitiesCategoryPagePr
   onBack,
   onEnrollClick,
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<Hsc28HumanitiesFilterId | 'all'>('all');
+  const browserLoc = useBrowserLocation();
+  const selectedFilter: Hsc28HumanitiesFilterId | 'all' = useMemo(() => {
+    const raw = new URLSearchParams(browserLoc.search || '').get('filter');
+    if (raw && HSC28_HUMANITIES_ALL_FILTERS.some((opt) => opt.id === raw)) {
+      return raw as Hsc28HumanitiesFilterId;
+    }
+    return 'all';
+  }, [browserLoc.search]);
 
   const targetSlug = (category?.slug || 'hsc-28-মানবিক-কোর্স').normalize('NFC');
 
@@ -62,11 +73,17 @@ export const Hsc28HumanitiesCategoryPage: React.FC<Hsc28HumanitiesCategoryPagePr
   );
 
   const handleSelectFilter = (filterId: Hsc28HumanitiesFilterId | 'all') => {
-    setSelectedFilter((prev) => toggleHsc28HumanitiesFilter(prev, filterId));
+    const nextFilter = toggleHsc28HumanitiesFilter(selectedFilter, filterId);
+    if (nextFilter === selectedFilter) return;
+    updateCurrentSearchParams(
+      { filter: nextFilter === 'all' ? null : nextFilter },
+      { push: true, noScroll: true }
+    );
   };
 
   const resetAll = () => {
-    setSelectedFilter('all');
+    if (selectedFilter === 'all') return;
+    updateCurrentSearchParams({ filter: null }, { push: true, noScroll: true });
   };
 
   const pageBadge = 'HSC 28 একাডেমিক অনলাইন প্রোগ্রাম';

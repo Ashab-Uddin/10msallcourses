@@ -35,6 +35,15 @@ import {
   getCourseCategorySlugs,
 } from '../../lib/categoryMatching.ts';
 import { buildReadableCourseShareUrl } from '../../lib/courseSlug.ts';
+import {
+  navigateBackSafely,
+  normalizeComparablePath,
+  performShallowNavigation,
+  updateCurrentSearchParams,
+  useBrowserLocation,
+  useRouteSearchQuery,
+  useUniversalScrollRestoration,
+} from '../../lib/universalNavigation.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { GlassAmbientBackdrop } from '../public/GlassAmbientBackdrop.tsx';
 import { AdminNavbar } from './AdminNavbar.tsx';
@@ -196,8 +205,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onDataMutated,
   onAdminNameUpdated,
 }) => {
-  // Determine initial tab from currentPath
+  const browserLoc = useBrowserLocation(currentPath);
+  const effectivePath = normalizeComparablePath(browserLoc.pathname || currentPath);
+  const overlayScope = `${effectivePath}|${browserLoc.popEpoch}`;
+
+  // Determine active tab from current URL pathname
   const getTabFromPath = (p: string): AdminPageTab => {
+    if (/^\/admin\/courses\/edit(?:\/\d+)?$/i.test(p) || p.includes('/admin/courses/edit')) {
+      return 'course_editor';
+    }
     if (p.includes('/admin/courses/sort')) return 'course_sort';
     if (p.includes('/admin/courses/new')) return 'add_course';
     if (p.includes('/admin/courses/active')) return 'active_courses';
@@ -214,8 +230,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const hydratedFromInitialRef = useRef<boolean>(Boolean(initialData));
-  const [activeTab, setActiveTab] = useState<AdminPageTab>(() => getTabFromPath(currentPath));
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const activeTab: AdminPageTab = useMemo(() => getTabFromPath(effectivePath), [effectivePath]);
+  const [sidebarState, setSidebarState] = useState<{ scope: string; open: boolean } | null>(null);
+  const mobileSidebarOpen = sidebarState?.scope === overlayScope && sidebarState.open;
+  const setMobileSidebarOpen = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      setSidebarState((prev) => {
+        const curOpen = prev?.scope === overlayScope && prev.open;
+        const resolved = typeof next === 'function' ? next(curOpen) : next;
+        return { scope: overlayScope, open: resolved };
+      });
+    },
+    [overlayScope]
+  );
   const [loading, setLoading] = useState<boolean>(() => !initialData);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -321,21 +348,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
   const [savingSettings, setSavingSettings] = useState(false);
 
-  // Course Management Filters & State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCat, setFilterCat] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  // Universal Scroll Restoration across Back/Forward & Refresh
+  useUniversalScrollRestoration(`${effectivePath}${browserLoc.search || ''}`, !loading);
+
+  // Course Management Filters & State (URL-synced so Back/Forward & Refresh preserve view)
+  const isCourseListTab =
+    activeTab === 'all_courses' ||
+    activeTab === 'active_courses' ||
+    activeTab === 'inactive_courses';
+  const [searchQuery, setSearchQuery] = useRouteSearchQuery('q', 180, isCourseListTab);
+  const courseListParams = useMemo(
+    () => new URLSearchParams(isCourseListTab ? browserLoc.search || '' : ''),
+    [isCourseListTab, browserLoc.search]
+  );
+  const filterCat = courseListParams.get('cat') || 'all';
+  const filterStatus = courseListParams.get('status') || 'all';
+  const parsedPage = Number(courseListParams.get('page') || '1');
+  const currentPage = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+
+  const setFilterCat = useCallback(
+    (nextCat: string) => {
+      if (nextCat === filterCat) return;
+      updateCurrentSearchParams(
+        { cat: nextCat === 'all' ? null : nextCat, page: null },
+        { push: true, noScroll: true }
+      );
+    },
+    [filterCat]
+  );
+
+  const setFilterStatus = useCallback(
+    (nextStatus: string) => {
+      if (nextStatus === filterStatus) return;
+      updateCurrentSearchParams(
+        { status: nextStatus === 'all' ? null : nextStatus, page: null },
+        { push: true, noScroll: true }
+      );
+    },
+    [filterStatus]
+  );
+
+  const setCurrentPage = useCallback(
+    (nextPage: number | ((prev: number) => number)) => {
+      const resolved =
+        typeof nextPage === 'function' ? nextPage(currentPage) : nextPage;
+      const safePage = Math.max(1, resolved);
+      if (safePage === currentPage) return;
+      updateCurrentSearchParams(
+        { page: safePage <= 1 ? null : String(safePage) },
+        { push: true, noScroll: true }
+      );
+    },
+    [currentPage]
+  );
+
   const [statusTogglingId, setStatusTogglingId] = useState<number | null>(null);
 
-  // Modals & Editor State
+  // Modals & Editor State (scoped to overlayScope so Browser Back/Forward dismisses cleanly)
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [previewingCourse, setPreviewingCourse] = useState<Course | null>(null);
-  const [deleteModalCourse, setDeleteModalCourse] = useState<Course | null>(null);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [previewState, setPreviewState] = useState<{ scope: string; course: Course | null } | null>(null);
+  const previewingCourse = previewState?.scope === overlayScope ? previewState.course : null;
+  const setPreviewingCourse = useCallback(
+    (course: Course | null) => setPreviewState(course ? { scope: overlayScope, course } : null),
+    [overlayScope]
+  );
+
+  const [deleteCourseState, setDeleteCourseState] = useState<{ scope: string; course: Course | null } | null>(null);
+  const deleteModalCourse = deleteCourseState?.scope === overlayScope ? deleteCourseState.course : null;
+  const setDeleteModalCourse = useCallback(
+    (course: Course | null) => setDeleteCourseState(course ? { scope: overlayScope, course } : null),
+    [overlayScope]
+  );
+
+  const [logoutModalScope, setLogoutModalScope] = useState<string | null>(null);
+  const showLogoutConfirm = logoutModalScope === overlayScope;
+  const setShowLogoutConfirm = useCallback(
+    (open: boolean) => setLogoutModalScope(open ? overlayScope : null),
+    [overlayScope]
+  );
 
   // Category Modal State
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [catModalScope, setCatModalScope] = useState<string | null>(null);
+  const showCategoryModal = catModalScope === overlayScope;
+  const setShowCategoryModal = useCallback(
+    (open: boolean) => setCatModalScope(open ? overlayScope : null),
+    [overlayScope]
+  );
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
@@ -346,7 +444,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [catFormError, setCatFormError] = useState<string | null>(null);
   const [savingCat, setSavingCat] = useState(false);
   const [swappingCatId, setSwappingCatId] = useState<number | null>(null);
-  const [deleteModalCat, setDeleteModalCat] = useState<Category | null>(null);
+  const [deleteCatState, setDeleteCatState] = useState<{ scope: string; cat: Category | null } | null>(null);
+  const deleteModalCat = deleteCatState?.scope === overlayScope ? deleteCatState.cat : null;
+  const setDeleteModalCat = useCallback(
+    (cat: Category | null) => setDeleteCatState(cat ? { scope: overlayScope, cat } : null),
+    [overlayScope]
+  );
 
   const [copiedCourseId, setCopiedCourseId] = useState<number | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -428,26 +531,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onLogout();
   }, [onLogout, showToast]);
 
-  // Sync tab with external route change without calling setState synchronously inside useEffect
-  const [prevPath, setPrevPath] = useState(currentPath);
-  if (currentPath !== prevPath) {
-    setPrevPath(currentPath);
-    if (currentPath) {
-      const nextTab = getTabFromPath(currentPath);
-      setActiveTab(nextTab);
-      setCurrentPage(1);
-      if (nextTab === 'add_course') {
-        setEditingCourse(null);
+  const handleNavigatePath = useCallback(
+    (targetPath: string) => {
+      setMobileSidebarOpen(false);
+      if (onNavigate) {
+        onNavigate(targetPath);
+      } else {
+        performShallowNavigation(targetPath);
       }
-    }
-  }
+    },
+    [onNavigate, setMobileSidebarOpen]
+  );
 
-  // Tab switcher with URL pushState (memoized so AdminNavbar/Footer/MobileBottomNav stay stable)
+  // Tab switcher with Next.js-safe history pushState (memoized so AdminNavbar/Footer/MobileBottomNav stay stable)
   const handleTabSwitch = useCallback(
     (tab: AdminPageTab) => {
-      setActiveTab(tab);
-      setCurrentPage(1);
-      setMobileSidebarOpen(false);
       if (tab === 'add_course') setEditingCourse(null);
 
       const pathMap: Record<string, string> = {
@@ -467,16 +565,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       };
 
       const targetPath = pathMap[tab] || '/admin/overview';
-      if (onNavigate) {
-        onNavigate(targetPath);
-      } else if (typeof window !== 'undefined') {
-        window.history.pushState(null, '', targetPath);
-      }
-      if (typeof window !== 'undefined' && window.scrollY > 40) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
+      handleNavigatePath(targetPath);
     },
-    [onNavigate]
+    [handleNavigatePath]
+  );
+
+  const handleOpenCourseEditor = useCallback(
+    (course: Course) => {
+      setEditingCourse(course);
+      handleNavigatePath(`/admin/courses/edit/${course.id}`);
+    },
+    [handleNavigatePath]
   );
 
   const applyOverviewData = useCallback((data: AdminOverviewData) => {
@@ -657,14 +756,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     [showCategoryModal, validateCategoryOrderInput, catDisplayOrderInput, editingCategory]
   );
 
-  // Synchronize browser URL on popstate
-  useEffect(() => {
-    const handlePopState = () => {
-      setActiveTab(getTabFromPath(window.location.pathname));
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  const editCourseIdFromUrl = useMemo(() => {
+    const match = effectivePath.match(/^\/admin\/courses\/edit\/(\d+)/i);
+    return match ? Number(match[1]) : null;
+  }, [effectivePath]);
+
+  const resolvedEditingCourse = useMemo(() => {
+    if (activeTab === 'add_course') return null;
+    if (editCourseIdFromUrl) {
+      return (
+        courses.find((c) => c.id === editCourseIdFromUrl) ??
+        (editingCourse?.id === editCourseIdFromUrl ? editingCourse : null)
+      );
+    }
+    return editingCourse;
+  }, [activeTab, editCourseIdFromUrl, courses, editingCourse]);
 
   // Filtered Courses List
   const displayedCourses = useMemo(() => {
@@ -1066,20 +1172,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleNavigateHome = useCallback(() => {
     if (onNavigate) {
       onNavigate('/');
-    } else if (typeof window !== 'undefined') {
-      window.location.href = '/';
+    } else {
+      performShallowNavigation('/');
     }
   }, [onNavigate]);
 
   const handleRequestLogout = useCallback(() => {
     setShowLogoutConfirm(true);
-  }, []);
+  }, [setShowLogoutConfirm]);
 
   const handleOpenPublicBookStore = useCallback(() => {
     if (onNavigate) {
       onNavigate('/books');
-    } else if (typeof window !== 'undefined') {
-      window.location.href = '/books';
+    } else {
+      performShallowNavigation('/books');
     }
   }, [onNavigate]);
 
@@ -1387,14 +1493,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 1: DEDICATED ADD / EDIT COURSE PAGE              */
             /* ===================================================== */
             <CourseEditorPage
-              course={editingCourse}
+              course={resolvedEditingCourse}
               categories={categories}
               existingCourses={courses}
               whatsappNumber={whatsappNumber}
               whatsappLink={whatsappLink}
               onUnauthorized={handleBookStoreUnauthorized}
               onShowToast={showToast}
-              onBackToList={() => handleTabSwitch('all_courses')}
+              onBackToList={() => navigateBackSafely('/admin/courses', handleNavigatePath)}
               onSave={handleSaveCourse}
             />
           ) : activeTab === 'course_sort' ? (
@@ -1762,10 +1868,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setEditingCourse(course);
-                                  setActiveTab('course_editor');
-                                }}
+                                onClick={() => handleOpenCourseEditor(course)}
                                 className="p-1.5 rounded-lg text-[#1E63D6] hover:bg-blue-50 transition cursor-pointer"
                                 title="এডিট করুন"
                               >
@@ -1857,7 +1960,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setSearchQuery('');
+                        setSearchQuery('', true);
                         setCurrentPage(1);
                       }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B4C4F] hover:text-[#2A0F12] font-bold cursor-pointer"
@@ -1908,10 +2011,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setSearchQuery('');
-                        setFilterCat('all');
-                        setFilterStatus('all');
-                        setCurrentPage(1);
+                        setSearchQuery('', true);
+                        updateCurrentSearchParams(
+                          { q: null, cat: null, status: null, page: null },
+                          { push: false, noScroll: true }
+                        );
                       }}
                       className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] text-xs font-bold transition cursor-pointer text-center"
                     >
@@ -2118,10 +2222,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <div className="flex flex-wrap items-center justify-end gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setEditingCourse(course);
-                                    setActiveTab('course_editor');
-                                  }}
+                                  onClick={() => handleOpenCourseEditor(course)}
                                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] transition cursor-pointer"
                                 >
                                   <Edit className="w-3.5 h-3.5" />
@@ -2386,10 +2487,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setEditingCourse(course);
-                                      setActiveTab('course_editor');
-                                    }}
+                                    onClick={() => handleOpenCourseEditor(course)}
                                     className="p-1.5 rounded-lg text-[#1E63D6] hover:bg-blue-50 transition cursor-pointer"
                                     title="এডিট করুন"
                                     aria-label="এডিট করুন"
@@ -2564,8 +2662,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            setFilterCat(cat.slug);
-                            handleTabSwitch('all_courses');
+                            handleNavigatePath(`/admin/courses?cat=${encodeURIComponent(cat.slug)}`);
                           }}
                           className="text-xs font-bold text-[#b91c1c] hover:underline flex items-center gap-1 cursor-pointer"
                         >
