@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
+import type { Category, Course } from '../../types.ts';
+import { courseMatchesCategorySlug } from '../../lib/categoryMatching.ts';
 import {
   Phone,
   Mail,
@@ -22,20 +24,47 @@ export interface SiteFooterProps {
   onNavigate: (path: string) => void;
   onQuickFilter?: (catSlug: string, queryText?: string) => void;
   onDirectCourseLink?: (slug: string) => void;
+  categories?: Category[];
+  courses?: Course[];
   isAdminAuthenticated?: boolean;
   authToken?: string | null;
   whatsappNumber?: string;
   whatsappLink?: string;
+  facebookLink?: string;
+  youtubeLink?: string;
+  instagramLink?: string;
 }
 
 export const SiteFooter: React.FC<SiteFooterProps> = ({
   onNavigate,
   onQuickFilter,
+  categories = [],
+  courses = [],
   isAdminAuthenticated = false,
   authToken,
   whatsappNumber = '+880 1625171822',
   whatsappLink = 'https://wa.me/8801625171822',
+  facebookLink = 'https://www.facebook.com/10ms.official',
+  youtubeLink = 'https://www.youtube.com/@10MinuteSchool',
+  instagramLink = 'https://www.instagram.com/10ms_official',
 }) => {
+  const dynamicFooterCategories = useMemo(() => {
+    const activeOrdered = [...categories]
+      .filter((cat) => cat.status !== 'inactive')
+      .sort(
+        (a, b) =>
+          (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0) || a.id - b.id
+      );
+
+    if (courses.length === 0) {
+      return activeOrdered;
+    }
+
+    const withCourses = activeOrdered.filter((cat) =>
+      courses.some((course) => courseMatchesCategorySlug(course, cat.slug))
+    );
+    return withCourses.length > 0 ? withCourses : activeOrdered;
+  }, [categories, courses]);
   // Modal for Policy / Information popups
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
@@ -277,7 +306,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                 <div className="pt-2 flex items-center gap-3">
                   {/* Facebook - Official Blue */}
                   <a
-                    href="https://www.facebook.com/10ms.official"
+                    href={facebookLink || 'https://www.facebook.com/10ms.official'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-9 h-9 rounded-full bg-[#1877F2] hover:bg-[#166fe5] flex items-center justify-center text-white shadow-md shadow-blue-900/40 transition-all hover:scale-110 active:scale-95"
@@ -290,7 +319,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
 
                   {/* YouTube - Official Red */}
                   <a
-                    href="https://www.youtube.com/@10MinuteSchool"
+                    href={youtubeLink || 'https://www.youtube.com/@10MinuteSchool'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-9 h-9 rounded-full bg-[#FF0000] hover:bg-[#e60000] flex items-center justify-center text-white shadow-md shadow-red-900/40 transition-all hover:scale-110 active:scale-95"
@@ -303,7 +332,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
 
                   {/* Instagram - Official Gradient */}
                   <a
-                    href="https://www.instagram.com/10ms_official"
+                    href={instagramLink || 'https://www.instagram.com/10ms_official'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-9 h-9 rounded-full flex items-center justify-center text-white shadow-md shadow-pink-900/40 transition-all hover:scale-110 active:scale-95"
@@ -333,7 +362,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
               </div>
 
               {/* --------------------------------------------------- */}
-              {/* COLUMN 2: কোর্সসমূহ (COURSES & PROGRAMS)             */}
+              {/* COLUMN 2: কোর্সসমূহ (DYNAMIC CATEGORY-WISE LIST)     */}
               {/* --------------------------------------------------- */}
               <div>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -341,104 +370,39 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                   <span>কোর্সসমূহ</span>
                 </h3>
                 <ul className="space-y-2 text-xs text-rose-100/85">
-                  <li>
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        handleLinkClick(e, () =>
-                          onNavigate('/ssc/ssc-27/')
-                        )
-                      }
-                      className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
-                      <span>নবম-দশম ও SSC ২০২৭-২৮</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        handleLinkClick(e, () =>
-                          onNavigate('/hsc/hsc-28/')
-                        )
-                      }
-                      className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
-                      <span>HSC 28 অনলাইন ব্যাচ</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        handleLinkClick(e, () =>
-                          onNavigate('/hsc/hsc-27/')
-                        )
-                      }
-                      className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
-                      <span>HSC 27 ফুল সায়েন্স বান্ডেল</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        handleLinkClick(e, () =>
-                          onNavigate('/admission/')
-                        )
-                      }
-                      className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
-                      <span>ভার্সিটি ও মেডিকেল এডমিশন</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        handleLinkClick(e, () =>
-                          onNavigate('/categories/language-learning/')
-                        )
-                      }
-                      className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
-                      <span>ঘরে বসে Spoken English</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        handleLinkClick(e, () =>
-                          onNavigate('/skills/')
-                        )
-                      }
-                      className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
-                      <span>প্রফেশনাল স্কিলস ও কোডিং</span>
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={(e) =>
-                        handleLinkClick(e, () =>
-                          onQuickFilter ? onQuickFilter('bcs') : onNavigate('/category/bcs')
-                        )
-                      }
-                      className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-rose-400" />
-                      <span>বিসিএস ও সরকারি চাকরি প্রস্তুতি</span>
-                    </button>
-                  </li>
+                  {dynamicFooterCategories.length > 0 ? (
+                    dynamicFooterCategories.map((cat) => (
+                      <li key={`footer-cat-${cat.id}-${cat.slug}`}>
+                        <button
+                          type="button"
+                          onClick={(e) =>
+                            handleLinkClick(e, () => onNavigate(`/category/${cat.slug}`))
+                          }
+                          className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer text-left"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                          <span>{cat.name}</span>
+                        </button>
+                      </li>
+                    ))
+                  ) : (
+                    <>
+                      <li>
+                        <button
+                          type="button"
+                          onClick={(e) =>
+                            handleLinkClick(e, () =>
+                              onQuickFilter ? onQuickFilter('all') : onNavigate('/')
+                            )
+                          }
+                          className="hover:text-white hover:translate-x-1 transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                          <span>সকল কোর্স দেখুন</span>
+                        </button>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
 

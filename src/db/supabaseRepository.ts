@@ -85,6 +85,7 @@ const CATEGORY_COURSE_ORDERS_OBJECT = 'category-course-orders.json';
 const COURSE_CATEGORY_ASSIGNMENTS_OBJECT = 'course-category-assignments.json';
 const CATEGORY_NAV_GROUPS_OBJECT = 'category-nav-groups.json';
 const CATEGORY_ICONS_OBJECT = 'category-icons.json';
+const SOCIAL_LINKS_CONFIG_OBJECT = 'social-links-config.json';
 const COURSE_FEATURES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_FEATURES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_ORDERS_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
@@ -93,6 +94,7 @@ const COURSE_CATEGORIES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_NAV_GROUPS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_ICONS_STORAGE_CACHE_TTL_MS = 30 * 1000;
+const SOCIAL_LINKS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 
 let courseFeaturesTableMissingUntil = 0;
 let cachedCourseFeaturesStorage: {
@@ -126,6 +128,143 @@ let cachedCategoryIconsStorage: {
   expiresAt: number;
 } | null = null;
 let inFlightCategoryIconsStorageRead: Promise<Record<string, CategoryIconKey>> | null = null;
+
+interface SocialLinksConfig {
+  facebookLink?: string;
+  youtubeLink?: string;
+  instagramLink?: string;
+}
+
+let cachedSocialLinksStorage: {
+  data: SocialLinksConfig;
+  expiresAt: number;
+} | null = null;
+let inFlightSocialLinksStorageRead: Promise<SocialLinksConfig> | null = null;
+
+function normalizeSocialLinksConfig(raw: unknown): SocialLinksConfig {
+  if (!raw || typeof raw !== 'object') return {};
+  const obj = raw as Record<string, unknown>;
+  const out: SocialLinksConfig = {};
+  if (typeof obj.facebookLink === 'string') {
+    out.facebookLink = obj.facebookLink.trim().slice(0, 500);
+  }
+  if (typeof obj.youtubeLink === 'string') {
+    out.youtubeLink = obj.youtubeLink.trim().slice(0, 500);
+  }
+  if (typeof obj.instagramLink === 'string') {
+    out.instagramLink = obj.instagramLink.trim().slice(0, 500);
+  }
+  return out;
+}
+
+async function readSocialLinksFromStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  options?: { bypassCache?: boolean }
+): Promise<SocialLinksConfig> {
+  if (
+    !options?.bypassCache &&
+    cachedSocialLinksStorage &&
+    Date.now() < cachedSocialLinksStorage.expiresAt
+  ) {
+    return { ...cachedSocialLinksStorage.data };
+  }
+
+  if (!options?.bypassCache && inFlightSocialLinksStorageRead) {
+    const shared = await inFlightSocialLinksStorageRead;
+    return { ...shared };
+  }
+
+  const reader = (async (): Promise<SocialLinksConfig> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(SELECTOR_ICON_CONFIG_BUCKET)
+        .download(SOCIAL_LINKS_CONFIG_OBJECT);
+      if (error || !data) {
+        cachedSocialLinksStorage = {
+          data: {},
+          expiresAt: Date.now() + SOCIAL_LINKS_STORAGE_CACHE_TTL_MS,
+        };
+        return {};
+      }
+      const text = await data.text();
+      const parsed = JSON.parse(text) as unknown;
+      const normalized = normalizeSocialLinksConfig(parsed);
+      cachedSocialLinksStorage = {
+        data: normalized,
+        expiresAt: Date.now() + SOCIAL_LINKS_STORAGE_CACHE_TTL_MS,
+      };
+      return normalized;
+    } catch {
+      return {};
+    } finally {
+      inFlightSocialLinksStorageRead = null;
+    }
+  })();
+
+  if (!options?.bypassCache) {
+    inFlightSocialLinksStorageRead = reader;
+  }
+
+  const result = await reader;
+  return { ...result };
+}
+
+async function writeSocialLinksToStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  config: SocialLinksConfig
+): Promise<SocialLinksConfig> {
+  const normalized = normalizeSocialLinksConfig(config);
+  const payload = Buffer.from(
+    JSON.stringify(
+      {
+        ...normalized,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
+
+  const attemptUpload = async () =>
+    supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .upload(SOCIAL_LINKS_CONFIG_OBJECT, payload, {
+        upsert: true,
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: '0',
+      });
+
+  const first = await attemptUpload();
+  if (!first.error) {
+    cachedSocialLinksStorage = {
+      data: normalized,
+      expiresAt: Date.now() + SOCIAL_LINKS_STORAGE_CACHE_TTL_MS,
+    };
+    return normalized;
+  }
+
+  const errMsg = String(first.error.message || '').toLowerCase();
+  if (errMsg.includes('not found') || errMsg.includes('bucket')) {
+    const { error: createErr } = await supabase.storage.createBucket(
+      SELECTOR_ICON_CONFIG_BUCKET,
+      { public: false }
+    );
+    if (createErr && !String(createErr.message || '').toLowerCase().includes('already exists')) {
+      throw new RepositoryError('সোশ্যাল মিডিয়া লিংক স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
+    }
+    const retry = await attemptUpload();
+    if (!retry.error) {
+      cachedSocialLinksStorage = {
+        data: normalized,
+        expiresAt: Date.now() + SOCIAL_LINKS_STORAGE_CACHE_TTL_MS,
+      };
+      return normalized;
+    }
+  }
+
+  throw new RepositoryError('সোশ্যাল মিডিয়া লিংক সংরক্ষণ ব্যর্থ হয়েছে।', 500);
+}
 
 function normalizeCategoryNavGroupsMap(
   raw: unknown
@@ -1778,9 +1917,17 @@ function mapCourseRow(row: Record<string, unknown>): Course {
   };
 }
 
-function mapSettingsRow(row: Record<string, unknown> | null): SiteSettings {
+function mapSettingsRow(
+  row: Record<string, unknown> | null,
+  socialLinks?: SocialLinksConfig
+): SiteSettings {
   if (!row) {
-    return { ...INITIAL_SETTINGS };
+    return {
+      ...INITIAL_SETTINGS,
+      ...(socialLinks?.facebookLink !== undefined ? { facebookLink: socialLinks.facebookLink } : {}),
+      ...(socialLinks?.youtubeLink !== undefined ? { youtubeLink: socialLinks.youtubeLink } : {}),
+      ...(socialLinks?.instagramLink !== undefined ? { instagramLink: socialLinks.instagramLink } : {}),
+    };
   }
   return {
     id: Number(row.id ?? 1),
@@ -1789,6 +1936,24 @@ function mapSettingsRow(row: Record<string, unknown> | null): SiteSettings {
     whatsappLink: String(row.whatsapp_link ?? ''),
     callNumber: String(row.call_number ?? ''),
     messengerLink: String(row.messenger_link ?? ''),
+    facebookLink:
+      socialLinks?.facebookLink !== undefined
+        ? socialLinks.facebookLink
+        : typeof row.facebook_link === 'string'
+          ? row.facebook_link
+          : INITIAL_SETTINGS.facebookLink,
+    youtubeLink:
+      socialLinks?.youtubeLink !== undefined
+        ? socialLinks.youtubeLink
+        : typeof row.youtube_link === 'string'
+          ? row.youtube_link
+          : INITIAL_SETTINGS.youtubeLink,
+    instagramLink:
+      socialLinks?.instagramLink !== undefined
+        ? socialLinks.instagramLink
+        : typeof row.instagram_link === 'string'
+          ? row.instagram_link
+          : INITIAL_SETTINGS.instagramLink,
     heroBadge: String(row.hero_badge ?? ''),
     heroTitle: String(row.hero_title ?? ''),
     heroSubtitle: String(row.hero_subtitle ?? ''),
@@ -1854,6 +2019,7 @@ async function sbFetchPublicPortalBase() {
     courseCategoriesMap,
     categoryNavGroupsMap,
     categoryIconsMap,
+    socialLinksConfig,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -1880,6 +2046,7 @@ async function sbFetchPublicPortalBase() {
     sbFetchCourseCategoriesMap(supabase),
     readCategoryNavGroupsFromStorage(supabase),
     readCategoryIconsFromStorage(supabase),
+    readSocialLinksFromStorage(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড করতে সমস্যা হয়েছে।');
@@ -1897,7 +2064,10 @@ async function sbFetchPublicPortalBase() {
   const orderedCourses = applyCourseOrdering(rawCourseRows, mappedCourses);
   const withFeatures = attachFeaturesToCourses(orderedCourses, featuresMap, { activeOnly: true });
   const courses = attachCategoriesToCourses(withFeatures, categories, courseCategoriesMap);
-  const settings = mapSettingsRow((settingsRes.data as Record<string, unknown> | null) || null);
+  const settings = mapSettingsRow(
+    (settingsRes.data as Record<string, unknown> | null) || null,
+    socialLinksConfig
+  );
   const allHydratedTimers = hydrateTimerRows(
     (timerRes.data || []) as Array<Record<string, unknown>>,
     courses
@@ -2148,14 +2318,20 @@ export async function sbCountCoursesUsingImageUrl(
 
 export async function sbGetPortalSettings(): Promise<SiteSettings> {
   const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from('website_settings')
-    .select('*')
-    .eq('id', 1)
-    .maybeSingle();
+  const [settingsRes, socialLinksConfig] = await Promise.all([
+    supabase
+      .from('website_settings')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle(),
+    readSocialLinksFromStorage(supabase),
+  ]);
 
-  if (error) throw mapPgError(error, 'সেটিংস লোড করতে সমস্যা হয়েছে।');
-  return mapSettingsRow((data as Record<string, unknown> | null) || null);
+  if (settingsRes.error) throw mapPgError(settingsRes.error, 'সেটিংস লোড করতে সমস্যা হয়েছে।');
+  return mapSettingsRow(
+    (settingsRes.data as Record<string, unknown> | null) || null,
+    socialLinksConfig
+  );
 }
 
 export async function sbRecordCourseClick(
@@ -2233,6 +2409,7 @@ export async function sbGetAdminOverviewData() {
     courseCategoriesMap,
     categoryNavGroupsMap,
     categoryIconsMap,
+    socialLinksConfig,
   ] = await Promise.all([
     supabase
       .from('categories')
@@ -2259,6 +2436,7 @@ export async function sbGetAdminOverviewData() {
     sbFetchCourseCategoriesMap(supabase),
     readCategoryNavGroupsFromStorage(supabase),
     readCategoryIconsFromStorage(supabase),
+    readSocialLinksFromStorage(supabase),
   ]);
 
   if (catRes.error) throw mapPgError(catRes.error, 'ক্যাটাগরি লোড ব্যর্থ হয়েছে।');
@@ -2281,7 +2459,8 @@ export async function sbGetAdminOverviewData() {
   const allCourses = attachCategoriesToCourses(withFeatures, allCategories, courseCategoriesMap);
   const recentClicks: ClickRecord[] = [];
   const currentSettings = mapSettingsRow(
-    (settingsRes.data as Record<string, unknown> | null) || null
+    (settingsRes.data as Record<string, unknown> | null) || null,
+    socialLinksConfig
   );
   const offerTimers = hydrateTimerRows(
     (timerRes.data || []) as Array<Record<string, unknown>>,
@@ -4252,7 +4431,31 @@ export async function sbUpdatePortalSettings(
     .single();
 
   if (error) throw mapPgError(error, 'সেটিংস সংরক্ষণ ব্যর্থ হয়েছে।');
-  return mapSettingsRow(data as Record<string, unknown>);
+
+  let currentSocialLinks = await readSocialLinksFromStorage(supabase, { bypassCache: true });
+  const hasSocialUpdate =
+    input.facebookLink !== undefined ||
+    input.youtubeLink !== undefined ||
+    input.instagramLink !== undefined;
+
+  if (hasSocialUpdate) {
+    currentSocialLinks = await writeSocialLinksToStorage(supabase, {
+      facebookLink:
+        input.facebookLink !== undefined
+          ? String(input.facebookLink).trim().slice(0, 500)
+          : currentSocialLinks.facebookLink ?? current.facebookLink,
+      youtubeLink:
+        input.youtubeLink !== undefined
+          ? String(input.youtubeLink).trim().slice(0, 500)
+          : currentSocialLinks.youtubeLink ?? current.youtubeLink,
+      instagramLink:
+        input.instagramLink !== undefined
+          ? String(input.instagramLink).trim().slice(0, 500)
+          : currentSocialLinks.instagramLink ?? current.instagramLink,
+    });
+  }
+
+  return mapSettingsRow(data as Record<string, unknown>, currentSocialLinks);
 }
 
 export async function sbGetOfferTimers(): Promise<{

@@ -318,6 +318,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [messengerLink, setMessengerLink] = useState(
     () => initialData?.settings?.messengerLink || 'https://m.me/10minuteschool'
   );
+  const [facebookLink, setFacebookLink] = useState(
+    () => initialData?.settings?.facebookLink ?? 'https://www.facebook.com/10ms.official'
+  );
+  const [youtubeLink, setYoutubeLink] = useState(
+    () => initialData?.settings?.youtubeLink ?? 'https://www.youtube.com/@10MinuteSchool'
+  );
+  const [instagramLink, setInstagramLink] = useState(
+    () => initialData?.settings?.instagramLink ?? 'https://www.instagram.com/10ms_official'
+  );
   const [heroBadge, setHeroBadge] = useState(() => initialData?.settings?.heroBadge || '');
   const [heroTitle, setHeroTitle] = useState(() => initialData?.settings?.heroTitle || '');
   const [heroSubtitle, setHeroSubtitle] = useState(
@@ -581,6 +590,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setWhatsappNumber(data.settings.whatsappNumber || '');
       setWhatsappLink(data.settings.whatsappLink || '');
       setMessengerLink(data.settings.messengerLink || 'https://m.me/10minuteschool');
+      setFacebookLink(data.settings.facebookLink ?? 'https://www.facebook.com/10ms.official');
+      setYoutubeLink(data.settings.youtubeLink ?? 'https://www.youtube.com/@10MinuteSchool');
+      setInstagramLink(data.settings.instagramLink ?? 'https://www.instagram.com/10ms_official');
       setHeroBadge(data.settings.heroBadge || '');
       setHeroTitle(data.settings.heroTitle || '');
       setHeroSubtitle(data.settings.heroSubtitle || '');
@@ -1059,6 +1071,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         whatsappNumber: whatsappNumber.trim(),
         whatsappLink: whatsappLink.trim(),
         messengerLink: messengerLink.trim(),
+        facebookLink: facebookLink.trim(),
+        youtubeLink: youtubeLink.trim(),
+        instagramLink: instagramLink.trim(),
         heroBadge: heroBadge.trim(),
         heroTitle: heroTitle.trim(),
         heroSubtitle: heroSubtitle.trim(),
@@ -2921,6 +2936,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <p className="text-[11px] text-[#6B4C4F] mt-1">
                       ফ্লোটিং মেসেঞ্জার ও সাপোর্ট বারের মেসেঞ্জার আইকনে ক্লিক করলে শিক্ষার্থী সরাসরি আপনার ফেসবুক পেজের ইনবক্সে চলে যাবে।
                     </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-rose-200/40 space-y-3">
+                    <div>
+                      <h4 className="text-xs font-extrabold text-[#2A0F12]">
+                        ফুটার সোশ্যাল মিডিয়া লিংক (Social Media Links)
+                      </h4>
+                      <p className="text-[11px] text-[#6B4C4F] mt-0.5">
+                        ওয়েবসাইটের ফুটারের সোশ্যাল মিডিয়া আইকনগুলোর লিংক এখান থেকে নিয়ন্ত্রণ করুন। ফুটারের WhatsApp আইকন উপরের{' '}
+                        <span className="font-semibold text-[#2A0F12]">হোয়াটসঅ্যাপ ডিরেক্ট চ্যাট লিংক</span>{' '}
+                        থেকে স্বয়ংক্রিয়ভাবে লিংক নেয়।
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                          ফেসবুক পেজ লিংক (Facebook Link)
+                        </label>
+                        <input
+                          type="text"
+                          value={facebookLink}
+                          onChange={(e) => setFacebookLink(e.target.value)}
+                          placeholder="https://www.facebook.com/10ms.official"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                          ইউটিউব চ্যানেল লিংক (YouTube Link)
+                        </label>
+                        <input
+                          type="text"
+                          value={youtubeLink}
+                          onChange={(e) => setYoutubeLink(e.target.value)}
+                          placeholder="https://www.youtube.com/@10MinuteSchool"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#2A0F12] mb-1">
+                          ইনস্টাগ্রাম লিংক (Instagram Link)
+                        </label>
+                        <input
+                          type="text"
+                          value={instagramLink}
+                          onChange={(e) => setInstagramLink(e.target.value)}
+                          placeholder="https://www.instagram.com/10ms_official"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs text-[#2A0F12] bg-white/90 focus:bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-mono"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 

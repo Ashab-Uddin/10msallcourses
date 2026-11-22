@@ -75,6 +75,40 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const socialUrlRules: Array<{
+      field: 'facebookLink' | 'youtubeLink' | 'instagramLink';
+      errorMessage: string;
+    }> = [
+      {
+        field: 'facebookLink',
+        errorMessage: 'বৈধ ফেসবুক পেজ লিংক (https://facebook.com/...) প্রদান করুন।',
+      },
+      {
+        field: 'youtubeLink',
+        errorMessage: 'বৈধ ইউটিউব চ্যানেল লিংক (https://youtube.com/...) প্রদান করুন।',
+      },
+      {
+        field: 'instagramLink',
+        errorMessage: 'বৈধ ইনস্টাগ্রাম লিংক (https://instagram.com/...) প্রদান করুন।',
+      },
+    ];
+
+    for (const rule of socialUrlRules) {
+      if (typeof body?.[rule.field] === 'string') {
+        if (body[rule.field].trim()) {
+          const check = validateExternalHttpUrl(body[rule.field]);
+          if (!check.valid) {
+            return auth.withSessionCookies(
+              NextResponse.json({ error: rule.errorMessage }, { status: 400 })
+            );
+          }
+          body[rule.field] = check.normalized;
+        } else {
+          body[rule.field] = '';
+        }
+      }
+    }
+
     let updatedAdminName = admin.name;
     let applySessionCookies: ((res: NextResponse) => void) | undefined;
 

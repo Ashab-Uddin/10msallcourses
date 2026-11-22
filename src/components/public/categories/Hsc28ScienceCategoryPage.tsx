@@ -1,11 +1,15 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, RotateCcw, Sparkles } from 'lucide-react';
+import {
+  BookOpen,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
-import { useHistoryViewState } from '../../../lib/navigationHistory.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { toBengaliNumber } from '../../../utils/format.ts';
 import { courseMatchesCategorySlug } from '../../../lib/categoryMatching.ts';
 import {
   sortCoursesForCategory,
@@ -14,11 +18,9 @@ import {
 import {
   HSC28_ALL_FILTERS,
   filterHsc28ScienceCourses,
-  toggleHsc28ScienceFilter,
   type Hsc28ScienceFilterId,
 } from '../../../lib/hsc28ScienceFilters.ts';
 import { Hsc28ScienceFilterBar } from './Hsc28ScienceFilterBar.tsx';
-import { ScienceBackdropAccent } from '../ScienceBackdropAccent.tsx';
 
 interface Hsc28ScienceCategoryPageProps {
   category?: Category;
@@ -35,13 +37,9 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
   onBack,
   onEnrollClick,
 }) => {
+  const [selectedFilter, setSelectedFilter] = useState<Hsc28ScienceFilterId | 'all'>('all');
+
   const targetSlug = (category?.slug || 'hsc-28-বিজ্ঞান-কোর্স').normalize('NFC');
-  const [storedFilter, setStoredFilter] = useHistoryViewState(
-    'subFilter',
-    'all',
-    targetSlug
-  );
-  const selectedFilter = storedFilter as Hsc28ScienceFilterId | 'all';
 
   const hsc28Courses = useMemo(
     () =>
@@ -58,31 +56,21 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
     [hsc28Courses, selectedFilter]
   );
 
-  const activeFilterLabel = useMemo(
-    () =>
-      selectedFilter === 'all'
-        ? null
-        : HSC28_ALL_FILTERS.find((opt) => opt.id === selectedFilter)?.label || null,
-    [selectedFilter]
-  );
+  const isFiltered = selectedFilter !== 'all';
 
-  const handleSelectFilter = (filterId: Hsc28ScienceFilterId | 'all') => {
-    setStoredFilter((prev) =>
-      toggleHsc28ScienceFilter(prev as Hsc28ScienceFilterId | 'all', filterId)
-    );
+  const activeFilterLabel = useMemo(() => {
+    if (selectedFilter === 'all') return null;
+    return HSC28_ALL_FILTERS.find((opt) => opt.id === selectedFilter)?.label || null;
+  }, [selectedFilter]);
+
+  const resetFilter = () => {
+    setSelectedFilter('all');
   };
 
-  const resetAll = () => {
-    setStoredFilter('all');
-  };
-
-  const pageBadge = 'HSC 28 একাডেমিক অনলাইন প্রোগ্রাম';
   const pageTitle = category?.name || 'HSC 28 বিজ্ঞান কোর্স';
   const pageSubtitle =
-    'HSC ২০২৮ ব্যাচ এর সম্পূর্ণ সাইকেল কভারেজ ও ফুল ইয়ার লাইভ ক্লাস।';
-  const titleWords = pageTitle.trim().split(/\s+/);
-  const titleLead = titleWords[0] || pageTitle;
-  const titleRest = titleWords.slice(1).join(' ');
+    category?.subtitle ||
+    'কলেজ একাডেমিক প্রোগ্রাম — HSC 28 Science কোর্সে সর্বোচ্চ ডিসকাউন্টে ভর্তি হয়ে সম্পূর্ণ ও অধ্যায়ভিত্তিক প্রস্তুতি নিশ্চিত করুন।';
 
   return (
     <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -104,45 +92,55 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
         <span className="text-[#B91C1C] font-bold">{pageTitle}</span>
       </nav>
 
-      {/* Unified Warm Frosted Category Header & 2-Row Equal Filter Card */}
-      <div className="glass-surface rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-7 relative overflow-hidden">
-        <div className="relative py-1 sm:py-2 flex flex-col items-center justify-center text-center">
-          <ScienceBackdropAccent variant="physics-chemistry" layout="symmetrical" />
-
-          <div className="relative z-10 min-w-0 max-w-3xl mx-auto flex flex-col items-center">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass-inset text-[#B91C1C] text-[11px] sm:text-xs font-bold mb-3 shadow-xs">
-              <Sparkles className="w-3.5 h-3.5 text-[#E22B2B] shrink-0" aria-hidden="true" />
-              <span>{pageBadge}</span>
+      {/* Unified Warm Frosted Category Header & Single-Line Filter Card */}
+      <div className="glass-surface rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-7">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-inset text-[#B91C1C] text-[11px] sm:text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>ক্যাটাগরি পেজ</span>
+              </span>
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold bg-[#E22B2B] text-white tabular-nums bn-digits-fix shadow-2xs">
+                {isFiltered
+                  ? `${toBengaliNumber(filteredCourses.length)} / ${toBengaliNumber(hsc28Courses.length)}টি কোর্স পাওয়া গেছে`
+                  : `${toBengaliNumber(filteredCourses.length)}টি কোর্স পাওয়া গেছে`}
+              </span>
+              {activeFilterLabel && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-[#B91C1C] border border-rose-200/90">
+                  {activeFilterLabel}
+                </span>
+              )}
             </div>
 
-            <h1 className="text-2xl sm:text-4xl md:text-[42px] font-black text-[#2A0F12] tracking-tight leading-tight text-center mb-2">
-              {titleLead}
-              {titleRest ? (
-                <>
-                  {' '}
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E22B2B] via-rose-600 to-[#B91C1C]">
-                    {titleRest}
-                  </span>
-                </>
-              ) : null}
+            <h1 className="text-2xl sm:text-3xl font-black text-[#2A0F12] tracking-tight leading-snug">
+              {pageTitle}
             </h1>
-            <p className="text-xs sm:text-sm md:text-base text-[#6B4C4F] font-normal leading-relaxed max-w-2xl mx-auto text-center">
+            <p className="text-xs sm:text-sm text-[#6B4C4F] font-normal leading-relaxed mt-1 max-w-2xl">
               {pageSubtitle}
             </p>
           </div>
+
+          {isFiltered && (
+            <button
+              type="button"
+              onClick={resetFilter}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[#B91C1C] text-xs font-bold transition cursor-pointer shrink-0 self-start sm:self-end whitespace-nowrap active:scale-[0.97]"
+            >
+              <RotateCcw className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>সব কোর্স দেখুন</span>
+            </button>
+          )}
         </div>
 
-        <div className="relative z-10 border-t border-rose-100/85 my-4" />
+        <div className="border-t border-rose-100/85 my-3.5 sm:my-4" />
 
-        {/* Dedicated HSC 28 Science 2-Line Equal, Single-Select Filter Bar */}
-        <div className="relative z-10">
-          <Hsc28ScienceFilterBar
-            courses={hsc28Courses}
-            selectedFilter={selectedFilter}
-            onSelectFilter={handleSelectFilter}
-            onResetAll={resetAll}
-          />
-        </div>
+        {/* Single-Line, Single-Select Filter Bar */}
+        <Hsc28ScienceFilterBar
+          courses={hsc28Courses}
+          selectedFilter={selectedFilter}
+          onSelectFilter={setSelectedFilter}
+        />
       </div>
 
       {/* Course Grid / Empty State */}
@@ -161,17 +159,17 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
             </div>
             <div className="space-y-1.5">
               <h3 className="text-base sm:text-lg font-bold text-[#2A0F12]">
-                এই ফিল্টারে কোনো কোর্স পাওয়া যায়নি
+                {activeFilterLabel
+                  ? `“${activeFilterLabel}” ফিল্টারে কোনো কোর্স পাওয়া যায়নি`
+                  : 'এই ফিল্টারে কোনো কোর্স পাওয়া যায়নি'}
               </h3>
               <p className="text-xs sm:text-sm text-[#6B4C4F] leading-relaxed">
-                {activeFilterLabel
-                  ? `নির্বাচিত ফিল্টার (${activeFilterLabel})-এ এই মুহূর্তে কোনো কোর্স মেলেনি।`
-                  : 'অনুগ্রহ করে অন্য একটি ফিল্টার নির্বাচন করে চেষ্টা করুন।'}
+                অন্য ফিল্টার নির্বাচন করুন অথবা সব কোর্স একসাথে দেখতে রিসেট করুন।
               </p>
             </div>
             <button
               type="button"
-              onClick={resetAll}
+              onClick={resetFilter}
               className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs sm:text-sm font-bold shadow-md shadow-red-500/20 hover:opacity-95 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />

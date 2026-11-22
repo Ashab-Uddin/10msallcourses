@@ -1882,6 +1882,15 @@ export async function updatePortalSettings(input: Record<string, unknown>) {
     ...(input.messengerLink !== undefined
       ? { messengerLink: String(input.messengerLink).trim().slice(0, 500) }
       : {}),
+    ...(input.facebookLink !== undefined
+      ? { facebookLink: String(input.facebookLink).trim().slice(0, 500) }
+      : {}),
+    ...(input.youtubeLink !== undefined
+      ? { youtubeLink: String(input.youtubeLink).trim().slice(0, 500) }
+      : {}),
+    ...(input.instagramLink !== undefined
+      ? { instagramLink: String(input.instagramLink).trim().slice(0, 500) }
+      : {}),
     ...(input.heroBadge !== undefined ? { heroBadge: String(input.heroBadge).trim().slice(0, 200) } : {}),
     ...(input.heroTitle !== undefined ? { heroTitle: String(input.heroTitle).trim().slice(0, 200) } : {}),
     ...(input.heroSubtitle !== undefined

@@ -5,7 +5,6 @@ import {
   Atom,
   BookOpen,
   Calculator,
-  Check,
   Cpu,
   Dna,
   FlaskConical,
@@ -13,15 +12,12 @@ import {
   Layers,
   LayoutGrid,
   Package,
-  RotateCcw,
-  SlidersHorizontal,
   Target,
   Zap,
 } from 'lucide-react';
 import type { Course } from '../../../types.ts';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
-  HSC28_ALL_FILTERS,
   HSC28_SUBJECT_FILTERS,
   HSC28_TYPE_FILTERS,
   getHsc28ScienceFilterCounts,
@@ -33,7 +29,6 @@ interface Hsc28ScienceFilterBarProps {
   courses: Course[];
   selectedFilter: Hsc28ScienceFilterId | 'all';
   onSelectFilter: (filterId: Hsc28ScienceFilterId | 'all') => void;
-  onResetAll: () => void;
 }
 
 const FILTER_ICONS: Record<
@@ -57,35 +52,9 @@ export const Hsc28ScienceFilterBar: React.FC<Hsc28ScienceFilterBarProps> = ({
   courses,
   selectedFilter,
   onSelectFilter,
-  onResetAll,
 }) => {
   const counts = useMemo(() => getHsc28ScienceFilterCounts(courses), [courses]);
-
   const isAllActive = selectedFilter === 'all';
-  const activeOption = useMemo(
-    () =>
-      selectedFilter === 'all'
-        ? null
-        : HSC28_ALL_FILTERS.find((opt) => opt.id === selectedFilter) || null,
-    [selectedFilter]
-  );
-
-  const orderedOptions = useMemo(
-    () => [...HSC28_TYPE_FILTERS, ...HSC28_SUBJECT_FILTERS],
-    []
-  );
-
-  const handleChipClick = (
-    filterId: Hsc28ScienceFilterId | 'all',
-    buttonEl: HTMLButtonElement
-  ) => {
-    onSelectFilter(filterId);
-    buttonEl.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'nearest',
-      block: 'nearest',
-    });
-  };
 
   const renderFilterChip = (option: Hsc28ScienceFilterOption) => {
     const Icon = FILTER_ICONS[option.id];
@@ -97,35 +66,35 @@ export const Hsc28ScienceFilterBar: React.FC<Hsc28ScienceFilterBarProps> = ({
       <button
         key={option.id}
         type="button"
-        onClick={(e) => handleChipClick(option.id, e.currentTarget)}
+        onClick={() => onSelectFilter(option.id)}
         aria-pressed={active}
         title={option.shortHint}
-        className={`w-auto lg:w-full shrink-0 lg:shrink h-[29px] sm:h-[31px] lg:h-[33px] px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
+        className={`h-[31px] sm:h-[33px] px-2.5 sm:px-2.5 rounded-full text-[11px] sm:text-[11.5px] font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0 inline-flex items-center justify-center gap-1 border active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
           active
-            ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.42)]'
+            ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_5px_12px_-3px_rgba(185,28,28,0.42)]'
             : hasMatches
-              ? 'border-rose-200/90 bg-white text-[#2A0F12] hover:border-[#E22B2B]/65 hover:bg-rose-50/80 hover:text-[#B91C1C] shadow-2xs'
-              : 'border-rose-100/90 bg-white/70 text-[#7A5A5D] hover:border-rose-200 hover:bg-white hover:text-[#2A0F12]'
+              ? 'border-rose-200/90 bg-white text-[#2A0F12] hover:border-[#E22B2B]/65 hover:bg-rose-50/75 hover:text-[#B91C1C] shadow-2xs'
+              : 'border-rose-100/90 bg-rose-50/35 text-[#7A5A5D] hover:border-rose-200 hover:bg-white/90 hover:text-[#2A0F12]'
         }`}
       >
-        {active ? (
-          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white shrink-0 stroke-[2.6]" aria-hidden="true" />
-        ) : (
-          <Icon
-            className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${
-              hasMatches ? 'text-[#E22B2B]' : 'text-[#9E7B7E]'
-            }`}
-            aria-hidden="true"
-          />
-        )}
-        <span className="leading-none whitespace-nowrap">{option.label}</span>
+        <Icon
+          className={`w-3 h-3 shrink-0 ${
+            active
+              ? 'text-white'
+              : hasMatches
+                ? 'text-[#E22B2B]'
+                : 'text-[#9E7B7E]'
+          }`}
+          aria-hidden="true"
+        />
+        <span className="leading-none">{option.label}</span>
         <span
-          className={`inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[9.5px] sm:text-[10px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
+          className={`inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[9.5px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
             active
               ? 'bg-black/20 text-white'
               : hasMatches
                 ? 'bg-rose-50 text-[#B91C1C] border border-rose-200/75'
-                : 'bg-rose-50/60 text-[#7A5A5D] border border-rose-100'
+                : 'bg-white/90 text-[#7A5A5D] border border-rose-100'
           }`}
         >
           {toBengaliNumber(count)}
@@ -136,77 +105,57 @@ export const Hsc28ScienceFilterBar: React.FC<Hsc28ScienceFilterBarProps> = ({
 
   return (
     <div
-      className="space-y-2"
+      className="w-full overflow-x-auto no-scrollbar scroll-smooth"
       role="region"
       aria-label="HSC 28 বিজ্ঞান কোর্স ফিল্টার"
     >
-      {/* Centered Filter Metadata Bar */}
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] sm:text-xs font-semibold text-[#6B4C4F]">
-          <span className="inline-flex items-center gap-1.5 font-bold text-[#2A0F12]">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-[#E22B2B]" aria-hidden="true" />
-            <span>ফিল্টার অপশন</span>
-          </span>
-          <span className="text-rose-300" aria-hidden="true">•</span>
-          <span className="text-[11px] text-[#7A5A5D]">
-            যেকোনো একটি ফিল্টার নির্বাচন করুন
-          </span>
-          {activeOption && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-[#B91C1C] text-[10.5px] font-extrabold">
-              সক্রিয়: {activeOption.label}
-            </span>
-          )}
-        </div>
-
-        {!isAllActive && (
-          <button
-            type="button"
-            onClick={onResetAll}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[#B91C1C] text-[11px] font-bold transition cursor-pointer shrink-0 active:scale-[0.97]"
-          >
-            <RotateCcw className="w-3 h-3 shrink-0" aria-hidden="true" />
-            <span>ফিল্টার রিসেট</span>
-          </button>
-        )}
-      </div>
-
-      {/* Mobile & Tablet (<lg): 1 Single Horizontal Line | Laptop (lg+): 2 Equal Lines (6x2 Grid) */}
-      <div className="rounded-xl sm:rounded-2xl bg-white/65 border border-rose-100/95 p-1 sm:p-1.5 shadow-2xs">
-        <div
-          className="min-w-0 w-full flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth lg:grid lg:grid-cols-6 lg:gap-1.5 lg:overflow-visible"
-          role="group"
-          aria-label="HSC 28 বিজ্ঞান কোর্সের ধরন ও বিষয় ফিল্টার"
+      <div
+        className="flex flex-nowrap items-center justify-start lg:justify-between gap-1 sm:gap-1.5 w-max min-w-full py-0.5"
+        role="radiogroup"
+        aria-label="HSC 28 বিজ্ঞান কোর্সের ধরন ও বিষয় ফিল্টার"
+      >
+        {/* All Courses Reset Chip */}
+        <button
+          type="button"
+          onClick={() => onSelectFilter('all')}
+          aria-pressed={isAllActive}
+          className={`h-[31px] sm:h-[33px] px-2.5 sm:px-3 rounded-full text-[11px] sm:text-[11.5px] font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0 inline-flex items-center justify-center gap-1 border active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
+            isAllActive
+              ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_5px_12px_-3px_rgba(185,28,28,0.42)]'
+              : 'border-rose-200/90 bg-white text-[#2A0F12] hover:border-[#E22B2B]/65 hover:bg-rose-50/75 hover:text-[#B91C1C] shadow-2xs'
+          }`}
         >
-          {/* Button 1: All Courses */}
-          <button
-            type="button"
-            onClick={(e) => handleChipClick('all', e.currentTarget)}
-            aria-pressed={isAllActive}
-            className={`w-auto lg:w-full shrink-0 lg:shrink h-[29px] sm:h-[31px] lg:h-[33px] px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
+          <LayoutGrid
+            className={`w-3 h-3 shrink-0 ${isAllActive ? 'text-white' : 'text-[#E22B2B]'}`}
+            aria-hidden="true"
+          />
+          <span className="leading-none">সব কোর্স</span>
+          <span
+            className={`inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[9.5px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
               isAllActive
-                ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.42)]'
-                : 'border-rose-200/90 bg-white text-[#2A0F12] hover:border-[#E22B2B]/65 hover:bg-rose-50/80 hover:text-[#B91C1C] shadow-2xs'
+                ? 'bg-black/20 text-white'
+                : 'bg-rose-50 text-[#B91C1C] border border-rose-200/75'
             }`}
           >
-            <LayoutGrid
-              className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${isAllActive ? 'text-white' : 'text-[#E22B2B]'}`}
-              aria-hidden="true"
-            />
-            <span className="leading-none whitespace-nowrap">সব কোর্স</span>
-            <span
-              className={`inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[9.5px] sm:text-[10px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
-                isAllActive
-                  ? 'bg-black/20 text-white'
-                  : 'bg-rose-50 text-[#B91C1C] border border-rose-200/75'
-              }`}
-            >
-              {toBengaliNumber(counts.all)}
-            </span>
-          </button>
+            {toBengaliNumber(counts.all)}
+          </span>
+        </button>
 
-          {/* Buttons 2-12: Types + Subjects */}
-          {orderedOptions.map(renderFilterChip)}
-        </div>
+        <span
+          aria-hidden="true"
+          className="w-px h-4 bg-rose-200/80 mx-0.5 shrink-0"
+        />
+
+        {/* Package Type Filters (বান্ডেল, নির্দিষ্ট) */}
+        {HSC28_TYPE_FILTERS.map(renderFilterChip)}
+
+        <span
+          aria-hidden="true"
+          className="w-px h-4 bg-rose-200/80 mx-0.5 shrink-0"
+        />
+
+        {/* Subject & Track Filters (PCMB, বায়োলজি, ফিজিক্স, কেমিস্ট্রি, ম্যাথ, BEI, বাংলা, ইংরেজি, ICT) */}
+        {HSC28_SUBJECT_FILTERS.map(renderFilterChip)}
       </div>
     </div>
   );

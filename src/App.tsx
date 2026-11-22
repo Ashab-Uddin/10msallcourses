@@ -876,6 +876,9 @@ export default function App({
   const whatsappLink = settings?.whatsappLink || 'https://wa.me/8801814946474';
   const callNumber = settings?.callNumber?.trim() || whatsappNumber;
   const messengerLink = settings?.messengerLink?.trim() || 'https://m.me/10minuteschool';
+  const facebookLink = settings?.facebookLink?.trim() || 'https://www.facebook.com/10ms.official';
+  const youtubeLink = settings?.youtubeLink?.trim() || 'https://www.youtube.com/@10MinuteSchool';
+  const instagramLink = settings?.instagramLink?.trim() || 'https://www.instagram.com/10ms_official';
   const telHref = `tel:${callNumber.replace(/[^+\d]/g, '') || '01608949565'}`;
 
   // =========================================================
@@ -987,9 +990,14 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
+          categories={orderedCategories}
+          courses={courses}
           isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
+          facebookLink={facebookLink}
+          youtubeLink={youtubeLink}
+          instagramLink={instagramLink}
         />
 
         <MobileBottomNav
@@ -1054,9 +1062,14 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
+          categories={orderedCategories}
+          courses={courses}
           isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
+          facebookLink={facebookLink}
+          youtubeLink={youtubeLink}
+          instagramLink={instagramLink}
         />
 
         <MobileBottomNav
@@ -1121,9 +1134,14 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
+          categories={orderedCategories}
+          courses={courses}
           isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
+          facebookLink={facebookLink}
+          youtubeLink={youtubeLink}
+          instagramLink={instagramLink}
         />
 
         <MobileBottomNav
@@ -1188,9 +1206,14 @@ export default function App({
           onNavigate={navigate}
           onQuickFilter={handleQuickFilterSelect}
           onDirectCourseLink={handleDirectCourseLink}
+          categories={orderedCategories}
+          courses={courses}
           isAdminAuthenticated={Boolean(adminSession)}
           whatsappNumber={whatsappNumber}
           whatsappLink={whatsappLink}
+          facebookLink={facebookLink}
+          youtubeLink={youtubeLink}
+          instagramLink={instagramLink}
         />
 
         <MobileBottomNav
@@ -1718,9 +1741,14 @@ export default function App({
         onNavigate={navigate}
         onQuickFilter={handleQuickFilterSelect}
         onDirectCourseLink={handleDirectCourseLink}
+        categories={orderedCategories}
+        courses={courses}
         isAdminAuthenticated={Boolean(adminSession)}
         whatsappNumber={whatsappNumber}
         whatsappLink={whatsappLink}
+        facebookLink={facebookLink}
+        youtubeLink={youtubeLink}
+        instagramLink={instagramLink}
       />
 
       {/* Mobile Bottom Navigation Bar */}

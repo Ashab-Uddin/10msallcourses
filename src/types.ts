@@ -95,6 +95,9 @@ export interface SiteSettings {
   whatsappLink: string;
   callNumber?: string;
   messengerLink?: string;
+  facebookLink?: string;
+  youtubeLink?: string;
+  instagramLink?: string;
   heroBadge: string;
   heroTitle: string;
   heroSubtitle: string;
