@@ -435,11 +435,16 @@ function resolveRouteSeo(
     clean === '/categories/books' ||
     clean.startsWith('/books/')
   ) {
-    const bookCatSlug = clean.startsWith('/books/')
+    const rawBookCatSlug = clean.startsWith('/books/')
       ? clean.slice('/books/'.length).split('/')[0]
       : '';
+    const bookCatSlug = rawBookCatSlug
+      ? decodeCourseSlug(rawBookCatSlug).normalize('NFC')
+      : '';
     const matchedBookCat = bookCatSlug
-      ? bookCategories.find((cat) => cat.slug === bookCatSlug)
+      ? bookCategories.find(
+          (cat) => cat.slug.normalize('NFC').toLowerCase() === bookCatSlug.toLowerCase()
+        )
       : undefined;
 
     return {

@@ -273,16 +273,11 @@ export function normalizeWhatsAppDigits(rawNumber?: string | null): string {
   return digits;
 }
 
-export function buildWhatsAppCourseInquiryUrl(
-  whatsappLink?: string | null,
-  whatsappNumber?: string | null,
-  courseTitle?: string | null
+function buildWhatsAppPrefilledUrl(
+  whatsappLink: string | null | undefined,
+  whatsappNumber: string | null | undefined,
+  prefilledText: string
 ): string {
-  const cleanTitle = String(courseTitle || '').trim();
-  const prefilledText = cleanTitle
-    ? `আসসালামু আলাইকুম! আমি "${cleanTitle}" কোর্সটি সম্পর্কে বিস্তারিত জানতে এবং স্পেশাল ডিসকাউন্ট অফার পেতে চাই।`
-    : 'আসসালামু আলাইকুম! আমি ১০ মিনিট স্কুলের কোর্সে ডিসকাউন্ট অফার পেতে চাই।';
-
   const encodedText = encodeURIComponent(prefilledText);
   const rawLink = String(whatsappLink || '').trim();
 
@@ -299,4 +294,30 @@ export function buildWhatsAppCourseInquiryUrl(
 
   const digits = normalizeWhatsAppDigits(whatsappNumber) || '8801625171822';
   return `https://wa.me/${digits}?text=${encodedText}`;
+}
+
+export function buildWhatsAppCourseInquiryUrl(
+  whatsappLink?: string | null,
+  whatsappNumber?: string | null,
+  courseTitle?: string | null
+): string {
+  const cleanTitle = String(courseTitle || '').trim();
+  const prefilledText = cleanTitle
+    ? `আসসালামু আলাইকুম! আমি "${cleanTitle}" কোর্সটি সম্পর্কে বিস্তারিত জানতে এবং স্পেশাল ডিসকাউন্ট অফার পেতে চাই।`
+    : 'আসসালামু আলাইকুম! আমি ১০ মিনিট স্কুলের কোর্সে ডিসকাউন্ট অফার পেতে চাই।';
+
+  return buildWhatsAppPrefilledUrl(whatsappLink, whatsappNumber, prefilledText);
+}
+
+export function buildWhatsAppBookPurchaseUrl(
+  whatsappLink?: string | null,
+  whatsappNumber?: string | null,
+  bookTitle?: string | null
+): string {
+  const cleanTitle = String(bookTitle || '').trim();
+  const prefilledText = cleanTitle
+    ? `আসসালামু আলাইকুম,\n\nআমি নিচের বইটি কিনতে আগ্রহী।\n\nবইয়ের নাম: ${cleanTitle}\n\nবইটি অর্ডার করতে চাই। অনুগ্রহ করে বিস্তারিত জানাবেন।\n\nধন্যবাদ।`
+    : 'আসসালামু আলাইকুম,\n\nআমি ১০ মিনিট স্কুলের একটি বই কিনতে আগ্রহী।\n\nবইটি অর্ডার করতে চাই। অনুগ্রহ করে বিস্তারিত জানাবেন।\n\nধন্যবাদ।';
+
+  return buildWhatsAppPrefilledUrl(whatsappLink, whatsappNumber, prefilledText);
 }

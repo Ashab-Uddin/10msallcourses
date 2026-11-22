@@ -708,6 +708,12 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
                           {book.title}
                         </div>
 
+                        {book.author?.trim() ? (
+                          <div className="text-[11px] font-medium text-[#6B4C4F] truncate">
+                            লেখক: {book.author.trim()}
+                          </div>
+                        ) : null}
+
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums">
                           <span className="font-extrabold text-[#007a3d]">
                             ৳{toBengaliNumber(book.price)}

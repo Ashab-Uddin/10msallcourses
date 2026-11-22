@@ -151,7 +151,8 @@ function parseCurrentRoute(pathname: string, hash?: string): RouteState {
     return { view: 'bookstore' };
   }
   if (clean.startsWith('/books/')) {
-    const bookCatSlug = clean.slice('/books/'.length).split('/')[0];
+    const rawBookCatSlug = clean.slice('/books/'.length).split('/')[0] || '';
+    const bookCatSlug = decodeCourseSlug(rawBookCatSlug).normalize('NFC');
     return { view: 'bookstore', categorySlug: bookCatSlug || undefined };
   }
 
@@ -405,6 +406,10 @@ export default function App({
     () => !hasInitialPortalData && !ssrPathname.startsWith('/admin')
   );
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [booksLoading, setBooksLoading] = useState<boolean>(
+    () => !hasInitialBookData && !ssrPathname.startsWith('/admin')
+  );
+  const [booksError, setBooksError] = useState<string | null>(null);
 
   // Search & Discovery Filter States (persisted per navigation history entry)
   const [searchQuery, setSearchQuery] = useHistoryViewState('homeSearchQuery', '');
@@ -485,9 +490,13 @@ export default function App({
   }, []);
 
   const fetchPublicBooks = useCallback(async () => {
+    setBooksLoading(true);
+    setBooksError(null);
     try {
       const res = await fetch('/api/public/books', { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) {
+        throw new Error('বুক স্টোরের তথ্য লোড করা সম্ভব হয়নি।');
+      }
       const data = await res.json();
       if (Array.isArray(data.bookCategories)) {
         setBookCategories(data.bookCategories);
@@ -498,6 +507,9 @@ export default function App({
       bookDataLoadedRef.current = true;
     } catch (err) {
       console.warn('Book store data fetch fallback:', err);
+      setBooksError('বুক স্টোরের বই লোড করতে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।');
+    } finally {
+      setBooksLoading(false);
     }
   }, []);
 
@@ -774,6 +786,15 @@ export default function App({
   // Dynamic calculation of active bottom navigation tab based on URL path, category, and state
   const getMobileActiveTab = (): MobileTab => {
     const clean = currentPath.replace(/\/+$/, '') || '/';
+    if (
+      clean === '/books' ||
+      clean.startsWith('/books/') ||
+      clean === '/book-store' ||
+      clean === '/category/books' ||
+      clean === '/categories/books'
+    ) {
+      return 'books';
+    }
     const catMatch = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
     if (catMatch) {
       const decodedSlug = decodeCourseSlug(catMatch[1]) || catMatch[1];
@@ -836,6 +857,8 @@ export default function App({
       navigate('/ssc/ssc-27');
     } else if (tab === 'admission') {
       navigate('/category/admission');
+    } else if (tab === 'books') {
+      navigate('/books');
     } else if (tab === 'skills') {
       navigate('/category/skills');
     }
@@ -1017,6 +1040,8 @@ export default function App({
           <BookStorePage
             bookCategories={bookCategories}
             books={books}
+            booksLoading={booksLoading}
+            booksError={booksError}
             initialCategorySlug={route.categorySlug}
             settings={settings}
             onBack={() => navigate('/')}

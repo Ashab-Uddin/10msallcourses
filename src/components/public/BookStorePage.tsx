@@ -3,8 +3,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Book, BookCategory, BookShelfTheme, SiteSettings } from '../../types.ts';
 import { BookCard } from './BookCard.tsx';
-import { parseFeatures, toBengaliNumber } from '../../utils/format.ts';
-import { buildAffiliateRedirectUrl, validateExternalHttpUrl } from '../../lib/affiliateUrl.ts';
+import { BookDetailsModal } from './BookDetailsModal.tsx';
+import { toBengaliNumber } from '../../utils/format.ts';
 import {
   getPreviousHistoryUrl,
   navigateBack,
@@ -21,20 +21,19 @@ import {
   ChevronRight,
   Search,
   X,
-  ExternalLink,
-  CheckCircle2,
-  User,
-  Building2,
-  FileText,
   Sparkles,
-  MessageCircle,
   ArrowLeft,
   Layers,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
+import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 
 interface BookStorePageProps {
   bookCategories: BookCategory[];
   books: Book[];
+  booksLoading?: boolean;
+  booksError?: string | null;
   initialCategorySlug?: string;
   settings?: SiteSettings | null;
   onBack?: () => void;
@@ -79,13 +78,21 @@ const CategoryBookSection: React.FC<CategoryBookSectionProps> = ({
   onBuyClick,
 }) => {
   const sectionHeading = category.sectionTitle?.trim() || `${category.name}-এর সকল বই`;
+  const headingIncludesCategoryName = sectionHeading
+    .toLowerCase()
+    .includes(category.name.trim().toLowerCase());
 
   return (
     <section className="space-y-4">
       {/* Section Header Row */}
       <div className="flex items-center justify-between gap-3 px-0.5">
         <div className="min-w-0">
-          <h2 className="text-xl sm:text-2xl font-black text-[#2A0F12] tracking-tight truncate">
+          {!headingIncludesCategoryName && (
+            <span className="block text-[11px] font-extrabold text-[#B91C1C] tracking-wide mb-0.5">
+              {category.name}
+            </span>
+          )}
+          <h2 className="text-lg sm:text-2xl font-black text-[#2A0F12] tracking-tight truncate">
             {sectionHeading}
           </h2>
           {category.subtitle && (
@@ -98,15 +105,16 @@ const CategoryBookSection: React.FC<CategoryBookSectionProps> = ({
         <button
           type="button"
           onClick={() => onViewAll(category.slug)}
-          className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full glass-inset hover:bg-white/90 text-xs sm:text-[13px] font-bold text-[#2A0F12] hover:text-[#E22B2B] transition-all shrink-0 cursor-pointer shadow-2xs whitespace-nowrap"
+          title={`${category.name}-এর সব বই দেখুন`}
+          className="inline-flex items-center gap-1 px-3 sm:px-3.5 py-1.5 rounded-full glass-inset hover:bg-white/90 text-xs sm:text-[13px] font-bold text-[#2A0F12] hover:text-[#E22B2B] transition-all shrink-0 cursor-pointer shadow-2xs whitespace-nowrap"
         >
-          <span>সব দেখুন</span>
+          <span>View All</span>
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Frosted Glassmorphism Book Grid Matching CourseCard 1-2-4 Columns */}
-      <div className="relative rounded-[28px] glass-surface p-4 sm:p-5 overflow-hidden">
+      {/* Frosted Glassmorphism Book Grid: Mobile 2 columns, Tablet 2 columns, Desktop 4 columns */}
+      <div className="relative rounded-2xl sm:rounded-[28px] glass-surface p-2.5 sm:p-5 overflow-hidden">
         <div
           aria-hidden="true"
           className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${getShelfGlowClass(
@@ -115,9 +123,9 @@ const CategoryBookSection: React.FC<CategoryBookSectionProps> = ({
           )}`}
         />
 
-        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-5 items-stretch">
           {books.map((book) => (
-            <div key={book.id} className="h-full flex flex-col">
+            <div key={book.id} className="h-full flex flex-col min-w-0">
               <BookCard
                 book={book}
                 categoryName={category.name}
@@ -125,6 +133,7 @@ const CategoryBookSection: React.FC<CategoryBookSectionProps> = ({
                 onSelect={onSelectBook}
                 onBuyClick={onBuyClick}
                 headingLevel="h3"
+                compactMobile
               />
             </div>
           ))}
@@ -137,12 +146,18 @@ const CategoryBookSection: React.FC<CategoryBookSectionProps> = ({
 export const BookStorePage: React.FC<BookStorePageProps> = ({
   bookCategories,
   books,
+  booksLoading = false,
+  booksError = null,
   initialCategorySlug = 'all',
   settings,
   onBack,
   onNavigate,
+  onRefreshBooks,
 }) => {
-  const normalizedInitialCategory = initialCategorySlug || 'all';
+  const normalizedInitialCategory = useMemo(() => {
+    if (!initialCategorySlug || initialCategorySlug === 'all') return 'all';
+    return (decodeCourseSlug(initialCategorySlug) || initialCategorySlug).normalize('NFC');
+  }, [initialCategorySlug]);
   const [localSelectedCategory, setLocalSelectedCategory] = useState<string>(
     normalizedInitialCategory
   );
@@ -193,10 +208,18 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
   const activeCategoryMap = useMemo(() => {
     const map = new Map<string, BookCategory>();
     for (const cat of bookCategories) {
-      map.set(cat.slug, cat);
+      const normalized = cat.slug.normalize('NFC');
+      map.set(normalized, cat);
+      map.set(normalized.toLowerCase(), cat);
     }
     return map;
   }, [bookCategories]);
+
+  const selectedCategoryObj = useMemo(() => {
+    if (selectedCategory === 'all') return null;
+    const normalized = selectedCategory.normalize('NFC');
+    return activeCategoryMap.get(normalized) || activeCategoryMap.get(normalized.toLowerCase()) || null;
+  }, [selectedCategory, activeCategoryMap]);
 
   // Record book affiliate clicks asynchronously without delaying redirect
   const handleRecordBookClick = (book: Book) => {
@@ -210,27 +233,41 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
   // Filtered books by search & selected category
   const filteredBooks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const targetSlugLower = selectedCategory.normalize('NFC').toLowerCase();
     return books.filter((b) => {
-      if (selectedCategory !== 'all' && b.categorySlug !== selectedCategory) {
-        return false;
+      if (selectedCategory !== 'all') {
+        const matchesSlug = b.categorySlug.normalize('NFC').toLowerCase() === targetSlugLower;
+        const matchesId = selectedCategoryObj ? b.categoryId === selectedCategoryObj.id : false;
+        if (!matchesSlug && !matchesId) {
+          return false;
+        }
       }
       if (!q) return true;
       return (
         b.title.toLowerCase().includes(q) ||
         b.author.toLowerCase().includes(q) ||
         b.bookType.toLowerCase().includes(q) ||
-        (activeCategoryMap.get(b.categorySlug)?.name || '').toLowerCase().includes(q)
+        (activeCategoryMap.get(b.categorySlug.normalize('NFC').toLowerCase())?.name || '')
+          .toLowerCase()
+          .includes(q)
       );
     });
-  }, [books, selectedCategory, searchQuery, activeCategoryMap]);
+  }, [books, selectedCategory, selectedCategoryObj, searchQuery, activeCategoryMap]);
 
   // Group books per category when viewing "সব" without active search query
   const groupedShelves = useMemo(() => {
     return bookCategories
-      .map((cat) => ({
-        category: cat,
-        items: books.filter((b) => b.categorySlug === cat.slug),
-      }))
+      .map((cat) => {
+        const catSlugLower = cat.slug.normalize('NFC').toLowerCase();
+        return {
+          category: cat,
+          items: books.filter(
+            (b) =>
+              b.categorySlug.normalize('NFC').toLowerCase() === catSlugLower ||
+              b.categoryId === cat.id
+          ),
+        };
+      })
       .filter((group) => group.items.length > 0);
   }, [bookCategories, books]);
 
@@ -252,17 +289,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
     }
   };
 
-  const selectedCategoryObj =
-    selectedCategory !== 'all' ? activeCategoryMap.get(selectedCategory) : null;
-
   const isGroupedShelfView = selectedCategory === 'all' && searchQuery.trim() === '';
-
-  const modalAffiliateHref = useMemo(() => {
-    if (!selectedBook?.affiliateUrl?.trim()) return null;
-    const check = validateExternalHttpUrl(selectedBook.affiliateUrl);
-    if (!check.valid || !check.normalized) return null;
-    return buildAffiliateRedirectUrl(check.normalized, settings?.defaultAffiliateRef);
-  }, [selectedBook, settings?.defaultAffiliateRef]);
 
   return (
     <div className="pb-14">
@@ -398,7 +425,9 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
           </button>
 
           {bookCategories.map((cat) => {
-            const isSelected = selectedCategory === cat.slug;
+            const isSelected =
+              selectedCategory.normalize('NFC').toLowerCase() ===
+              cat.slug.normalize('NFC').toLowerCase();
             return (
               <button
                 key={cat.id}
@@ -421,7 +450,47 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
       {/* 3. CATEGORY BOOK SECTIONS OR FILTERED BOOK GRID           */}
       {/* ========================================================= */}
       <section className="max-w-[1260px] mx-auto px-4 sm:px-6 pt-7 sm:pt-9 space-y-10">
-        {isGroupedShelfView ? (
+        {booksLoading && books.length === 0 ? (
+          <div className="space-y-4">
+            <div className="h-7 w-48 rounded-xl bg-rose-100/80 animate-pulse" />
+            <div className="glass-surface rounded-2xl sm:rounded-[28px] p-3 sm:p-5">
+              <div
+                className={`grid gap-2.5 sm:gap-5 ${
+                  isGroupedShelfView
+                    ? 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4'
+                    : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+                }`}
+              >
+                {[1, 2, 3, 4].map((idx) => (
+                  <div
+                    key={idx}
+                    className="h-72 sm:h-88 rounded-2xl bg-white/75 border border-rose-100/80 animate-pulse"
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : booksError && books.length === 0 ? (
+          <div className="glass-strong rounded-3xl p-10 sm:p-14 text-center space-y-3 border border-rose-200/80">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200/80 mx-auto flex items-center justify-center">
+              <AlertCircle className="w-7 h-7 text-[#eb1c24]" />
+            </div>
+            <h2 className="text-lg sm:text-xl font-black text-[#2A0F12]">{booksError}</h2>
+            <p className="text-xs sm:text-sm text-[#6B4C4F] max-w-md mx-auto leading-relaxed">
+              সার্ভার থেকে বইয়ের তথ্য লোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।
+            </p>
+            {onRefreshBooks && (
+              <button
+                type="button"
+                onClick={() => void onRefreshBooks()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold shadow-sm cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>আবার চেষ্টা করুন</span>
+              </button>
+            )}
+          </div>
+        ) : isGroupedShelfView ? (
           groupedShelves.length > 0 ? (
             groupedShelves.map((group, idx) => (
               <CategoryBookSection
@@ -526,186 +595,21 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
       {/* ========================================================= */}
       {/* 4. BOOK DETAILS MODAL                                     */}
       {/* ========================================================= */}
-      {selectedBook && (
-        <div
-          className="fixed inset-0 z-[65] bg-rose-950/35 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
-          onClick={() => setSelectedBook(null)}
-        >
-          <div
-            className="glass-strong rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setSelectedBook(null)}
-              aria-label="বন্ধ করুন"
-              className="absolute top-4 right-4 z-10 p-2 rounded-full glass-inset hover:bg-white text-[#6B4C4F] hover:text-[#E22B2B] transition cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-5 sm:p-7">
-              {/* Cover Column */}
-              <div className="md:col-span-5 flex flex-col items-center">
-                <div className="w-full aspect-[4/4.3] rounded-2xl glass-inset bg-gradient-to-br from-white/85 via-white/55 to-rose-50/45 p-6 flex items-center justify-center relative overflow-hidden">
-                  {selectedBook.discountPercent > 0 &&
-                    selectedBook.originalPrice > selectedBook.price && (
-                      <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#ff7a00] to-[#f97316] text-white text-xs font-black shadow-sm border border-orange-300/40 tabular-nums">
-                        {toBengaliNumber(selectedBook.discountPercent)}% ছাড়
-                      </span>
-                    )}
-                  {selectedBook.coverImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={selectedBook.coverImageUrl}
-                      alt={selectedBook.title}
-                      referrerPolicy="no-referrer"
-                      className="max-h-full max-w-[85%] object-contain rounded-md drop-shadow-[0_14px_24px_rgba(42,15,18,0.22)]"
-                    />
-                  ) : (
-                    <div className="w-36 h-48 rounded-xl bg-gradient-to-br from-[#ff5252] to-[#7f1d1d] flex flex-col items-center justify-center p-4 text-center text-white shadow-lg">
-                      <BookOpen className="w-10 h-10 mb-2 opacity-90" />
-                      <span className="text-xs font-bold leading-snug">{selectedBook.title}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Info Column */}
-              <div className="md:col-span-7 flex flex-col space-y-4 pr-2">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
-                    {activeCategoryMap.get(selectedBook.categorySlug) && (
-                      <span className="text-[#B91C1C]">
-                        {activeCategoryMap.get(selectedBook.categorySlug)?.name}
-                      </span>
-                    )}
-                    {activeCategoryMap.get(selectedBook.categorySlug) && selectedBook.bookType && (
-                      <span className="text-rose-300" aria-hidden="true">
-                        ·
-                      </span>
-                    )}
-                    <span className="text-[#6B4C4F] font-semibold">
-                      {selectedBook.bookType || 'প্রিন্টেড বুক'}
-                    </span>
-                  </div>
-
-                  <h2 className="text-xl sm:text-2xl font-black text-[#2A0F12] leading-snug">
-                    {selectedBook.title}
-                  </h2>
-
-                  {/* Price Row */}
-                  <div className="flex flex-wrap items-baseline gap-2.5 pt-1 tabular-nums">
-                    <span className="text-2xl font-black text-[#007a3d]">
-                      ৳{toBengaliNumber(selectedBook.price)}
-                    </span>
-                    {selectedBook.originalPrice > selectedBook.price && (
-                      <>
-                        <span className="text-sm font-medium text-[#7A5A5D] line-through">
-                          ৳{toBengaliNumber(selectedBook.originalPrice)}
-                        </span>
-                        <span className="text-xs font-bold text-[#007a3d] bg-emerald-50/90 border border-emerald-500/70 px-2.5 py-0.5 rounded-full">
-                          ৳{toBengaliNumber(selectedBook.originalPrice - selectedBook.price)} ছাড়
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Metadata Grid */}
-                <div className="grid grid-cols-2 gap-2.5 text-xs glass-inset rounded-2xl p-3.5">
-                  <div className="flex items-center gap-2 text-[#2A0F12]">
-                    <User className="w-3.5 h-3.5 text-[#E22B2B] shrink-0" />
-                    <span className="truncate">
-                      <strong>লেখক:</strong> {selectedBook.author || '১০ মিনিট স্কুল'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[#2A0F12]">
-                    <Building2 className="w-3.5 h-3.5 text-[#E22B2B] shrink-0" />
-                    <span className="truncate">
-                      <strong>প্রকাশনী:</strong> {selectedBook.publisher || '১০ মিনিট স্কুল'}
-                    </span>
-                  </div>
-                  {selectedBook.edition && (
-                    <div className="flex items-center gap-2 text-[#2A0F12]">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                      <span className="truncate">
-                        <strong>সংস্করণ:</strong> {selectedBook.edition}
-                      </span>
-                    </div>
-                  )}
-                  {selectedBook.pages && (
-                    <div className="flex items-center gap-2 text-[#2A0F12]">
-                      <FileText className="w-3.5 h-3.5 text-[#1E63D6] shrink-0" />
-                      <span className="truncate">
-                        <strong>পৃষ্ঠা:</strong> {selectedBook.pages}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {loadingBookDetails && (
-                  <p className="text-[11px] text-[#6B4C4F]/75">বিস্তারিত তথ্য আপডেট হচ্ছে...</p>
-                )}
-
-                {/* Feature Highlights */}
-                {parseFeatures(selectedBook.features).length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="text-xs font-extrabold text-[#2A0F12]">বইটির মূল বৈশিষ্ট্য:</div>
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {parseFeatures(selectedBook.features).map((feat, idx) => (
-                        <li
-                          key={idx}
-                          className="flex items-start gap-1.5 text-xs text-[#2A0F12]/85 font-medium"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#007a3d] shrink-0 mt-0.5" />
-                          <span>{feat}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Action Buttons: বইটি কিনুন (Affiliate Link) + Safe Fallback */}
-                <div className="pt-3 mt-auto flex flex-wrap items-center gap-2.5 border-t border-white/75">
-                  {modalAffiliateHref ? (
-                    <a
-                      href={modalAffiliateHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => handleRecordBookClick(selectedBook)}
-                      className="flex-1 min-w-[180px] inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#ff5252] via-[#e22b2b] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs sm:text-sm font-extrabold shadow-[0_10px_24px_-6px_rgba(226,43,43,0.45)] transition whitespace-nowrap"
-                    >
-                      <span>বইটি কিনুন</span>
-                      <ExternalLink className="w-4 h-4 shrink-0" />
-                    </a>
-                  ) : (
-                    <div className="flex-1 min-w-[180px] px-4 py-2.5 rounded-xl bg-rose-50/80 border border-rose-200/80 text-[#6B4C4F] text-xs font-semibold">
-                      এই বইটির অনলাইন অর্ডার লিংক এখনো সংযুক্ত করা হয়নি।
-                    </div>
-                  )}
-
-                  {settings?.whatsappLink && (
-                    <a
-                      href={`${settings.whatsappLink}${
-                        settings.whatsappLink.includes('?') ? '&' : '?'
-                      }text=${encodeURIComponent(
-                        `আসসালামু আলাইকুম, আমি "${selectedBook.title}" বইটি সম্পর্কে জানতে চাই।`
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold transition whitespace-nowrap"
-                    >
-                      <MessageCircle className="w-4 h-4 shrink-0" />
-                      <span>WhatsApp-এ জানুন</span>
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <BookDetailsModal
+        book={selectedBook}
+        categoryName={
+          selectedBook
+            ? activeCategoryMap.get(selectedBook.categorySlug.normalize('NFC').toLowerCase())
+                ?.name ||
+              activeCategoryMap.get(selectedBook.categorySlug)?.name ||
+              selectedBook.categorySlug
+            : undefined
+        }
+        settings={settings}
+        loadingDetails={loadingBookDetails}
+        onClose={closeBookModal}
+        onBuyClick={handleRecordBookClick}
+      />
     </div>
   );
 };

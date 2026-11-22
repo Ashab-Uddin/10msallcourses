@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   BarChart3,
   BookOpen,
   Briefcase,
   Calculator,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Cpu,
   Globe2,
   Landmark,
@@ -74,10 +72,6 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
   const orderedOptions = useMemo(() => getDepartmentFilterOptions(track), [track]);
   const counts = useMemo(() => getDepartmentFilterCounts(courses, track), [courses, track]);
 
-  const scrollStripRef = useRef<HTMLDivElement | null>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
   const isAllActive = selectedFilter === 'all';
   const activeOption = useMemo(
     () =>
@@ -86,45 +80,6 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
         : orderedOptions.find((opt) => opt.id === selectedFilter) || null,
     [orderedOptions, selectedFilter]
   );
-
-  const updateScrollHints = useCallback(() => {
-    const el = scrollStripRef.current;
-    if (!el) return;
-    const maxScroll = el.scrollWidth - el.clientWidth;
-    setCanScrollLeft(el.scrollLeft > 4);
-    setCanScrollRight(maxScroll - el.scrollLeft > 4);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollStripRef.current;
-    if (!el) return;
-
-    updateScrollHints();
-
-    const handleScroll = () => updateScrollHints();
-    el.addEventListener('scroll', handleScroll, { passive: true });
-
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(() => updateScrollHints())
-        : null;
-    resizeObserver?.observe(el);
-
-    return () => {
-      el.removeEventListener('scroll', handleScroll);
-      resizeObserver?.disconnect();
-    };
-  }, [updateScrollHints, counts]);
-
-  const scrollStripBy = (direction: 'left' | 'right') => {
-    const el = scrollStripRef.current;
-    if (!el) return;
-    const delta = Math.max(180, Math.round(el.clientWidth * 0.6));
-    el.scrollBy({
-      left: direction === 'left' ? -delta : delta,
-      behavior: 'smooth',
-    });
-  };
 
   const handleChipClick = (
     filterId: Hsc28DepartmentFilterId | 'all',
@@ -151,7 +106,7 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
         onClick={(e) => handleChipClick(option.id, e.currentTarget)}
         aria-pressed={active}
         title={option.shortHint}
-        className={`w-auto lg:w-full shrink-0 lg:shrink h-[34px] sm:h-[36px] lg:h-[38px] px-3 rounded-xl text-[11.5px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1.5 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
+        className={`w-auto lg:w-full shrink-0 lg:shrink h-[29px] sm:h-[31px] lg:h-[33px] px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
           active
             ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.42)]'
             : hasMatches
@@ -160,10 +115,10 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
         }`}
       >
         {active ? (
-          <Check className="w-3.5 h-3.5 text-white shrink-0 stroke-[2.6]" aria-hidden="true" />
+          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white shrink-0 stroke-[2.6]" aria-hidden="true" />
         ) : (
           <Icon
-            className={`w-3.5 h-3.5 shrink-0 ${
+            className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${
               hasMatches ? 'text-[#E22B2B]' : 'text-[#9E7B7E]'
             }`}
             aria-hidden="true"
@@ -171,7 +126,7 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
         )}
         <span className="leading-none whitespace-nowrap">{option.label}</span>
         <span
-          className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
+          className={`inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[9.5px] sm:text-[10px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
             active
               ? 'bg-black/20 text-white'
               : hasMatches
@@ -187,7 +142,7 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
 
   return (
     <div
-      className="space-y-2.5"
+      className="space-y-2"
       role="region"
       aria-label={
         track === 'humanities'
@@ -217,7 +172,7 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
           <button
             type="button"
             onClick={onResetAll}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[#B91C1C] text-[11px] font-bold transition cursor-pointer shrink-0 active:scale-[0.97]"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[#B91C1C] text-[11px] font-bold transition cursor-pointer shrink-0 active:scale-[0.97]"
           >
             <RotateCcw className="w-3 h-3 shrink-0" aria-hidden="true" />
             <span>ফিল্টার রিসেট</span>
@@ -226,21 +181,9 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
       </div>
 
       {/* Mobile & Tablet (<lg): 1 Single Horizontal Line | Laptop (lg+): 2 Equal Lines (6x2 Grid) */}
-      <div className="relative flex items-center rounded-2xl bg-white/65 border border-rose-100/95 p-1.5 lg:p-2 shadow-2xs">
-        {canScrollLeft && (
-          <button
-            type="button"
-            onClick={() => scrollStripBy('left')}
-            aria-label="বামে ফিল্টার দেখুন"
-            className="lg:hidden mr-1.5 w-7 h-7 rounded-xl bg-white border border-rose-200/90 text-[#B91C1C] hover:bg-rose-50 flex items-center justify-center shrink-0 shadow-xs transition cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
-          </button>
-        )}
-
+      <div className="rounded-xl sm:rounded-2xl bg-white/65 border border-rose-100/95 p-1 sm:p-1.5 shadow-2xs">
         <div
-          ref={scrollStripRef}
-          className="min-w-0 flex-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth lg:grid lg:grid-cols-6 lg:gap-2 lg:overflow-visible"
+          className="min-w-0 w-full flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth lg:grid lg:grid-cols-6 lg:gap-1.5 lg:overflow-visible"
           role="group"
           aria-label={
             track === 'humanities'
@@ -253,19 +196,19 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
             type="button"
             onClick={(e) => handleChipClick('all', e.currentTarget)}
             aria-pressed={isAllActive}
-            className={`w-auto lg:w-full shrink-0 lg:shrink h-[34px] sm:h-[36px] lg:h-[38px] px-3 rounded-xl text-[11.5px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1.5 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
+            className={`w-auto lg:w-full shrink-0 lg:shrink h-[29px] sm:h-[31px] lg:h-[33px] px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
               isAllActive
                 ? 'border-[#b91c1c] bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.42)]'
                 : 'border-rose-200/90 bg-white text-[#2A0F12] hover:border-[#E22B2B]/65 hover:bg-rose-50/80 hover:text-[#B91C1C] shadow-2xs'
             }`}
           >
             <LayoutGrid
-              className={`w-3.5 h-3.5 shrink-0 ${isAllActive ? 'text-white' : 'text-[#E22B2B]'}`}
+              className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${isAllActive ? 'text-white' : 'text-[#E22B2B]'}`}
               aria-hidden="true"
             />
             <span className="leading-none whitespace-nowrap">সব কোর্স</span>
             <span
-              className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
+              className={`inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[9.5px] sm:text-[10px] font-extrabold leading-none tabular-nums bn-digits-fix shrink-0 ${
                 isAllActive
                   ? 'bg-black/20 text-white'
                   : 'bg-rose-50 text-[#B91C1C] border border-rose-200/75'
@@ -278,17 +221,6 @@ export const Hsc28DepartmentFilterBar: React.FC<Hsc28DepartmentFilterBarProps> =
           {/* Buttons 2-12: Category-Based Types + Subjects */}
           {orderedOptions.map(renderFilterChip)}
         </div>
-
-        {canScrollRight && (
-          <button
-            type="button"
-            onClick={() => scrollStripBy('right')}
-            aria-label="ডানে আরও ফিল্টার দেখুন"
-            className="lg:hidden ml-1.5 w-7 h-7 rounded-xl bg-white border border-rose-200/90 text-[#B91C1C] hover:bg-rose-50 flex items-center justify-center shrink-0 shadow-xs transition cursor-pointer"
-          >
-            <ChevronRight className="w-4 h-4" aria-hidden="true" />
-          </button>
-        )}
       </div>
     </div>
   );

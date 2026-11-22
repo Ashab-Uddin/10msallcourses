@@ -198,7 +198,7 @@ function mapBookRow(row: Record<string, unknown>): Book {
         : Number(row.category_id),
     categorySlug: String(row.category_slug || ''),
     bookType: String(row.book_type || 'প্রিন্টেড বুক'),
-    author: String(row.author || '১০ মিনিট স্কুল'),
+    author: row.author === null || row.author === undefined ? '' : String(row.author).trim(),
     publisher: String(row.publisher || '১০ মিনিট স্কুল পাবলিকেশন'),
     edition: String(row.edition || ''),
     pages: String(row.pages || ''),
@@ -434,13 +434,19 @@ export async function getBooksByCategory(
   categorySlugOrId: string | number
 ): Promise<Book[]> {
   const { books } = await getPublicBookStoreData();
-  const raw = String(categorySlugOrId || '').trim();
+  const rawInput = String(categorySlugOrId || '').trim();
+  let raw = rawInput;
+  try {
+    raw = decodeURIComponent(rawInput).normalize('NFC').trim();
+  } catch {
+    raw = rawInput.normalize('NFC').trim();
+  }
   if (!raw || raw === 'all') return books;
   const numericId = /^\d+$/.test(raw) ? Number(raw) : null;
   return books.filter((b) =>
     numericId !== null
       ? b.categoryId === numericId
-      : b.categorySlug.toLowerCase() === raw.toLowerCase()
+      : b.categorySlug.normalize('NFC').toLowerCase() === raw.toLowerCase()
   );
 }
 
@@ -618,7 +624,7 @@ export async function createNewBook(input: Record<string, unknown>): Promise<Boo
   const discountPercent = computeDiscountPercent(originalPrice, price);
 
   const bookType = String(input.bookType || 'প্রিন্টেড বুক').trim().slice(0, 60) || 'প্রিন্টেড বুক';
-  const author = String(input.author || '১০ মিনিট স্কুল').trim().slice(0, 140) || '১০ মিনিট স্কুল';
+  const author = typeof input.author === 'string' ? input.author.trim().slice(0, 140) : '';
   const publisher =
     String(input.publisher || '১০ মিনিট স্কুল পাবলিকেশন').trim().slice(0, 140) ||
     '১০ মিনিট স্কুল পাবলিকেশন';
@@ -815,7 +821,7 @@ export async function updateExistingBook(
     }
     if (input.author !== undefined) {
       updatePayload.author =
-        String(input.author || '১০ মিনিট স্কুল').trim().slice(0, 140) || '১০ মিনিট স্কুল';
+        typeof input.author === 'string' ? input.author.trim().slice(0, 140) : '';
     }
     if (input.publisher !== undefined) {
       updatePayload.publisher =
@@ -937,7 +943,7 @@ export async function updateExistingBook(
       ? { bookType: String(input.bookType || 'প্রিন্টেড বুক').trim().slice(0, 60) || 'প্রিন্টেড বুক' }
       : {}),
     ...(input.author !== undefined
-      ? { author: String(input.author || '১০ মিনিট স্কুল').trim().slice(0, 140) || '১০ মিনিট স্কুল' }
+      ? { author: typeof input.author === 'string' ? input.author.trim().slice(0, 140) : '' }
       : {}),
     ...(input.publisher !== undefined
       ? {

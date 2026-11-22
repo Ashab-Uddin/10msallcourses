@@ -4,10 +4,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   Home,
-  Sparkles,
   GraduationCap,
   Award,
   Briefcase,
+  ShoppingBag,
   X,
   ArrowRight,
   Check,
@@ -18,13 +18,13 @@ import {
   type NavbarGroupKey,
 } from '../../lib/navbarCategories.ts';
 import { resolveCategoryCardTheme } from '../../lib/categoryIcons.ts';
-import { getCategoryLucideIcon } from '../../lib/categoryIconComponents.ts';
+import { getCategoryLucideIcon, getNavbarGroupLucideIcon } from '../../lib/categoryIconComponents.ts';
 import { categorySlugsMatch, courseMatchesCategorySlug } from '../../lib/categoryMatching.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { useHistoryOverlay } from '../../lib/navigationHistory.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
 
-export type MobileTab = 'home' | 'hsc27' | 'hsc28' | 'school' | 'admission' | 'skills';
+export type MobileTab = 'home' | 'hsc27' | 'hsc28' | 'school' | 'admission' | 'books' | 'skills';
 
 type SheetGroupKey = NavbarGroupKey | 'skills';
 
@@ -176,8 +176,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     [courses]
   );
 
-  // Navigation Items strictly arranged in requested serial:
-  // 1. Home, 2. HSC 27, 3. HSC 28, 4. Class 6–12, 5. Admission, 6. Skills
+  const Hsc27Icon = useMemo(
+    () => getNavbarGroupLucideIcon('hsc27', categories),
+    [categories]
+  );
+  const Hsc28Icon = useMemo(
+    () => getNavbarGroupLucideIcon('hsc28', categories),
+    [categories]
+  );
+
+  // Navigation Items:
+  // 1. Home, 2. HSC 27, 3. HSC 28, 4. Class 6–12, 5. Admission, 6. Books, 7. Skills
   const navItems: NavItem[] = [
     {
       id: 'home',
@@ -187,12 +196,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     {
       id: 'hsc27',
       label: 'HSC 27',
-      icon: Sparkles,
+      icon: Hsc27Icon,
     },
     {
       id: 'hsc28',
       label: 'HSC 28',
-      icon: Sparkles,
+      icon: Hsc28Icon,
     },
     {
       id: 'school',
@@ -205,6 +214,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       icon: Award,
     },
     {
+      id: 'books',
+      label: 'Books',
+      icon: ShoppingBag,
+    },
+    {
       id: 'skills',
       label: 'Skills',
       icon: Briefcase,
@@ -212,9 +226,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   ];
 
   const handleNavItemTap = (tab: MobileTab) => {
-    if (tab === 'home') {
+    if (tab === 'home' || tab === 'books') {
       setOpenGroup(null);
-      onTabChange('home');
+      onTabChange(tab);
       return;
     }
 
@@ -439,9 +453,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         style={{
           paddingBottom: 'calc(0.45rem + env(safe-area-inset-bottom, 0px))',
         }}
-        className="md:hidden fixed bottom-2.5 inset-x-3 sm:inset-x-4 max-w-[480px] mx-auto z-50 bg-white/88 backdrop-blur-xl border border-rose-100/90 shadow-[0_12px_36px_-6px_rgba(0,0,0,0.14),0_4px_16px_rgba(226,43,43,0.06)] rounded-[22px] px-1 py-1 transition-all duration-200 select-none"
+        className="md:hidden fixed bottom-2.5 inset-x-2 sm:inset-x-4 max-w-[480px] mx-auto z-50 bg-white/88 backdrop-blur-xl border border-rose-100/90 shadow-[0_12px_36px_-6px_rgba(0,0,0,0.14),0_4px_16px_rgba(226,43,43,0.06)] rounded-[22px] px-1 py-1 transition-all duration-200 select-none"
       >
-        <div className="grid grid-cols-6 items-center gap-0.5 w-full">
+        <div className="grid grid-cols-7 items-center gap-0.5 w-full">
           {navItems.map((item) => {
             const isSheetOpenForItem = openGroup === item.id;
             const isActive = isSheetOpenForItem || (!openGroup && activeTab === item.id);
@@ -449,7 +463,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             const hasSubCategories =
               item.id === 'skills'
                 ? skillsCategories.length > 1
-                : item.id !== 'home' && (groupedCategories[item.id]?.length ?? 0) > 0;
+                : item.id !== 'home' &&
+                  item.id !== 'books' &&
+                  (groupedCategories[item.id]?.length ?? 0) > 0;
 
             return (
               <button
@@ -470,14 +486,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   }`}
                 >
                   <IconComponent
-                    className={`w-[19px] h-[19px] transition-colors stroke-[2] ${
+                    className={`w-[18px] h-[18px] sm:w-[19px] sm:h-[19px] transition-colors stroke-[2] ${
                       isActive ? 'text-[#eb1c24]' : 'text-slate-500 group-hover:text-slate-800'
                     }`}
                   />
                 </div>
 
                 <span
-                  className={`text-[9.5px] sm:text-[10px] leading-tight tracking-tight mt-1 truncate max-w-full text-center transition-colors ${
+                  className={`text-[8.5px] sm:text-[10px] leading-tight tracking-tight mt-1 truncate max-w-full text-center transition-colors ${
                     isActive
                       ? 'text-[#eb1c24] font-extrabold'
                       : 'text-slate-600 group-hover:text-slate-900 font-bold'

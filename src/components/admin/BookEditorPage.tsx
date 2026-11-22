@@ -66,7 +66,7 @@ export const BookEditorPage: React.FC<BookEditorPageProps> = ({
     book?.categorySlug || (bookCategories[0]?.slug ?? 'hsc')
   );
   const [bookType, setBookType] = useState(book?.bookType || 'প্রিন্টেড বুক');
-  const [author, setAuthor] = useState(book?.author || '১০ মিনিট স্কুল');
+  const [author, setAuthor] = useState(book?.author || '');
   const [publisher, setPublisher] = useState(book?.publisher || '১০ মিনিট স্কুল পাবলিকেশন');
   const [edition, setEdition] = useState(book?.edition || '');
   const [pages, setPages] = useState(book?.pages || '');
@@ -273,7 +273,7 @@ export const BookEditorPage: React.FC<BookEditorPageProps> = ({
       categoryId: matchedCat ? matchedCat.id : null,
       categorySlug: categorySlug || 'hsc',
       bookType: bookType.trim() || 'প্রিন্টেড বুক',
-      author: author.trim() || '১০ মিনিট স্কুল',
+      author: author.trim(),
       publisher: publisher.trim() || '১০ মিনিট স্কুল পাবলিকেশন',
       edition: edition.trim(),
       pages: pages.trim(),
@@ -347,7 +347,7 @@ export const BookEditorPage: React.FC<BookEditorPageProps> = ({
       categoryId: matchedCat ? matchedCat.id : null,
       categorySlug,
       bookType: bookType.trim() || 'প্রিন্টেড বুক',
-      author: author.trim() || '১০ মিনিট স্কুল',
+      author: author.trim(),
       publisher: publisher.trim() || '১০ মিনিট স্কুল পাবলিকেশন',
       edition: edition.trim(),
       pages: pages.trim(),
@@ -547,7 +547,7 @@ export const BookEditorPage: React.FC<BookEditorPageProps> = ({
                     type="text"
                     value={author}
                     onChange={(e) => setAuthor(e.target.value)}
-                    placeholder="১০ মিনিট স্কুল"
+                    placeholder="যেমন: নাঈম দুর্জয় (ঐচ্ছিক)"
                     className="w-full px-3 py-2 rounded-r-xl border border-slate-200/90 text-xs text-slate-800 bg-white focus:border-[#eb1c24] outline-none shadow-2xs"
                   />
                 </div>

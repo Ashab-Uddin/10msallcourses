@@ -1,6 +1,6 @@
 import type { Category } from '../types.ts';
 import { normalizeCategoryMatchText } from './categoryMatching.ts';
-import { resolveCategoryNavGroup } from './navbarCategories.ts';
+import { resolveCategoryNavGroup, type NavbarGroupKey } from './navbarCategories.ts';
 
 export const RESOLVED_CATEGORY_ICON_KEYS = [
   'atom',
@@ -138,7 +138,7 @@ export function inferCategoryIconKey(
 
   const navGroup = resolveCategoryNavGroup(cat);
   if (navGroup === 'hsc27') return 'target';
-  if (navGroup === 'hsc28') return 'graduation-cap';
+  if (navGroup === 'hsc28') return 'compass';
   if (navGroup === 'admission') return 'trophy';
   if (navGroup === 'school') return 'school';
 
@@ -154,6 +154,57 @@ export function resolveCategoryIconKey(
     return assigned;
   }
   return inferCategoryIconKey(cat);
+}
+
+const DEFAULT_NAVBAR_GROUP_ICONS: Record<NavbarGroupKey, ResolvedCategoryIconKey> = {
+  school: 'graduation-cap',
+  hsc27: 'target',
+  hsc28: 'compass',
+  admission: 'award',
+};
+
+export function resolveNavbarGroupIconKey(
+  group: NavbarGroupKey,
+  categories: ReadonlyArray<Category> = []
+): ResolvedCategoryIconKey {
+  if (group !== 'hsc27' && group !== 'hsc28') {
+    return DEFAULT_NAVBAR_GROUP_ICONS[group];
+  }
+
+  const groupCategories = categories.filter(
+    (cat) => (cat.status || 'active') === 'active' && resolveCategoryNavGroup(cat) === group
+  );
+
+  if (groupCategories.length > 0) {
+    const batchSlug = group === 'hsc27' ? 'hsc-27' : 'hsc-28';
+    const dedicated = groupCategories.find((cat) => {
+      const normalizedSlug = String(cat.slug || '').trim().toLowerCase();
+      return (
+        (normalizedSlug === batchSlug || normalizedSlug === group) &&
+        normalizeCategoryIconKey(cat.iconKey) !== 'auto'
+      );
+    });
+    if (dedicated) {
+      return normalizeCategoryIconKey(dedicated.iconKey) as ResolvedCategoryIconKey;
+    }
+
+    if (groupCategories.length === 1) {
+      const assigned = normalizeCategoryIconKey(groupCategories[0].iconKey);
+      if (assigned !== 'auto') {
+        return assigned;
+      }
+    } else {
+      const firstAssigned = normalizeCategoryIconKey(groupCategories[0].iconKey);
+      if (
+        firstAssigned !== 'auto' &&
+        groupCategories.every((cat) => normalizeCategoryIconKey(cat.iconKey) === firstAssigned)
+      ) {
+        return firstAssigned;
+      }
+    }
+  }
+
+  return DEFAULT_NAVBAR_GROUP_ICONS[group];
 }
 
 export type CategoryCardThemeKey =

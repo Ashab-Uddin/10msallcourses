@@ -1,4 +1,4 @@
-import type React from 'react';
+import React from 'react';
 import {
   Atom,
   Award,
@@ -26,8 +26,10 @@ import {
   Trophy,
 } from 'lucide-react';
 import type { Category } from '../types.ts';
+import type { NavbarGroupKey } from './navbarCategories.ts';
 import {
   resolveCategoryIconKey,
+  resolveNavbarGroupIconKey,
   type CategoryIconKey,
   type ResolvedCategoryIconKey,
 } from './categoryIcons.ts';
@@ -79,4 +81,25 @@ export function getCategoryLucideIcon(
 ): LucideIconComponent {
   const resolved = resolveCategoryIconKey(cat);
   return CATEGORY_LUCIDE_ICON_MAP[resolved] || Sparkles;
+}
+
+export function getNavbarGroupLucideIcon(
+  group: NavbarGroupKey,
+  categories: ReadonlyArray<Category> = []
+): LucideIconComponent {
+  const resolved = resolveNavbarGroupIconKey(group, categories);
+  return CATEGORY_LUCIDE_ICON_MAP[resolved] || Sparkles;
+}
+
+export function NavbarGroupIcon({
+  group,
+  categories = [],
+  className,
+}: {
+  group: NavbarGroupKey;
+  categories?: ReadonlyArray<Category>;
+  className?: string;
+}): React.ReactElement {
+  const Icon = getNavbarGroupLucideIcon(group, categories);
+  return React.createElement(Icon, { className });
 }

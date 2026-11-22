@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Trophy,
   Target,
-  GraduationCap,
+  Compass,
   BookOpen,
   Lightbulb,
   Backpack,
@@ -14,6 +14,7 @@ import {
   Gift,
 } from 'lucide-react';
 import type { Category } from '../../types.ts';
+import { getNavbarGroupLucideIcon } from '../../lib/categoryIconComponents.ts';
 import {
   categorySlugsMatch,
   normalizeCategoryMatchText,
@@ -94,7 +95,7 @@ export const SELECTOR_ICON_DEFINITIONS: SelectorIconDefinition[] = [
     pillBg: 'bg-sky-50/85',
     hoverShadow: 'hover:shadow-[0_18px_36px_-12px_rgba(2,132,199,0.42)]',
     statusColor: 'text-[#0369a1]',
-    Icon: GraduationCap,
+    Icon: Compass,
   },
   {
     id: 'ssc-27',
@@ -528,9 +529,16 @@ export function getOrderedSelectorIcons(
         subLabel,
         activeCategories
       );
+      const resolvedIcon =
+        id === 'hsc-27'
+          ? getNavbarGroupLucideIcon('hsc27', activeCategories)
+          : id === 'hsc-28'
+          ? getNavbarGroupLucideIcon('hsc28', activeCategories)
+          : def.Icon;
       return {
         ...def,
         ...resolvedTarget,
+        Icon: resolvedIcon,
         title,
         subLabel,
       };
