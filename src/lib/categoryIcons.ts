@@ -141,6 +141,7 @@ export function inferCategoryIconKey(
   if (navGroup === 'hsc28') return 'compass';
   if (navGroup === 'admission') return 'trophy';
   if (navGroup === 'school') return 'school';
+  if (navGroup === 'skills') return 'briefcase';
 
   if (includesAny(full, ['গণিত', 'math'])) return 'calculator';
   return 'sparkles';
@@ -161,6 +162,7 @@ const DEFAULT_NAVBAR_GROUP_ICONS: Record<NavbarGroupKey, ResolvedCategoryIconKey
   hsc27: 'target',
   hsc28: 'compass',
   admission: 'award',
+  skills: 'briefcase',
 };
 
 export function resolveNavbarGroupIconKey(
@@ -358,7 +360,7 @@ function resolveCategoryTag(
     if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম'])) return 'CLASS 9';
     return 'SSC · 6–10';
   }
-  if (includesAny(nameAndSlug, ['skill', 'স্কিল'])) return 'SKILLS';
+  if (navGroup === 'skills' || includesAny(nameAndSlug, ['skill', 'স্কিল'])) return 'SKILLS';
   if (includesAny(nameAndSlug, ['free', 'ফ্রি'])) return 'FREE';
   return 'CATEGORY';
 }

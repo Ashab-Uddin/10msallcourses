@@ -18,8 +18,8 @@ import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { Hsc28ScienceCategoryPage } from './categories/Hsc28ScienceCategoryPage.tsx';
-import { Hsc28HumanitiesCategoryPage } from './categories/Hsc28HumanitiesCategoryPage.tsx';
-import { Hsc28BusinessCategoryPage } from './categories/Hsc28BusinessCategoryPage.tsx';
+import { FilteredCategoryPage } from './categories/FilteredCategoryPage.tsx';
+import { resolveFilteredCategoryKey } from '../../lib/categoryFilterConfigs.ts';
 import { Hsc28OverviewCategoryPage } from './categories/Hsc28OverviewCategoryPage.tsx';
 import { resolveCategoryNavGroup } from '../../lib/navbarCategories.ts';
 import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
@@ -195,38 +195,6 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     );
   }
 
-  if (
-    categorySlugsMatch(currentCategory.slug, 'hsc-28-মানবিক-কোর্স') ||
-    categorySlugsMatch(currentCategory.slug, 'hsc-28-humanities') ||
-    categorySlugsMatch(currentCategory.slug, 'hsc-28-arts')
-  ) {
-    return (
-      <Hsc28HumanitiesCategoryPage
-        category={currentCategory}
-        courses={courses}
-        categoryCourseOrders={categoryCourseOrders}
-        onBack={onBack}
-        onEnrollClick={onEnrollClick}
-      />
-    );
-  }
-
-  if (
-    categorySlugsMatch(currentCategory.slug, 'hsc-28-ব্যবসায়-শিক্ষা') ||
-    categorySlugsMatch(currentCategory.slug, 'hsc-28-business') ||
-    categorySlugsMatch(currentCategory.slug, 'hsc-28-commerce')
-  ) {
-    return (
-      <Hsc28BusinessCategoryPage
-        category={currentCategory}
-        courses={courses}
-        categoryCourseOrders={categoryCourseOrders}
-        onBack={onBack}
-        onEnrollClick={onEnrollClick}
-      />
-    );
-  }
-
   const hasExactDbCategory = categories.some((c) =>
     categorySlugsMatch(c.slug, normalizedSlug)
   );
@@ -253,6 +221,24 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
         />
       );
     }
+  }
+
+  const filteredCategoryKey = resolveFilteredCategoryKey(
+    currentCategory.slug,
+    currentCategory.name
+  );
+  if (filteredCategoryKey) {
+    return (
+      <FilteredCategoryPage
+        key={`${filteredCategoryKey}-${currentCategory.slug}`}
+        configKey={filteredCategoryKey}
+        category={currentCategory}
+        courses={courses}
+        categoryCourseOrders={categoryCourseOrders}
+        onBack={onBack}
+        onEnrollClick={onEnrollClick}
+      />
+    );
   }
 
   const filteredCourses = categoryCourses.filter((c) => {

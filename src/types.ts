@@ -1,6 +1,6 @@
 import type { CategoryIconKey } from './lib/categoryIcons.ts';
 
-export type NavbarGroupKey = 'school' | 'hsc27' | 'hsc28' | 'admission';
+export type NavbarGroupKey = 'school' | 'hsc27' | 'hsc28' | 'admission' | 'skills';
 export type CategoryNavAssignment = NavbarGroupKey | 'auto' | 'none';
 
 export interface Category {

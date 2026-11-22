@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Award,
   ShoppingBag,
+  Briefcase,
   ChevronDown,
   Search,
   Menu,
@@ -38,7 +39,7 @@ interface HeaderNavProps {
   currentHash?: string;
 }
 
-type NavKey = 'school' | 'hsc27' | 'hsc28' | 'admission' | 'books';
+type NavKey = 'school' | 'hsc27' | 'hsc28' | 'admission' | 'books' | 'skills';
 
 interface SubMenuItem {
   label: string;
@@ -156,6 +157,11 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     [bookCategories]
   );
 
+  const skillsItems = useMemo(
+    () => mapCategoriesToSubItems(groupedCategories.skills),
+    [groupedCategories.skills]
+  );
+
   const activeCategorySlugFromPath = useMemo(() => {
     const clean = currentPath.replace(/\/+$/, '') || '/';
     const match = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
@@ -173,7 +179,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   }, [currentPath, categories]);
 
   // Determine active navigation item based on current URL path and active category
-  const getActiveKey = (): 'home' | 'school' | 'hsc27' | 'hsc28' | 'admission' | 'books' => {
+  const getActiveKey = (): 'home' | 'school' | 'hsc27' | 'hsc28' | 'admission' | 'books' | 'skills' => {
     const clean = currentPath.replace(/\/+$/, '') || '/';
 
     if (
@@ -194,12 +200,28 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         const group = resolveCategoryNavGroup(matchedCategory);
         if (group !== 'none') return group;
       }
+      const slugLower = activeCategorySlugFromPath.trim().toLowerCase();
+      if (slugLower === 'skills' || slugLower.includes('skill')) {
+        return 'skills';
+      }
       const inferred = inferCategoryNavGroup({
         name: activeCategorySlugFromPath,
         slug: activeCategorySlugFromPath,
         subtitle: null,
       });
       if (inferred !== 'none') return inferred;
+    }
+
+    if (
+      clean === '/skills' ||
+      clean.startsWith('/skills/') ||
+      clean === '/category/skills' ||
+      clean === '/categories/skills' ||
+      clean === '/language-learning' ||
+      clean === '/category/language-learning' ||
+      clean === '/categories/language-learning'
+    ) {
+      return 'skills';
     }
 
     if (clean.includes('/hsc/hsc-27') || clean.includes('/academic/hsc/hsc-27')) return 'hsc27';
@@ -260,11 +282,13 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
       else if (key === 'hsc28') onNavigate('/hsc/hsc-28');
       else if (key === 'admission') onNavigate('/admission');
       else if (key === 'books') onNavigate('/books');
+      else if (key === 'skills') onNavigate('/skills');
     } else {
       if (key === 'school') onSelectCategory('school', '');
       else if (key === 'hsc27' || key === 'hsc28') onSelectCategory('hsc', '');
       else if (key === 'admission') onSelectCategory('admission', '');
       else if (key === 'books') onSelectCategory('all', 'বুক');
+      else if (key === 'skills') onSelectCategory('skills', '');
     }
   };
 
@@ -352,7 +376,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         </button>
 
         {/* MIDDLE: NAVBAR MENU LINKS (100% Dynamic Category-Based Dropdowns) */}
-        <nav className="hidden lg:flex items-center gap-1.5 xl:gap-2.5 text-[13px] xl:text-[13.5px] text-slate-700 relative py-0.5">
+        <nav className="hidden lg:flex lg:flex-1 lg:justify-center items-center gap-0.5 xl:gap-2 text-[12.5px] xl:text-[13.5px] text-slate-700 relative py-0.5 min-w-0">
           {/* 1. হোম (Active ONLY when actually on Home Page) */}
           <button
             type="button"
@@ -361,7 +385,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               setHoverMenu(null);
               onNavigateHome();
             }}
-            className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-1.5 py-1.5 px-2.5 xl:px-3 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeNavKey === 'home' ? activePillClass : inactivePillClass
             }`}
           >
@@ -381,7 +405,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               type="button"
               onClick={() => handleNavButtonClick('school', class6to12Items.length > 0)}
               aria-expanded={class6to12Items.length > 0 ? activeMenu === 'school' : undefined}
-              className={`flex items-center gap-1 py-1.5 px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-1 py-1.5 px-2 xl:px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'school' ? activePillClass : inactivePillClass
               }`}
             >
@@ -447,7 +471,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               type="button"
               onClick={() => handleNavButtonClick('hsc27', hsc27Items.length > 0)}
               aria-expanded={hsc27Items.length > 0 ? activeMenu === 'hsc27' : undefined}
-              className={`flex items-center gap-1 py-1.5 px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-1 py-1.5 px-2 xl:px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'hsc27' ? activePillClass : inactivePillClass
               }`}
             >
@@ -517,7 +541,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               type="button"
               onClick={() => handleNavButtonClick('hsc28', hsc28Items.length > 0)}
               aria-expanded={hsc28Items.length > 0 ? activeMenu === 'hsc28' : undefined}
-              className={`flex items-center gap-1 py-1.5 px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-1 py-1.5 px-2 xl:px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'hsc28' ? activePillClass : inactivePillClass
               }`}
             >
@@ -587,7 +611,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               type="button"
               onClick={() => handleNavButtonClick('admission', admissionItems.length > 0)}
               aria-expanded={admissionItems.length > 0 ? activeMenu === 'admission' : undefined}
-              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-1.5 py-1.5 px-2.5 xl:px-3 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'admission' ? activePillClass : inactivePillClass
               }`}
             >
@@ -653,7 +677,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               type="button"
               onClick={() => handleDirectNavClick('books')}
               aria-expanded={bookStoreItems.length > 1 ? activeMenu === 'books' : undefined}
-              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-full transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-1.5 py-1.5 px-2.5 xl:px-3 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'books' ? activePillClass : inactivePillClass
               }`}
             >
@@ -699,10 +723,76 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               </div>
             )}
           </div>
+
+          {/* 8. Skills (immediately right of বুক স্টোর, matching all other dynamic category dropdown buttons) */}
+          <div
+            onMouseEnter={() => {
+              if (skillsItems.length > 0) handleMouseEnter('skills');
+            }}
+            onMouseLeave={handleMouseLeave}
+            className="relative"
+          >
+            <button
+              type="button"
+              onClick={() => handleNavButtonClick('skills', skillsItems.length > 0)}
+              aria-expanded={skillsItems.length > 0 ? activeMenu === 'skills' : undefined}
+              className={`flex items-center gap-1 py-1.5 px-2.5 xl:px-3 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                activeNavKey === 'skills' ? activePillClass : inactivePillClass
+              }`}
+            >
+              <Briefcase className={`w-3.5 h-3.5 ${activeNavKey === 'skills' ? 'text-[#eb1c24]' : 'text-cyan-600'}`} />
+              <span>Skills</span>
+              {skillsItems.length > 0 && (
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    activeMenu === 'skills' ? 'rotate-180 text-[#eb1c24]' : 'text-slate-400'
+                  }`}
+                />
+              )}
+            </button>
+
+            {activeMenu === 'skills' && skillsItems.length > 0 && (
+              <div
+                onMouseEnter={() => {
+                  if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                }}
+                onMouseLeave={handleMouseLeave}
+                className="absolute right-0 top-full mt-2 w-[285px] bg-white rounded-2xl border border-rose-100 border-t-[3px] border-t-[#eb1c24] shadow-[0_16px_40px_rgba(0,0,0,0.12)] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden"
+              >
+                <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Skills ক্যাটাগরি
+                </div>
+                {skillsItems.map((item, idx) => {
+                  const isCurrent = isSubItemActive(item);
+                  const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                  const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
+                  return (
+                    <button
+                      key={item.urlPath}
+                      type="button"
+                      onClick={() => handleSubItemClick(item)}
+                      className={`w-full text-left px-3.5 py-2 text-[12.5px] font-semibold transition-colors flex items-center gap-2.5 cursor-pointer ${
+                        isCurrent
+                          ? 'text-[#eb1c24] bg-rose-50/80'
+                          : 'text-slate-800 hover:text-[#eb1c24] hover:bg-rose-50/60'
+                      }`}
+                    >
+                      {CatIcon && theme && (
+                        <span className={`w-6 h-6 rounded-lg ${theme.topGradient} text-white flex items-center justify-center shrink-0 shadow-2xs`}>
+                          <CatIcon className="w-3.5 h-3.5 stroke-[2.2]" />
+                        </span>
+                      )}
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
 
         {/* RIGHT: SEARCH BAR PILL */}
-        <div className="flex items-center gap-2 max-w-[240px] sm:max-w-[270px] xl:max-w-[310px] w-full justify-end">
+        <div className="flex items-center gap-2 max-w-[230px] sm:max-w-[260px] lg:max-w-[175px] xl:max-w-[255px] w-full justify-end shrink-0">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -980,6 +1070,59 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               <ShoppingBag className="w-4 h-4 text-indigo-500" />
               <span>বুক স্টোর ও প্রিন্টেড বই</span>
             </button>
+
+            {/* Skills (immediately right/after বুক স্টোর, matching all other dynamic category dropdowns) */}
+            {skillsItems.length > 0 ? (
+              <details className="group" open={activeNavKey === 'skills'}>
+                <summary className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold cursor-pointer list-none ${
+                  activeNavKey === 'skills' ? 'text-[#eb1c24] bg-rose-50/70' : 'text-slate-800 hover:bg-slate-50'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-cyan-600" />
+                    <span>Skills</span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  {skillsItems.map((item, idx) => {
+                    const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
+                    const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
+                    return (
+                      <button
+                        key={item.urlPath}
+                        type="button"
+                        onClick={() => handleSubItemClick(item)}
+                        className={`w-full text-left px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors flex items-center gap-2 ${
+                          isSubItemActive(item)
+                            ? 'text-[#eb1c24] bg-red-50/80 font-bold'
+                            : 'text-slate-700 hover:text-[#eb1c24] hover:bg-red-50/70'
+                        }`}
+                      >
+                        {CatIcon && theme && (
+                          <span className={`w-5 h-5 rounded-md ${theme.topGradient} text-white flex items-center justify-center shrink-0`}>
+                            <CatIcon className="w-3 h-3 stroke-[2.2]" />
+                          </span>
+                        )}
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDirectNavClick('skills')}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+                  activeNavKey === 'skills'
+                    ? 'text-[#eb1c24] bg-rose-50 border border-rose-200'
+                    : 'text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                <Briefcase className="w-4 h-4 text-cyan-600" />
+                <span>Skills</span>
+              </button>
+            )}
           </div>
         </div>
       )}

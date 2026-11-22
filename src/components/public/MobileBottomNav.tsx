@@ -26,7 +26,7 @@ import { toBengaliNumber } from '../../utils/format.ts';
 
 export type MobileTab = 'home' | 'hsc27' | 'hsc28' | 'school' | 'admission' | 'books' | 'skills';
 
-type SheetGroupKey = NavbarGroupKey | 'skills';
+type SheetGroupKey = NavbarGroupKey;
 
 interface MobileBottomNavProps {
   activeTab: MobileTab;
@@ -124,25 +124,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     [categories]
   );
 
-  const skillsCategories = useMemo(() => {
-    return [...categories]
-      .filter((cat) => {
-        if ((cat.status || 'active') !== 'active') return false;
-        const slugLower = String(cat.slug || '').trim().toLowerCase();
-        const nameLower = String(cat.name || '').trim().toLowerCase();
-        return (
-          slugLower === 'skills' ||
-          slugLower.includes('skill') ||
-          nameLower.includes('স্কিল')
-        );
-      })
-      .sort((a, b) => {
-        const orderDiff = (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0);
-        if (orderDiff !== 0) return orderDiff;
-        return (Number(a.id) || 0) - (Number(b.id) || 0);
-      });
-  }, [categories]);
-
   const activeCategorySlugFromPath = useMemo(() => {
     const clean = currentPath.replace(/\/+$/, '') || '/';
     const match = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
@@ -172,7 +153,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   }, [openGroup]);
 
   const getCategoriesForGroup = (group: SheetGroupKey): Category[] => {
-    if (group === 'skills') return skillsCategories;
     return groupedCategories[group] || [];
   };
 
@@ -238,20 +218,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     if (tab === 'home' || tab === 'books') {
       setOpenGroup(null);
       onTabChange(tab);
-      return;
-    }
-
-    if (tab === 'skills') {
-      if (skillsCategories.length > 1) {
-        setOpenGroup((prev) => (prev === 'skills' ? null : 'skills'));
-        return;
-      }
-      setOpenGroup(null);
-      if (skillsCategories.length === 1 && onNavigate) {
-        onNavigate(buildReadableCategoryPath(skillsCategories[0].slug));
-        return;
-      }
-      onTabChange('skills');
       return;
     }
 
@@ -470,11 +436,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             const isActive = isSheetOpenForItem || (!openGroup && activeTab === item.id);
             const IconComponent = item.icon;
             const hasSubCategories =
-              item.id === 'skills'
-                ? skillsCategories.length > 1
-                : item.id !== 'home' &&
-                  item.id !== 'books' &&
-                  (groupedCategories[item.id]?.length ?? 0) > 0;
+              item.id !== 'home' &&
+              item.id !== 'books' &&
+              (groupedCategories[item.id]?.length ?? 0) > 0;
 
             return (
               <button

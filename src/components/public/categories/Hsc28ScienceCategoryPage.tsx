@@ -94,9 +94,9 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
 
       {/* Unified Warm Frosted Category Header & Single-Line Filter Card */}
       <div className="glass-surface rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-7">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="flex flex-col items-center justify-center text-center gap-3">
+          <div className="min-w-0 max-w-3xl mx-auto flex flex-col items-center">
+            <div className="flex flex-wrap items-center justify-center gap-2 mb-2.5">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-inset text-[#B91C1C] text-[11px] sm:text-xs font-bold">
                 <Sparkles className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                 <span>ক্যাটাগরি পেজ</span>
@@ -113,10 +113,10 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-black text-[#2A0F12] tracking-tight leading-snug">
+            <h1 className="text-2xl sm:text-3xl font-black text-[#2A0F12] tracking-tight leading-snug text-center">
               {pageTitle}
             </h1>
-            <p className="text-xs sm:text-sm text-[#6B4C4F] font-normal leading-relaxed mt-1 max-w-2xl">
+            <p className="text-xs sm:text-sm text-[#6B4C4F] font-normal leading-relaxed mt-1 max-w-2xl mx-auto text-center">
               {pageSubtitle}
             </p>
           </div>
@@ -125,7 +125,7 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
             <button
               type="button"
               onClick={resetFilter}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[#B91C1C] text-xs font-bold transition cursor-pointer shrink-0 self-start sm:self-end whitespace-nowrap active:scale-[0.97]"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[#B91C1C] text-xs font-bold transition cursor-pointer shrink-0 whitespace-nowrap active:scale-[0.97]"
             >
               <RotateCcw className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span>সব কোর্স দেখুন</span>

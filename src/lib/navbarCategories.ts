@@ -8,6 +8,7 @@ export const NAVBAR_GROUP_KEYS: readonly NavbarGroupKey[] = [
   'hsc27',
   'hsc28',
   'admission',
+  'skills',
 ] as const;
 
 export const NAVBAR_GROUP_LABELS: Record<NavbarGroupKey, string> = {
@@ -15,6 +16,7 @@ export const NAVBAR_GROUP_LABELS: Record<NavbarGroupKey, string> = {
   hsc27: 'HSC 27',
   hsc28: 'HSC 28',
   admission: 'ভর্তি পরীক্ষা',
+  skills: 'Skills',
 };
 
 export const NAVBAR_GROUP_OPTIONS: ReadonlyArray<{
@@ -26,6 +28,7 @@ export const NAVBAR_GROUP_OPTIONS: ReadonlyArray<{
   { value: 'hsc27', label: 'HSC 27 ড্রপডাউন' },
   { value: 'hsc28', label: 'HSC 28 ড্রপডাউন' },
   { value: 'admission', label: 'ভর্তি পরীক্ষা ড্রপডাউন' },
+  { value: 'skills', label: 'Skills ড্রপডাউন' },
   { value: 'none', label: 'Navbar ড্রপডাউনে দেখাবে না' },
 ];
 
@@ -38,6 +41,7 @@ export function normalizeCategoryNavGroup(raw: unknown): CategoryNavAssignment {
     val === 'hsc27' ||
     val === 'hsc28' ||
     val === 'admission' ||
+    val === 'skills' ||
     val === 'none' ||
     val === 'auto'
   ) {
@@ -166,6 +170,26 @@ export function inferCategoryNavGroup(
     return 'school';
   }
 
+  if (
+    includesAny(nameAndSlug, [
+      'skill',
+      'স্কিল',
+      'language-learning',
+      'language',
+      'ল্যাঙ্গুয়েজ',
+      'spoken',
+      'স্পোকেন',
+      'ielts',
+      'freelancing',
+      'ফ্রিল্যান্সিং',
+      'career',
+      'ক্যারিয়ার',
+      'আইটি',
+    ])
+  ) {
+    return 'skills';
+  }
+
   return 'none';
 }
 
@@ -187,6 +211,7 @@ export function getNavbarCategoriesByGroup(
     hsc27: [],
     hsc28: [],
     admission: [],
+    skills: [],
   };
 
   const activeSorted = [...categories]
