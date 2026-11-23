@@ -2,6 +2,7 @@ import { MetadataRoute } from 'next';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getSiteBaseUrl } from '@/src/lib/seo';
 import { getCourseCategorySlugs } from '@/src/lib/categoryMatching';
+import { NAVBAR_GROUP_PATHS } from '@/src/lib/navbarCategories';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { path: '/admission', changeFrequency: 'weekly', priority: 0.85 },
     { path: '/books', changeFrequency: 'weekly', priority: 0.8 },
     { path: '/language-learning', changeFrequency: 'weekly', priority: 0.85 },
+    ...Object.values(NAVBAR_GROUP_PATHS).map((path) => ({
+      path,
+      changeFrequency: 'weekly' as const,
+      priority: 0.9,
+    })),
   ];
 
   const fallbackNow = new Date();

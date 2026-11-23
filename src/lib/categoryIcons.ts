@@ -27,6 +27,11 @@ export const RESOLVED_CATEGORY_ICON_KEYS = [
   'compass',
   'gift',
   'layers',
+  'palette',
+  'landmark',
+  'cpu',
+  'stethoscope',
+  'zap',
 ] as const;
 
 export type ResolvedCategoryIconKey = (typeof RESOLVED_CATEGORY_ICON_KEYS)[number];
@@ -48,6 +53,11 @@ export const CATEGORY_ICON_OPTIONS: ReadonlyArray<CategoryIconOption> = [
   { value: 'globe', label: 'ভূগোল / বিশ্ব' },
   { value: 'languages', label: 'BEI / ভাষা' },
   { value: 'laptop', label: 'ICT / স্কিলস' },
+  { value: 'palette', label: 'ডিজাইন / ক্রিয়েটিভ' },
+  { value: 'landmark', label: 'বিশ্ববিদ্যালয় / ভার্সিটি' },
+  { value: 'cpu', label: 'ইঞ্জিনিয়ারিং / টেক' },
+  { value: 'stethoscope', label: 'মেডিকেল এডমিশন' },
+  { value: 'zap', label: 'শেষ মুহূর্তের প্রস্তুতি' },
   { value: 'graduation-cap', label: 'HSC / কলেজ' },
   { value: 'target', label: 'লক্ষ্য / রিভিশন' },
   { value: 'trophy', label: 'ভর্তি / ট্রফি' },
@@ -102,11 +112,26 @@ export function inferCategoryIconKey(
   if (includesAny(nameAndSlug, ['ব্যবসায়', 'ব্যবসা', 'ব্যাবসা', 'business', 'commerce', 'হিসাব', 'ফিন্যান্স'])) {
     return 'briefcase';
   }
-  if (includesAny(nameAndSlug, ['bei', 'বাংলা ইংরেজি', 'বাংলা-ইংরেজি', 'ict', 'english', 'bangla'])) {
+  if (includesAny(nameAndSlug, ['bei', 'বাংলা ইংরেজি', 'বাংলা-ইংরেজি', 'ict', 'english', 'bangla', 'ভাষা', 'language'])) {
     return 'languages';
   }
-  if (includesAny(nameAndSlug, ['এডমিশন', 'admission', 'ভর্তি', 'মেডিকেল', 'medical', 'ভার্সিটি', 'varsity', 'বুয়েট', 'buet'])) {
+  if (includesAny(nameAndSlug, ['মেডিকেল', 'medical', 'ডেন্টাল'])) {
+    return 'stethoscope';
+  }
+  if (includesAny(nameAndSlug, ['ইঞ্জিনিয়ারিং', 'ইঞ্জিনিয়ারিং', 'engineering', 'বুয়েট', 'buet', 'cuet', 'kuet', 'ruet'])) {
+    return 'cpu';
+  }
+  if (includesAny(nameAndSlug, ['বিশ্ববিদ্যালয়', 'বিশ্ববিদ্যালয়', 'university', 'ভার্সিটি', 'varsity', 'গুচ্ছ', 'gst'])) {
+    return 'landmark';
+  }
+  if (includesAny(nameAndSlug, ['এডমিশন', 'admission', 'ভর্তি'])) {
     return 'trophy';
+  }
+  if (includesAny(nameAndSlug, ['ডিজাইন', 'ক্রিয়েটিভ', 'ক্রিয়েটিভ', 'design', 'creative', 'graphic', 'ইলাস্ট্রেশন'])) {
+    return 'palette';
+  }
+  if (includesAny(nameAndSlug, ['ফ্রিল্যান্সিং', 'freelancing', 'মার্কেটিং', 'marketing'])) {
+    return 'trending-up';
   }
   if (includesAny(nameAndSlug, ['স্কিল', 'skill', 'আইটি', 'career'])) {
     return 'laptop';
@@ -132,8 +157,11 @@ export function inferCategoryIconKey(
   if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'নবম', 'ssc 28', 'ssc-28'])) {
     return 'lightbulb';
   }
+  if (includesAny(nameAndSlug, ['শেষ মুহূর্ত', 'smp', 'চূড়ান্ত'])) {
+    return 'zap';
+  }
   if (includesAny(nameAndSlug, ['school', 'ssc', 'এসএসসি', 'দশম', '১০ম'])) {
-    return 'graduation-cap';
+    return 'book-open';
   }
 
   const navGroup = resolveCategoryNavGroup(cat);
@@ -350,17 +378,42 @@ function resolveCategoryTag(
     if (includesAny(nameAndSlug, ['bei'])) return 'HSC 28 · BEI';
     return 'HSC 28';
   }
-  if (navGroup === 'hsc27') return 'HSC 27';
-  if (navGroup === 'admission') return 'ADMISSION';
+  if (navGroup === 'hsc27') {
+    if (includesAny(nameAndSlug, ['বিজ্ঞান', 'science'])) return 'HSC 27 · SCI';
+    if (includesAny(nameAndSlug, ['মানবিক', 'humanities', 'arts'])) return 'HSC 27 · ARTS';
+    if (includesAny(nameAndSlug, ['ব্যবসায়', 'ব্যবসা', 'ব্যাবসা', 'business'])) return 'HSC 27 · BUS';
+    if (includesAny(nameAndSlug, ['bei'])) return 'HSC 27 · BEI';
+    if (includesAny(nameAndSlug, ['শেষ মুহূর্ত', 'smp'])) return 'HSC 27 · SMP';
+    return 'HSC 27';
+  }
+  if (navGroup === 'admission') {
+    if (includesAny(nameAndSlug, ['মেডিকেল', 'medical'])) return 'MEDICAL';
+    if (includesAny(nameAndSlug, ['ইঞ্জিনিয়ারিং', 'ইঞ্জিনিয়ারিং', 'engineering', 'বুয়েট', 'buet'])) {
+      return 'ENGINEERING';
+    }
+    if (includesAny(nameAndSlug, ['বিশ্ববিদ্যালয়', 'বিশ্ববিদ্যালয়', 'university', 'ভার্সিটি', 'varsity'])) {
+      return 'VARSITY';
+    }
+    return 'ADMISSION';
+  }
   if (navGroup === 'school') {
     if (includesAny(nameAndSlug, ['class 5', 'class-5', '৫ম'])) return 'CLASS 5';
     if (includesAny(nameAndSlug, ['class 6', 'class-6', '৬ষ্ঠ'])) return 'CLASS 6';
     if (includesAny(nameAndSlug, ['class 7', 'class-7', '৭ম'])) return 'CLASS 7';
     if (includesAny(nameAndSlug, ['class 8', 'class-8', '৮ম'])) return 'CLASS 8';
-    if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম'])) return 'CLASS 9';
+    if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'ssc 28', 'ssc-28'])) return 'CLASS 9';
+    if (includesAny(nameAndSlug, ['শেষ মুহূর্ত', 'smp'])) return 'SSC · SMP';
+    if (includesAny(nameAndSlug, ['ssc 27', 'ssc-27', 'দশম', '১০ম'])) return 'SSC 27';
     return 'SSC · 6–10';
   }
-  if (navGroup === 'skills' || includesAny(nameAndSlug, ['skill', 'স্কিল'])) return 'SKILLS';
+  if (navGroup === 'skills' || includesAny(nameAndSlug, ['skill', 'স্কিল'])) {
+    if (includesAny(nameAndSlug, ['ভাষা', 'language', 'spoken', 'english'])) return 'LANGUAGE';
+    if (includesAny(nameAndSlug, ['ফ্রিল্যান্সিং', 'freelancing'])) return 'FREELANCING';
+    if (includesAny(nameAndSlug, ['ডিজাইন', 'ক্রিয়েটিভ', 'ক্রিয়েটিভ', 'design', 'creative'])) {
+      return 'DESIGN';
+    }
+    return 'SKILLS';
+  }
   if (includesAny(nameAndSlug, ['free', 'ফ্রি'])) return 'FREE';
   return 'CATEGORY';
 }
@@ -393,8 +446,22 @@ export function resolveCategoryCardTheme(
     themeKey = 'teal';
   } else if (includesAny(nameAndSlug, ['hsc 27', 'hsc-27'])) {
     themeKey = 'blue';
-  } else if (includesAny(nameAndSlug, ['admission', 'এডমিশন', 'ভর্তি'])) {
-    themeKey = 'red';
+  } else if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'ssc 28', 'ssc-28'])) {
+    themeKey = 'purple';
+  } else if (includesAny(nameAndSlug, ['শেষ মুহূর্ত', 'smp'])) {
+    themeKey = 'indigo';
+  } else if (includesAny(nameAndSlug, ['মেডিকেল', 'medical', 'admission', 'এডমিশন', 'ভর্তি'])) {
+    themeKey = 'rose';
+  } else if (includesAny(nameAndSlug, ['বিশ্ববিদ্যালয়', 'বিশ্ববিদ্যালয়', 'university', 'ভার্সিটি'])) {
+    themeKey = 'indigo';
+  } else if (includesAny(nameAndSlug, ['ইঞ্জিনিয়ারিং', 'ইঞ্জিনিয়ারিং', 'engineering'])) {
+    themeKey = 'orange';
+  } else if (includesAny(nameAndSlug, ['ভাষা', 'language'])) {
+    themeKey = 'purple';
+  } else if (includesAny(nameAndSlug, ['ফ্রিল্যান্সিং', 'freelancing'])) {
+    themeKey = 'emerald';
+  } else if (includesAny(nameAndSlug, ['ডিজাইন', 'ক্রিয়েটিভ', 'ক্রিয়েটিভ', 'design', 'creative'])) {
+    themeKey = 'rose';
   } else {
     themeKey = CYCLE_PALETTE_KEYS[index % CYCLE_PALETTE_KEYS.length];
   }

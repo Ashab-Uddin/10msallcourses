@@ -8,10 +8,12 @@ import {
   Briefcase,
   Calculator,
   Compass,
+  Cpu,
   FlaskConical,
   Gift,
   Globe,
   GraduationCap,
+  Landmark,
   Languages,
   Laptop,
   Layers,
@@ -19,11 +21,14 @@ import {
   Lightbulb,
   Microscope,
   NotebookPen,
+  Palette,
   School,
   Sparkles,
+  Stethoscope,
   Target,
   TrendingUp,
   Trophy,
+  Zap,
 } from 'lucide-react';
 import type { Category } from '../types.ts';
 import type { NavbarGroupKey } from './navbarCategories.ts';
@@ -61,6 +66,11 @@ export const CATEGORY_LUCIDE_ICON_MAP: Record<ResolvedCategoryIconKey, LucideIco
   compass: Compass,
   gift: Gift,
   layers: Layers,
+  palette: Palette,
+  landmark: Landmark,
+  cpu: Cpu,
+  stethoscope: Stethoscope,
+  zap: Zap,
 };
 
 export function getLucideIconByKey(

@@ -15,7 +15,12 @@ import {
   generateUnicodeCourseSlug,
   isReservedCategorySlug,
 } from '@/src/lib/courseSlug';
-import { resolveCategoryNavGroup } from '@/src/lib/navbarCategories';
+import {
+  NAVBAR_GROUP_PAGE_META,
+  NAVBAR_GROUP_PATHS,
+  parseNavbarGroupFromPath,
+  resolveCategoryNavGroup,
+} from '@/src/lib/navbarCategories';
 
 export const DEFAULT_PUBLIC_SITE_URL = 'https://10msallcourse.com';
 export const DEFAULT_SITE_NAME = '10ms All Courses';
@@ -259,6 +264,56 @@ function resolveRouteSeo(
       filterCourses: () => [],
       isAdmin: true,
     };
+  }
+
+  const navGroupMatch = parseNavbarGroupFromPath(clean);
+  if (navGroupMatch) {
+    const groupMeta = NAVBAR_GROUP_PAGE_META[navGroupMatch.groupKey];
+    const groupCats = categories
+      .filter(
+        (c) =>
+          (c.status || 'active') === 'active' &&
+          resolveCategoryNavGroup(c) === navGroupMatch.groupKey
+      )
+      .sort(
+        (a, b) =>
+          (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0) ||
+          (Number(a.id) || 0) - (Number(b.id) || 0)
+      );
+
+    if (navGroupMatch.categorySlug) {
+      const selectedCat = groupCats.find((c) =>
+        categorySlugsMatch(c.slug, navGroupMatch.categorySlug!)
+      );
+      const matchedSlug = selectedCat?.slug || navGroupMatch.categorySlug;
+      return withCourseOgFallback({
+        title: selectedCat
+          ? `${selectedCat.name} — ${groupMeta.breadcrumbLabel} | ১০ মিনিট স্কুল`
+          : groupMeta.seoTitle,
+        description: selectedCat?.subtitle || groupMeta.seoDescription,
+        canonicalPath: `${NAVBAR_GROUP_PATHS[navGroupMatch.groupKey]}/${encodeURIComponent(matchedSlug)}`,
+        filterCourses: (all) =>
+          all.filter(
+            (c) =>
+              isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, matchedSlug)
+          ),
+      });
+    }
+
+    return withCourseOgFallback({
+      title: groupMeta.seoTitle,
+      description:
+        groupCats.length > 0
+          ? `${groupCats.map((c) => c.name).join(', ')} — ${groupMeta.seoDescription}`
+          : groupMeta.seoDescription,
+      canonicalPath: NAVBAR_GROUP_PATHS[navGroupMatch.groupKey],
+      filterCourses: (all) =>
+        all.filter(
+          (c) =>
+            isPublicVisibleCourse(c) &&
+            groupCats.some((g) => courseMatchesCategorySlug(c, g.slug))
+        ),
+    });
   }
 
   if (clean === '/hsc/hsc-26' || clean === '/academic/hsc/hsc-26') {

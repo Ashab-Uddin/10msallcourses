@@ -4,6 +4,8 @@ import { BookCategory, Category, Course } from '../../types.ts';
 import {
   getNavbarCategoriesByGroup,
   inferCategoryNavGroup,
+  NAVBAR_GROUP_PATHS,
+  parseNavbarGroupFromPath,
   resolveCategoryNavGroup,
 } from '../../lib/navbarCategories.ts';
 import { getCategoryLucideIcon, NavbarGroupIcon } from '../../lib/categoryIconComponents.ts';
@@ -182,6 +184,11 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   const getActiveKey = (): 'home' | 'school' | 'hsc27' | 'hsc28' | 'admission' | 'books' | 'skills' => {
     const clean = currentPath.replace(/\/+$/, '') || '/';
 
+    const navGroupMatch = parseNavbarGroupFromPath(clean);
+    if (navGroupMatch) {
+      return navGroupMatch.groupKey;
+    }
+
     if (
       clean === '/books' ||
       clean.startsWith('/books/') ||
@@ -277,12 +284,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     setHoverMenu(null);
     setMobileMenuOpen(false);
     if (onNavigate) {
-      if (key === 'school') onNavigate('/class-7');
-      else if (key === 'hsc27') onNavigate('/hsc/hsc-27');
-      else if (key === 'hsc28') onNavigate('/hsc/hsc-28');
-      else if (key === 'admission') onNavigate('/admission');
-      else if (key === 'books') onNavigate('/books');
-      else if (key === 'skills') onNavigate('/skills');
+      if (key === 'books') onNavigate('/books');
+      else onNavigate(NAVBAR_GROUP_PATHS[key]);
     } else {
       if (key === 'school') onSelectCategory('school', '');
       else if (key === 'hsc27' || key === 'hsc28') onSelectCategory('hsc', '');
@@ -292,19 +295,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     }
   };
 
-  const handleNavButtonClick = (key: NavKey, hasDropdown: boolean) => {
-    if (!hasDropdown) {
-      handleDirectNavClick(key);
-      return;
-    }
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (pinnedMenu === key) {
-      setPinnedMenu(null);
-      setHoverMenu(null);
-    } else {
-      setPinnedMenu(key);
-      setHoverMenu(key);
-    }
+  const handleNavButtonClick = (key: NavKey) => {
+    handleDirectNavClick(key);
   };
 
   const isSubItemActive = (item: SubMenuItem): boolean => {
@@ -403,7 +395,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           >
             <button
               type="button"
-              onClick={() => handleNavButtonClick('school', class6to12Items.length > 0)}
+              onClick={() => handleNavButtonClick('school')}
               aria-expanded={class6to12Items.length > 0 ? activeMenu === 'school' : undefined}
               className={`flex items-center gap-1 py-1.5 px-2 xl:px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'school' ? activePillClass : inactivePillClass
@@ -469,7 +461,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           >
             <button
               type="button"
-              onClick={() => handleNavButtonClick('hsc27', hsc27Items.length > 0)}
+              onClick={() => handleNavButtonClick('hsc27')}
               aria-expanded={hsc27Items.length > 0 ? activeMenu === 'hsc27' : undefined}
               className={`flex items-center gap-1 py-1.5 px-2 xl:px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'hsc27' ? activePillClass : inactivePillClass
@@ -539,7 +531,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           >
             <button
               type="button"
-              onClick={() => handleNavButtonClick('hsc28', hsc28Items.length > 0)}
+              onClick={() => handleNavButtonClick('hsc28')}
               aria-expanded={hsc28Items.length > 0 ? activeMenu === 'hsc28' : undefined}
               className={`flex items-center gap-1 py-1.5 px-2 xl:px-2.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'hsc28' ? activePillClass : inactivePillClass
@@ -609,7 +601,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           >
             <button
               type="button"
-              onClick={() => handleNavButtonClick('admission', admissionItems.length > 0)}
+              onClick={() => handleNavButtonClick('admission')}
               aria-expanded={admissionItems.length > 0 ? activeMenu === 'admission' : undefined}
               className={`flex items-center gap-1.5 py-1.5 px-2.5 xl:px-3 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'admission' ? activePillClass : inactivePillClass
@@ -734,14 +726,14 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           >
             <button
               type="button"
-              onClick={() => handleNavButtonClick('skills', skillsItems.length > 0)}
+              onClick={() => handleNavButtonClick('skills')}
               aria-expanded={skillsItems.length > 0 ? activeMenu === 'skills' : undefined}
               className={`flex items-center gap-1 py-1.5 px-2.5 xl:px-3 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeNavKey === 'skills' ? activePillClass : inactivePillClass
               }`}
             >
               <Briefcase className={`w-3.5 h-3.5 ${activeNavKey === 'skills' ? 'text-[#eb1c24]' : 'text-cyan-600'}`} />
-              <span>Skills</span>
+              <span>স্কিলস</span>
               {skillsItems.length > 0 && (
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
@@ -760,7 +752,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 className="absolute right-0 top-full mt-2 w-[285px] bg-white rounded-2xl border border-rose-100 border-t-[3px] border-t-[#eb1c24] shadow-[0_16px_40px_rgba(0,0,0,0.12)] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 overflow-hidden"
               >
                 <div className="px-3.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Skills ক্যাটাগরি
+                  স্কিলস ক্যাটাগরি
                 </div>
                 {skillsItems.map((item, idx) => {
                   const isCurrent = isSubItemActive(item);
@@ -866,6 +858,13 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDirectNavClick('school')}
+                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md font-bold text-[#eb1c24] bg-rose-50/70 hover:bg-rose-100/70 transition-colors"
+                  >
+                    সব ক্লাস ৬–১২ ক্যাটাগরি দেখুন →
+                  </button>
                   {class6to12Items.map((item, idx) => {
                     const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
                     const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
@@ -917,6 +916,13 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDirectNavClick('hsc27')}
+                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md font-bold text-[#eb1c24] bg-rose-50/70 hover:bg-rose-100/70 transition-colors"
+                  >
+                    সব HSC 27 ক্যাটাগরি দেখুন →
+                  </button>
                   {hsc27Items.map((item, idx) => {
                     const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
                     const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
@@ -968,6 +974,13 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDirectNavClick('hsc28')}
+                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md font-bold text-[#eb1c24] bg-rose-50/70 hover:bg-rose-100/70 transition-colors"
+                  >
+                    সব HSC 28 ক্যাটাগরি দেখুন →
+                  </button>
                   {hsc28Items.map((item, idx) => {
                     const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
                     const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
@@ -1019,6 +1032,13 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDirectNavClick('admission')}
+                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md font-bold text-[#eb1c24] bg-rose-50/70 hover:bg-rose-100/70 transition-colors"
+                  >
+                    সব ভর্তি পরীক্ষা ক্যাটাগরি দেখুন →
+                  </button>
                   {admissionItems.map((item, idx) => {
                     const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
                     const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
@@ -1079,11 +1099,18 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 }`}>
                   <div className="flex items-center gap-2">
                     <Briefcase className="w-4 h-4 text-cyan-600" />
-                    <span>Skills</span>
+                    <span>স্কিলস</span>
                   </div>
                   <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-[#eb1c24] ml-3 my-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDirectNavClick('skills')}
+                    className="w-full text-left px-2.5 py-1.5 text-xs rounded-md font-bold text-[#eb1c24] bg-rose-50/70 hover:bg-rose-100/70 transition-colors"
+                  >
+                    সব স্কিলস ক্যাটাগরি দেখুন →
+                  </button>
                   {skillsItems.map((item, idx) => {
                     const CatIcon = item.category ? getCategoryLucideIcon(item.category) : null;
                     const theme = item.category ? resolveCategoryCardTheme(item.category, idx) : null;
@@ -1120,7 +1147,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                 }`}
               >
                 <Briefcase className="w-4 h-4 text-cyan-600" />
-                <span>Skills</span>
+                <span>স্কিলস</span>
               </button>
             )}
           </div>

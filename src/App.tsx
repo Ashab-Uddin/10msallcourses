@@ -24,6 +24,7 @@ import { MobileBottomNav, MobileTab } from './components/public/MobileBottomNav.
 import { HeaderNav } from './components/public/HeaderNav.tsx';
 import { AcademicPage, type AcademicLevel } from './components/public/AcademicPage.tsx';
 import { CategoryPage } from './components/public/CategoryPage.tsx';
+import { NavbarGroupCategoryPage } from './components/public/NavbarGroupCategoryPage.tsx';
 import { CourseSharePage } from './components/public/CourseSharePage.tsx';
 import { BookStorePage } from './components/public/BookStorePage.tsx';
 import { AdminLogin } from './components/admin/AdminLogin.tsx';
@@ -60,8 +61,12 @@ import {
   isReservedCategorySlug,
 } from './lib/courseSlug.ts';
 import {
+  NAVBAR_GROUP_PAGE_META,
+  NAVBAR_GROUP_PATHS,
   inferCategoryNavGroup,
+  parseNavbarGroupFromPath,
   resolveCategoryNavGroup,
+  type NavbarGroupKey,
 } from './lib/navbarCategories.ts';
 import {
   AlertCircle,
@@ -100,6 +105,7 @@ type RouteState =
   | { view: 'home' }
   | { view: 'course'; slug: string }
   | { view: 'bookstore'; categorySlug?: string }
+  | { view: 'navgroup'; groupKey: NavbarGroupKey; categorySlug?: string }
   | { view: 'category'; slug: string; subFilter?: string }
   | { view: 'academic'; level: AcademicLevel; batchOrClass: string; sectionHash?: string }
   | { view: 'admin_login' }
@@ -132,6 +138,16 @@ function parseCurrentRoute(
   // Normalize path without trailing slashes
   const clean = pathname.replace(/\/+$/, '') || '/';
   const cleanHash = (hash || '').replace('#', '');
+
+  // 0. Dynamic Navbar Group Category Pages: /programs/{group}[/{categorySlug}] & /school
+  const navGroupMatch = parseNavbarGroupFromPath(clean);
+  if (navGroupMatch) {
+    return {
+      view: 'navgroup',
+      groupKey: navGroupMatch.groupKey,
+      categorySlug: navGroupMatch.categorySlug,
+    };
+  }
 
   // 1. Language Learning: /language-learning (plus legacy /categories/language-learning or /category/language-learning)
   if (
@@ -693,6 +709,14 @@ export default function App({
         const bnOrdinal = CLASS_BENGALI_ORDINALS[cNum] || `${toBengaliNumber(cNum)}ম`;
         document.title = `${bnOrdinal} শ্রেণি অনলাইন ব্যাচ — ১০ মিনিট স্কুল`;
       }
+    } else if (route.view === 'navgroup') {
+      const groupMeta = NAVBAR_GROUP_PAGE_META[route.groupKey];
+      const selectedCat = route.categorySlug
+        ? categories.find((c) => categorySlugsMatch(c.slug, route.categorySlug!))
+        : undefined;
+      document.title = selectedCat
+        ? `${selectedCat.name} — ${groupMeta.breadcrumbLabel} | ১০ মিনিট স্কুল`
+        : groupMeta.seoTitle;
     } else if (route.view === 'category') {
       const cat = categories.find((c) => categorySlugsMatch(c.slug, route.slug));
       document.title = cat
@@ -842,6 +866,10 @@ export default function App({
     ) {
       return 'books';
     }
+    const navGroupMatch = parseNavbarGroupFromPath(clean);
+    if (navGroupMatch) {
+      return navGroupMatch.groupKey;
+    }
     const legacyCatMatch = clean.match(/^\/categor(?:y|ies)\/(.+)$/i);
     const singleSegMatch =
       !legacyCatMatch && clean !== '/' ? clean.match(/^\/([^/]+)$/) : null;
@@ -900,18 +928,10 @@ export default function App({
     setMobileTab(tab);
     if (tab === 'home') {
       handleNavigateHome();
-    } else if (tab === 'hsc27') {
-      navigate('/hsc/hsc-27');
-    } else if (tab === 'hsc28') {
-      navigate('/hsc/hsc-28');
-    } else if (tab === 'school') {
-      navigate('/ssc/ssc-27');
-    } else if (tab === 'admission') {
-      navigate('/admission');
     } else if (tab === 'books') {
       navigate('/books');
-    } else if (tab === 'skills') {
-      navigate('/skills');
+    } else {
+      navigate(NAVBAR_GROUP_PATHS[tab]);
     }
   };
 
@@ -1106,6 +1126,76 @@ export default function App({
             onBack={() => navigate('/')}
             onNavigate={navigate}
             onRefreshBooks={fetchPublicBooks}
+          />
+        </main>
+
+        <SiteFooter
+          onNavigate={navigate}
+          onQuickFilter={handleQuickFilterSelect}
+          onDirectCourseLink={handleDirectCourseLink}
+          categories={orderedCategories}
+          courses={courses}
+          isAdminAuthenticated={Boolean(adminSession)}
+          whatsappNumber={whatsappNumber}
+          whatsappLink={whatsappLink}
+          facebookLink={facebookLink}
+          youtubeLink={youtubeLink}
+          instagramLink={instagramLink}
+        />
+
+        <MobileBottomNav
+          activeTab={getMobileActiveTab()}
+          onTabChange={handleMobileNav}
+          categories={orderedCategories}
+          courses={courses}
+          currentPath={currentPath}
+          onNavigate={navigate}
+        />
+
+        <FloatingContactWidget
+          whatsappLink={whatsappLink}
+          whatsappNumber={whatsappNumber}
+          callNumber={callNumber}
+          messengerLink={messengerLink}
+        />
+      </div>
+      </SiteContactProvider>
+    );
+  }
+
+  if (route.view === 'navgroup') {
+    return (
+      <SiteContactProvider
+        value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
+      >
+      <div className="relative min-h-screen pb-20 md:pb-0">
+        <GlassAmbientBackdrop />
+
+        <HeaderNav
+          courses={courses}
+          categories={orderedCategories}
+          bookCategories={bookCategories}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchSubmit={handleHeaderSearchSubmit}
+          onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
+          onNavigateHome={handleNavigateHome}
+          onEnrollClick={handleEnrollClick}
+          onOpenCategoryPage={(slug) => navigate(buildReadableCategoryPath(slug))}
+          onNavigate={navigate}
+          currentPath={currentPath}
+          currentHash={currentHash}
+        />
+
+        <main className="relative z-10 pt-2">
+          <NavbarGroupCategoryPage
+            groupKey={route.groupKey}
+            categories={orderedCategories}
+            courses={courses}
+            categoryCourseOrders={categoryCourseOrders}
+            onBack={() => navigate('/')}
+            onOpenStandaloneCategory={(slug) => navigate(buildReadableCategoryPath(slug))}
+            onEnrollClick={handleEnrollClick}
           />
         </main>
 

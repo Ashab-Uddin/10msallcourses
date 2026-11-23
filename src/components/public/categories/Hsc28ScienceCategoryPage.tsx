@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { MobileCategoryCarousel } from '../MobileCategoryCarousel.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import { courseMatchesCategorySlug } from '../../../lib/categoryMatching.ts';
 import {
@@ -21,6 +22,7 @@ import {
   type Hsc28ScienceFilterId,
 } from '../../../lib/hsc28ScienceFilters.ts';
 import { Hsc28ScienceFilterBar } from './Hsc28ScienceFilterBar.tsx';
+import { useCategoryScrollIntoView } from '../../../lib/useCategoryScrollIntoView.ts';
 
 interface Hsc28ScienceCategoryPageProps {
   category?: Category;
@@ -40,6 +42,9 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
   const [selectedFilter, setSelectedFilter] = useState<Hsc28ScienceFilterId | 'all'>('all');
 
   const targetSlug = (category?.slug || 'hsc-28-বিজ্ঞান-কোর্স').normalize('NFC');
+  const categorySectionRef = useCategoryScrollIntoView<HTMLDivElement>(
+    `hsc28-science-${targetSlug}`
+  );
 
   const hsc28Courses = useMemo(
     () =>
@@ -93,7 +98,11 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
       </nav>
 
       {/* Unified Warm Frosted Category Header & Single-Line Filter Card */}
-      <div className="glass-surface rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-7">
+      <div
+        ref={categorySectionRef}
+        id="category-page-section"
+        className="scroll-mt-24 sm:scroll-mt-28 glass-surface rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-7"
+      >
         <div className="flex flex-col items-center justify-center text-center gap-3">
           <div className="min-w-0 max-w-3xl mx-auto flex flex-col items-center">
             <div className="flex flex-wrap items-center justify-center gap-2 mb-2.5">
@@ -177,23 +186,32 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
             </button>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
-            {filteredCourses.map((course) => (
-              <motion.div
-                key={`cat-hsc28sci-${course.id}-${course.slug}`}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18 }}
-                className="h-full flex flex-col"
-              >
-                <CourseCard
-                  course={course}
-                  onEnrollClick={onEnrollClick}
-                  headingLevel="h3"
-                />
-              </motion.div>
-            ))}
-          </div>
+          <>
+            <MobileCategoryCarousel
+              categorySlug={targetSlug}
+              categoryName={pageTitle}
+              courses={filteredCourses}
+              onEnrollClick={onEnrollClick}
+              headingLevel="h3"
+            />
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
+              {filteredCourses.map((course) => (
+                <motion.div
+                  key={`cat-hsc28sci-${course.id}-${course.slug}`}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="h-full flex flex-col"
+                >
+                  <CourseCard
+                    course={course}
+                    onEnrollClick={onEnrollClick}
+                    headingLevel="h3"
+                  />
+                </motion.div>
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>

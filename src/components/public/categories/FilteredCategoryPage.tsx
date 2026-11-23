@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { BookOpen, RotateCcw, Sparkles } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { MobileCategoryCarousel } from '../MobileCategoryCarousel.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import { courseMatchesCategorySlug } from '../../../lib/categoryMatching.ts';
 import {
@@ -17,6 +18,7 @@ import {
   type FilteredCategoryKey,
 } from '../../../lib/categoryFilterConfigs.ts';
 import { CategoryFilterBar } from './CategoryFilterBar.tsx';
+import { useCategoryScrollIntoView } from '../../../lib/useCategoryScrollIntoView.ts';
 
 interface FilteredCategoryPageProps {
   configKey: FilteredCategoryKey;
@@ -39,6 +41,9 @@ export const FilteredCategoryPage: React.FC<FilteredCategoryPageProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
   const targetSlug = (category?.slug || config.defaultSlug).normalize('NFC');
+  const categorySectionRef = useCategoryScrollIntoView<HTMLDivElement>(
+    `filtered-cat-${configKey}-${targetSlug}`
+  );
 
   const scopedCourses = useMemo(
     () =>
@@ -90,7 +95,11 @@ export const FilteredCategoryPage: React.FC<FilteredCategoryPageProps> = ({
       </nav>
 
       {/* Unified Warm Frosted Category Header & Single-Line Filter Card */}
-      <div className="glass-surface rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-7">
+      <div
+        ref={categorySectionRef}
+        id="category-page-section"
+        className="scroll-mt-24 sm:scroll-mt-28 glass-surface rounded-2xl sm:rounded-3xl p-4 sm:p-6 mb-6 sm:mb-7"
+      >
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -181,23 +190,32 @@ export const FilteredCategoryPage: React.FC<FilteredCategoryPageProps> = ({
             )}
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
-            {filteredCourses.map((course) => (
-              <motion.div
-                key={`cat-${config.key}-${course.id}-${course.slug}`}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18 }}
-                className="h-full flex flex-col"
-              >
-                <CourseCard
-                  course={course}
-                  onEnrollClick={onEnrollClick}
-                  headingLevel="h3"
-                />
-              </motion.div>
-            ))}
-          </div>
+          <>
+            <MobileCategoryCarousel
+              categorySlug={targetSlug}
+              categoryName={pageTitle}
+              courses={filteredCourses}
+              onEnrollClick={onEnrollClick}
+              headingLevel="h3"
+            />
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
+              {filteredCourses.map((course) => (
+                <motion.div
+                  key={`cat-${config.key}-${course.id}-${course.slug}`}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="h-full flex flex-col"
+                >
+                  <CourseCard
+                    course={course}
+                    onEnrollClick={onEnrollClick}
+                    headingLevel="h3"
+                  />
+                </motion.div>
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>

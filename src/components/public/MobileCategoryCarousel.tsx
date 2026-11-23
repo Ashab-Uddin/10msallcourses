@@ -10,6 +10,7 @@ interface MobileCategoryCarouselProps {
   categoryName: string;
   courses: Course[];
   onEnrollClick: (course: Course, referrer: string) => void;
+  headingLevel?: 'h3' | 'h4';
 }
 
 export const MobileCategoryCarousel: React.FC<MobileCategoryCarouselProps> = ({
@@ -17,10 +18,12 @@ export const MobileCategoryCarousel: React.FC<MobileCategoryCarouselProps> = ({
   categoryName,
   courses,
   onEnrollClick,
+  headingLevel = 'h4',
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(courses.length > 2);
+  const courseIdsKey = courses.map((c) => c.id).join(',');
 
   const updateScrollBounds = useCallback(() => {
     const el = trackRef.current;
@@ -29,6 +32,14 @@ export const MobileCategoryCarousel: React.FC<MobileCategoryCarouselProps> = ({
     setCanScrollLeft(el.scrollLeft > 4);
     setCanScrollRight(maxScroll - el.scrollLeft > 4);
   }, []);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (el) {
+      el.scrollTo({ left: 0, behavior: 'auto' });
+    }
+    updateScrollBounds();
+  }, [categorySlug, courseIdsKey, updateScrollBounds]);
 
   useEffect(() => {
     updateScrollBounds();
@@ -88,6 +99,7 @@ export const MobileCategoryCarousel: React.FC<MobileCategoryCarouselProps> = ({
             <CourseCard
               course={course}
               onEnrollClick={onEnrollClick}
+              headingLevel={headingLevel}
               compactMobile
             />
           </div>

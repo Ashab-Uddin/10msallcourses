@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { MobileCategoryCarousel } from '../MobileCategoryCarousel.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
   courseMatchesCategorySlug,
@@ -322,13 +323,22 @@ export const SkillsCategoryPage: React.FC<SkillsCategoryPageProps> = ({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
-            {filteredCourses.map((course) => (
-              <div key={`cat-skills-${course.id}-${course.slug}`} className="h-full flex flex-col">
-                <CourseCard course={course} onEnrollClick={onEnrollClick} headingLevel="h3" />
-              </div>
-            ))}
-          </div>
+          <>
+            <MobileCategoryCarousel
+              categorySlug={category?.slug || 'skills'}
+              categoryName={pageTitle}
+              courses={filteredCourses}
+              onEnrollClick={onEnrollClick}
+              headingLevel="h3"
+            />
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
+              {filteredCourses.map((course) => (
+                <div key={`cat-skills-${course.id}-${course.slug}`} className="h-full flex flex-col">
+                  <CourseCard course={course} onEnrollClick={onEnrollClick} headingLevel="h3" />
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>

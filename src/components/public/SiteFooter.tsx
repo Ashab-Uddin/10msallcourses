@@ -17,7 +17,6 @@ import {
   Zap,
   Users,
   X,
-  Lock,
   Sparkles,
 } from 'lucide-react';
 
@@ -41,8 +40,6 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
   onQuickFilter,
   categories = [],
   courses = [],
-  isAdminAuthenticated = false,
-  authToken,
   whatsappNumber = '+880 1625171822',
   whatsappLink = 'https://wa.me/8801625171822',
   facebookLink = 'https://www.facebook.com/10ms.official',
@@ -545,31 +542,10 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
             </div>
 
             {/* ===================================================== */}
-            {/* BOTTOM SUB-FOOTER: COPYRIGHT, ACTIONS & CREDITS       */}
-            {/* (Payment Card completely removed as requested)        */}
+            {/* BOTTOM SUB-FOOTER: COPYRIGHT                          */}
             {/* ===================================================== */}
-            <div className="pt-6 border-t border-rose-800/40 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-rose-200/80">
-              <div>
-                © ২০২৬ | <strong className="text-white">10msallcourse.com</strong> (১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস)। সর্বস্বত্ব সংরক্ষিত।
-              </div>
-
-              {/* Admin Access Link */}
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    onNavigate(
-                      isAdminAuthenticated || authToken
-                        ? '/admin/dashboard'
-                        : '/admin/login'
-                    )
-                  }
-                  className="inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-rose-100 font-bold px-3 py-1.5 rounded-full border border-white/20 transition cursor-pointer text-xs"
-                >
-                  <Lock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Admin</span>
-                </button>
-              </div>
+            <div className="pt-6 border-t border-rose-800/40 text-center md:text-left text-xs text-rose-200/80">
+              © ২০২৬ | <strong className="text-white">10msallcourse.com</strong> (১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস)। সর্বস্বত্ব সংরক্ষিত।
             </div>
           </div>
         </div>

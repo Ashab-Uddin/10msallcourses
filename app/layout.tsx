@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { MotionProvider } from '@/src/components/MotionProvider';
 import {
   DEFAULT_OG_IMAGE_PATH,
   DEFAULT_SITE_DESCRIPTION,
@@ -86,7 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning
         className="antialiased min-h-screen selection:bg-red-500 selection:text-white"
       >
-        {children}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );

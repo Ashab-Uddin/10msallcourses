@@ -16,8 +16,138 @@ export const NAVBAR_GROUP_LABELS: Record<NavbarGroupKey, string> = {
   hsc27: 'HSC 27',
   hsc28: 'HSC 28',
   admission: 'ভর্তি পরীক্ষা',
-  skills: 'Skills',
+  skills: 'স্কিলস',
 };
+
+export const NAVBAR_GROUP_PATHS: Record<NavbarGroupKey, string> = {
+  school: '/programs/class-6-12',
+  hsc27: '/programs/hsc-27',
+  hsc28: '/programs/hsc-28',
+  admission: '/programs/admission',
+  skills: '/programs/skills',
+};
+
+export interface NavbarGroupPageMeta {
+  key: NavbarGroupKey;
+  breadcrumbLabel: string;
+  badge: string;
+  titleLead: string;
+  titleAccent: string;
+  defaultSubtitle: string;
+  emptyCoursesMessage: string;
+  seoTitle: string;
+  seoDescription: string;
+}
+
+export const NAVBAR_GROUP_PAGE_META: Record<NavbarGroupKey, NavbarGroupPageMeta> = {
+  school: {
+    key: 'school',
+    breadcrumbLabel: 'ক্লাস ৬–১২',
+    badge: 'ক্লাস ৫–১০ · স্কুল ও এসএসসি একাডেমিক প্রোগ্রাম',
+    titleLead: 'ক্লাস ৬–১২',
+    titleAccent: 'অনলাইন ব্যাচ',
+    defaultSubtitle: 'পঞ্চম থেকে দশম শ্রেণি ও এসএসসি পরীক্ষার্থীদের সকল বিষয়ভিত্তিক অনলাইন ব্যাচ ও ক্যাটাগরি',
+    emptyCoursesMessage: 'ক্লাস ৬–১২ ক্যাটাগরিতে বর্তমানে কোনো সক্রিয় কোর্স নেই।',
+    seoTitle: 'ক্লাস ৬–১২ সকল ক্যাটাগরি ও অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
+    seoDescription:
+      '১০ম শ্রেণি (SSC 27), ৯ম শ্রেণি (SSC 28), ৮ম, ৭ম, ৬ষ্ঠ ও ৫ম শ্রেণির সকল একাডেমিক অনলাইন ব্যাচ ও লাইভ ক্লাস।',
+  },
+  hsc27: {
+    key: 'hsc27',
+    breadcrumbLabel: 'HSC 27',
+    badge: 'HSC ২০২৭ একাডেমিক ও রিভিশন প্রোগ্রাম',
+    titleLead: 'HSC 27',
+    titleAccent: 'অনলাইন ব্যাচ',
+    defaultSubtitle: 'HSC ২০২৭ ব্যাচের বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা, BEI ও শেষ মুহূর্তের প্রস্তুতি কোর্সসমূহ',
+    emptyCoursesMessage: 'HSC 27 ক্যাটাগরিতে বর্তমানে কোনো সক্রিয় কোর্স নেই।',
+    seoTitle: 'HSC 27 সকল ক্যাটাগরি ও অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
+    seoDescription:
+      'HSC ২০২৭ ব্যাচের বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা, BEI ও শেষ মুহূর্তের প্রস্তুতি অনলাইন ব্যাচসমূহ।',
+  },
+  hsc28: {
+    key: 'hsc28',
+    breadcrumbLabel: 'HSC 28',
+    badge: 'HSC ২০২৮ ১ম বর্ষ একাডেমিক প্রোগ্রাম',
+    titleLead: 'HSC 28',
+    titleAccent: 'অনলাইন ব্যাচ',
+    defaultSubtitle: 'HSC ২০২৮ ব্যাচের বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা ও BEI বিভাগের পূর্ণাঙ্গ অনলাইন ব্যাচসমূহ',
+    emptyCoursesMessage: 'HSC 28 ক্যাটাগরিতে বর্তমানে কোনো সক্রিয় কোর্স নেই।',
+    seoTitle: 'HSC 28 সকল ক্যাটাগরি ও অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
+    seoDescription:
+      'HSC ২০২৮ ব্যাচের বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা ও BEI বিভাগের সকল অনলাইন কোর্স ও লাইভ ব্যাচ।',
+  },
+  admission: {
+    key: 'admission',
+    breadcrumbLabel: 'ভর্তি পরীক্ষা',
+    badge: 'বিশ্ববিদ্যালয়, মেডিকেল ও ইঞ্জিনিয়ারিং ভর্তি প্রস্তুতি',
+    titleLead: 'ভর্তি পরীক্ষা',
+    titleAccent: 'প্রস্তুতি ব্যাচ',
+    defaultSubtitle: 'মেডিকেল, বিশ্ববিদ্যালয় ও ইঞ্জিনিয়ারিং ভর্তি পরীক্ষার সকল বিভাগভিত্তিক অনলাইন কোর্স',
+    emptyCoursesMessage: 'ভর্তি পরীক্ষা ক্যাটাগরিতে বর্তমানে কোনো সক্রিয় কোর্স নেই।',
+    seoTitle: 'ভর্তি পরীক্ষা (মেডিকেল, ভার্সিটি, ইঞ্জিনিয়ারিং) — ১০ মিনিট স্কুল',
+    seoDescription:
+      'মেডিকেল, ঢাকা বিশ্ববিদ্যালয়, গুচ্ছ ও বুয়েট-ইঞ্জিনিয়ারিং ভর্তি পরীক্ষার পূর্ণাঙ্গ অনলাইন প্রস্তুতি।',
+  },
+  skills: {
+    key: 'skills',
+    breadcrumbLabel: 'স্কিলস',
+    badge: 'স্কিলস, ভাষা শিক্ষা, ফ্রিল্যান্সিং ও ক্যারিয়ার',
+    titleLead: 'স্কিলস ও আইটি',
+    titleAccent: 'ক্যারিয়ার কোর্স',
+    defaultSubtitle: 'ভাষা শিক্ষা, ফ্রিল্যান্সিং, ডিজাইন ও প্রফেশনাল আইটি দক্ষতা উন্নয়নের সকল কোর্সসমূহ',
+    emptyCoursesMessage: 'স্কিলস ক্যাটাগরিতে বর্তমানে কোনো সক্রিয় কোর্স নেই।',
+    seoTitle: 'স্কিলস ও আইটি, ভাষা শিক্ষা, ফ্রিল্যান্সিং ও ডিজাইন কোর্স — ১০ মিনিট স্কুল',
+    seoDescription:
+      'স্পোকেন ইংলিশ, IELTS, ফ্রিল্যান্সিং, ডিজাইন এন্ড ক্রিয়েটিভ এবং ক্যারিয়ার ও আইটি স্কিল কোর্সসমূহ।',
+  },
+};
+
+export function buildNavbarGroupPath(
+  groupKey: NavbarGroupKey,
+  categorySlug?: string | null
+): string {
+  const basePath = NAVBAR_GROUP_PATHS[groupKey];
+  const cleanCat = (categorySlug || '').trim().replace(/^\/+|\/+$/g, '');
+  if (!cleanCat) return basePath;
+  return `${basePath}/${cleanCat}`;
+}
+
+export function parseNavbarGroupFromPath(
+  pathname: string
+): { groupKey: NavbarGroupKey; categorySlug?: string } | null {
+  const clean = (pathname || '/').replace(/\/+$/, '') || '/';
+  if (clean === '/school' || clean === '/category/school' || clean === '/categories/school') {
+    return { groupKey: 'school' };
+  }
+
+  const parts = clean.split('/').filter(Boolean);
+  if (parts.length === 0) return null;
+  const prefix = parts[0].toLowerCase();
+  if (prefix !== 'programs') return null;
+  if (parts.length < 2) return null;
+
+  const groupSeg = parts[1].toLowerCase();
+  let groupKey: NavbarGroupKey | null = null;
+  if (groupSeg === 'class-6-12' || groupSeg === 'school') groupKey = 'school';
+  else if (groupSeg === 'hsc-27' || groupSeg === 'hsc27') groupKey = 'hsc27';
+  else if (groupSeg === 'hsc-28' || groupSeg === 'hsc28') groupKey = 'hsc28';
+  else if (groupSeg === 'admission') groupKey = 'admission';
+  else if (groupSeg === 'skills') groupKey = 'skills';
+
+  if (!groupKey) return null;
+
+  if (parts.length >= 3 && parts[2]) {
+    let decodedCat = parts.slice(2).join('/');
+    try {
+      decodedCat = decodeURIComponent(decodedCat);
+    } catch {
+      // Keep raw segment if invalid percent encoding
+    }
+    return { groupKey, categorySlug: decodedCat.normalize('NFC') };
+  }
+
+  return { groupKey };
+}
 
 export const NAVBAR_GROUP_OPTIONS: ReadonlyArray<{
   value: CategoryNavAssignment;
@@ -28,7 +158,7 @@ export const NAVBAR_GROUP_OPTIONS: ReadonlyArray<{
   { value: 'hsc27', label: 'HSC 27 ড্রপডাউন' },
   { value: 'hsc28', label: 'HSC 28 ড্রপডাউন' },
   { value: 'admission', label: 'ভর্তি পরীক্ষা ড্রপডাউন' },
-  { value: 'skills', label: 'Skills ড্রপডাউন' },
+  { value: 'skills', label: 'স্কিলস ড্রপডাউন' },
   { value: 'none', label: 'Navbar ড্রপডাউনে দেখাবে না' },
 ];
 
@@ -103,9 +233,13 @@ export function inferCategoryNavGroup(
       'medical',
       'ভার্সিটি',
       'varsity',
+      'বিশ্ববিদ্যালয়',
+      'বিশ্ববিদ্যালয়',
+      'university',
       'বুয়েট',
       'buet',
       'ইঞ্জিনিয়ারিং',
+      'ইঞ্জিনিয়ারিং',
       'engineering',
       'গুচ্ছ',
       'gst',
@@ -177,11 +311,17 @@ export function inferCategoryNavGroup(
       'language-learning',
       'language',
       'ল্যাঙ্গুয়েজ',
+      'ভাষা',
       'spoken',
       'স্পোকেন',
       'ielts',
       'freelancing',
       'ফ্রিল্যান্সিং',
+      'design',
+      'creative',
+      'ডিজাইন',
+      'ক্রিয়েটিভ',
+      'ক্রিয়েটিভ',
       'career',
       'ক্যারিয়ার',
       'আইটি',

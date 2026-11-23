@@ -75,6 +75,7 @@ import {
   sbGetCourseBySlug,
   sbGetCourseOgTarget,
   sbGetCourseFeatures,
+  sbGetNextCategoryDisplayOrder,
   sbGetOfferTimers,
   sbGetPortalSettings,
   sbGetPublicPortalData,
@@ -1598,6 +1599,30 @@ export async function deleteCourseById(
   };
 }
 
+let localCategoryWriteQueue: Promise<void> = Promise.resolve();
+
+function enqueueLocalCategoryWrite<T>(task: () => Promise<T>): Promise<T> {
+  const run = localCategoryWriteQueue.then(task, task);
+  localCategoryWriteQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+export async function getNextCategoryDisplayOrder(): Promise<number> {
+  if (isSupabaseDatabaseReady()) {
+    return sbGetNextCategoryDisplayOrder();
+  }
+
+  const store = await loadStore(true);
+  const maxOrder = store.categories.reduce(
+    (max, cat) => Math.max(max, Number(cat.displayOrder) || 0),
+    0
+  );
+  return maxOrder + 1;
+}
+
 export async function createNewCategory(input: Record<string, unknown>) {
   if (isSupabaseDatabaseReady()) {
     const created = await sbCreateNewCategory(input);
@@ -1605,76 +1630,80 @@ export async function createNewCategory(input: Record<string, unknown>) {
     return created;
   }
 
-  const store = await loadStore(true);
-  const name = String(input.name || '').trim();
-  const rawSlugInput = stripCategorySlugPrefix(String(input.slug || name));
-  const slug = normalizeSlug(rawSlugInput);
+  return enqueueLocalCategoryWrite(async () => {
+    const store = await loadStore(true);
+    const name = String(input.name || '').trim();
+    const rawSlugInput = stripCategorySlugPrefix(String(input.slug || name));
+    const slug = normalizeSlug(rawSlugInput);
 
-  if (!name || !slug) {
-    throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ পূরণ করা আবশ্যক।', 400);
-  }
-  if (isReservedCategorySlug(slug)) {
-    throw new RepositoryError(
-      `"${slug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
-      400
-    );
-  }
-
-  const dup = store.categories.some((c) => c.slug.toLowerCase() === slug.toLowerCase());
-  if (dup) {
-    throw new RepositoryError(`"${slug}" স্লাগসহ একটি ক্যাটাগরি ইতিমধ্যে রয়েছে।`, 409);
-  }
-
-  let displayOrder: number;
-  if (
-    input.displayOrder !== undefined &&
-    input.displayOrder !== null &&
-    String(input.displayOrder).trim() !== ''
-  ) {
-    const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
-    if (!parsedOrder.valid) {
-      throw new RepositoryError(parsedOrder.error, 400);
+    if (!name || !slug) {
+      throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ পূরণ করা আবশ্যক।', 400);
     }
-    displayOrder = parsedOrder.value;
-  } else {
-    displayOrder =
-      store.categories.length > 0
-        ? Math.max(...store.categories.map((c) => Number(c.displayOrder) || 0)) + 1
-        : 1;
-  }
+    if (isReservedCategorySlug(slug)) {
+      throw new RepositoryError(
+        `"${slug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+        400
+      );
+    }
 
-  const duplicateOrderCat = store.categories.find((c) => c.displayOrder === displayOrder);
-  if (duplicateOrderCat) {
-    throw new RepositoryError(
-      `এই ক্রম নম্বরটি (${toBengaliNumber(displayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${duplicateOrderCat.name}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
-      409
-    );
-  }
+    const dup = store.categories.some((c) => c.slug.toLowerCase() === slug.toLowerCase());
+    if (dup) {
+      throw new RepositoryError(`"${slug}" স্লাগসহ একটি ক্যাটাগরি ইতিমধ্যে রয়েছে।`, 409);
+    }
 
-  const newId =
-    store.categories.length > 0 ? Math.max(...store.categories.map((c) => c.id)) + 1 : 1;
+    const hasExplicitDisplayOrder =
+      input.autoOrder !== true &&
+      input.displayOrder !== undefined &&
+      input.displayOrder !== null &&
+      String(input.displayOrder).trim() !== '';
 
-  const newCat: Category = {
-    id: newId,
-    name: name.slice(0, 120),
-    slug,
-    subtitle:
-      typeof input.subtitle === 'string' && input.subtitle.trim()
-        ? input.subtitle.trim().slice(0, 250)
-        : null,
-    badgeColor: String(input.badgeColor || 'red').trim().slice(0, 30),
-    displayOrder,
-    status: input.status === 'inactive' ? 'inactive' : 'active',
-    navGroup: normalizeCategoryNavGroup(input.navGroup),
-    iconKey: normalizeCategoryIconKey(input.iconKey),
-    createdAt: new Date().toISOString(),
-  };
+    let displayOrder: number;
+    if (hasExplicitDisplayOrder) {
+      const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
+      if (!parsedOrder.valid) {
+        throw new RepositoryError(parsedOrder.error, 400);
+      }
+      displayOrder = parsedOrder.value;
+    } else {
+      displayOrder =
+        store.categories.length > 0
+          ? Math.max(...store.categories.map((c) => Number(c.displayOrder) || 0)) + 1
+          : 1;
+    }
 
-  store.categories = sortCategoriesByOrder([...store.categories, newCat]);
-  await persistStore(store);
-  invalidatePublicPortalCache();
+    const duplicateOrderCat = store.categories.find((c) => c.displayOrder === displayOrder);
+    if (duplicateOrderCat) {
+      throw new RepositoryError(
+        `এই ক্রম নম্বরটি (${toBengaliNumber(displayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${duplicateOrderCat.name}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+        409
+      );
+    }
 
-  return newCat;
+    const newId =
+      store.categories.length > 0 ? Math.max(...store.categories.map((c) => c.id)) + 1 : 1;
+
+    const newCat: Category = {
+      id: newId,
+      name: name.slice(0, 120),
+      slug,
+      subtitle:
+        typeof input.subtitle === 'string' && input.subtitle.trim()
+          ? input.subtitle.trim().slice(0, 250)
+          : null,
+      badgeColor: String(input.badgeColor || 'red').trim().slice(0, 30),
+      displayOrder,
+      status: input.status === 'inactive' ? 'inactive' : 'active',
+      navGroup: normalizeCategoryNavGroup(input.navGroup),
+      iconKey: normalizeCategoryIconKey(input.iconKey),
+      createdAt: new Date().toISOString(),
+    };
+
+    store.categories = sortCategoriesByOrder([...store.categories, newCat]);
+    await persistStore(store);
+    invalidatePublicPortalCache();
+
+    return newCat;
+  });
 }
 
 export async function updateExistingCategory(id: number, input: Record<string, unknown>) {
@@ -1686,120 +1715,122 @@ export async function updateExistingCategory(id: number, input: Record<string, u
     return updated;
   }
 
-  const store = await loadStore(true);
-  const idx = store.categories.findIndex((c) => c.id === id);
-  if (idx === -1) {
-    return null;
-  }
-
-  const existing = store.categories[idx];
-  const nextName =
-    input.name !== undefined ? String(input.name || '').trim() : existing.name;
-  const nextSlug =
-    input.slug !== undefined
-      ? normalizeSlug(stripCategorySlugPrefix(String(input.slug || '')))
-      : existing.slug;
-
-  if (!nextName || !nextSlug) {
-    throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ খালি রাখা যাবে না।', 400);
-  }
-  if (nextSlug !== existing.slug && isReservedCategorySlug(nextSlug)) {
-    throw new RepositoryError(
-      `"${nextSlug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
-      400
-    );
-  }
-
-  const dup = store.categories.some(
-    (c) => c.id !== id && c.slug.toLowerCase() === nextSlug.toLowerCase()
-  );
-  if (dup) {
-    throw new RepositoryError(`"${nextSlug}" স্লাগটি অন্য ক্যাটাগরিতে ব্যবহৃত হচ্ছে।`, 409);
-  }
-
-  let nextDisplayOrder = existing.displayOrder;
-  if (input.displayOrder !== undefined) {
-    const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
-    if (!parsedOrder.valid) {
-      throw new RepositoryError(parsedOrder.error, 400);
+  return enqueueLocalCategoryWrite(async () => {
+    const store = await loadStore(true);
+    const idx = store.categories.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      return null;
     }
-    nextDisplayOrder = parsedOrder.value;
-  }
 
-  const duplicateOrderCat = store.categories.find(
-    (c) => c.id !== id && c.displayOrder === nextDisplayOrder
-  );
-  if (duplicateOrderCat) {
-    throw new RepositoryError(
-      `এই ক্রম নম্বরটি (${toBengaliNumber(nextDisplayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${duplicateOrderCat.name}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
-      409
+    const existing = store.categories[idx];
+    const nextName =
+      input.name !== undefined ? String(input.name || '').trim() : existing.name;
+    const nextSlug =
+      input.slug !== undefined
+        ? normalizeSlug(stripCategorySlugPrefix(String(input.slug || '')))
+        : existing.slug;
+
+    if (!nextName || !nextSlug) {
+      throw new RepositoryError('ক্যাটাগরির নাম এবং স্লাগ খালি রাখা যাবে না।', 400);
+    }
+    if (nextSlug !== existing.slug && isReservedCategorySlug(nextSlug)) {
+      throw new RepositoryError(
+        `"${nextSlug}" স্লাগটি সিস্টেম রুটের জন্য সংরক্ষিত। অনুগ্রহ করে ভিন্ন একটি স্লাগ দিন।`,
+        400
+      );
+    }
+
+    const dup = store.categories.some(
+      (c) => c.id !== id && c.slug.toLowerCase() === nextSlug.toLowerCase()
     );
-  }
+    if (dup) {
+      throw new RepositoryError(`"${nextSlug}" স্লাগটি অন্য ক্যাটাগরিতে ব্যবহৃত হচ্ছে।`, 409);
+    }
 
-  const updated: Category = {
-    ...existing,
-    name: nextName.slice(0, 120),
-    slug: nextSlug,
-    subtitle:
-      input.subtitle !== undefined
-        ? typeof input.subtitle === 'string' && input.subtitle.trim()
-          ? input.subtitle.trim().slice(0, 250)
-          : null
-        : existing.subtitle,
-    badgeColor:
-      input.badgeColor !== undefined
-        ? String(input.badgeColor || 'red').trim().slice(0, 30)
-        : existing.badgeColor,
-    displayOrder: nextDisplayOrder,
-    status:
-      input.status !== undefined
-        ? input.status === 'inactive'
-          ? 'inactive'
-          : 'active'
-        : existing.status,
-    navGroup:
-      input.navGroup !== undefined
-        ? normalizeCategoryNavGroup(input.navGroup)
-        : existing.navGroup,
-    iconKey:
-      input.iconKey !== undefined
-        ? normalizeCategoryIconKey(input.iconKey)
-        : existing.iconKey,
-  };
+    let nextDisplayOrder = existing.displayOrder;
+    if (input.displayOrder !== undefined) {
+      const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
+      if (!parsedOrder.valid) {
+        throw new RepositoryError(parsedOrder.error, 400);
+      }
+      nextDisplayOrder = parsedOrder.value;
+    }
 
-  store.categories[idx] = updated;
-  store.categories = sortCategoriesByOrder(store.categories);
+    const duplicateOrderCat = store.categories.find(
+      (c) => c.id !== id && c.displayOrder === nextDisplayOrder
+    );
+    if (duplicateOrderCat) {
+      throw new RepositoryError(
+        `এই ক্রম নম্বরটি (${toBengaliNumber(nextDisplayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${duplicateOrderCat.name}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+        409
+      );
+    }
 
-  // Cascade category slug change to all linked courses so referential integrity stays intact.
-  if (nextSlug !== existing.slug) {
-    store.courses = store.courses.map((course) => {
-      const assigned = getCourseCategorySlugs(course);
-      const hasMatch =
-        course.categoryId === id ||
-        assigned.includes(existing.slug.toLowerCase()) ||
-        (Array.isArray(course.categoryIds) && course.categoryIds.includes(id));
-      if (!hasMatch) return course;
-      const nextSlugs = Array.isArray(course.categorySlugs)
-        ? course.categorySlugs.map((s) =>
-            s.toLowerCase() === existing.slug.toLowerCase() ? nextSlug : s
-          )
-        : [nextSlug];
-      return {
-        ...course,
-        categoryId: course.categoryId === id ? id : course.categoryId,
-        categorySlug:
-          course.categorySlug.toLowerCase() === existing.slug.toLowerCase()
-            ? nextSlug
-            : course.categorySlug,
-        categorySlugs: nextSlugs,
-      };
-    });
-  }
+    const updated: Category = {
+      ...existing,
+      name: nextName.slice(0, 120),
+      slug: nextSlug,
+      subtitle:
+        input.subtitle !== undefined
+          ? typeof input.subtitle === 'string' && input.subtitle.trim()
+            ? input.subtitle.trim().slice(0, 250)
+            : null
+          : existing.subtitle,
+      badgeColor:
+        input.badgeColor !== undefined
+          ? String(input.badgeColor || 'red').trim().slice(0, 30)
+          : existing.badgeColor,
+      displayOrder: nextDisplayOrder,
+      status:
+        input.status !== undefined
+          ? input.status === 'inactive'
+            ? 'inactive'
+            : 'active'
+          : existing.status,
+      navGroup:
+        input.navGroup !== undefined
+          ? normalizeCategoryNavGroup(input.navGroup)
+          : existing.navGroup,
+      iconKey:
+        input.iconKey !== undefined
+          ? normalizeCategoryIconKey(input.iconKey)
+          : existing.iconKey,
+    };
 
-  await persistStore(store);
-  invalidatePublicPortalCache();
+    store.categories[idx] = updated;
+    store.categories = sortCategoriesByOrder(store.categories);
 
-  return updated;
+    // Cascade category slug change to all linked courses so referential integrity stays intact.
+    if (nextSlug !== existing.slug) {
+      store.courses = store.courses.map((course) => {
+        const assigned = getCourseCategorySlugs(course);
+        const hasMatch =
+          course.categoryId === id ||
+          assigned.includes(existing.slug.toLowerCase()) ||
+          (Array.isArray(course.categoryIds) && course.categoryIds.includes(id));
+        if (!hasMatch) return course;
+        const nextSlugs = Array.isArray(course.categorySlugs)
+          ? course.categorySlugs.map((s) =>
+              s.toLowerCase() === existing.slug.toLowerCase() ? nextSlug : s
+            )
+          : [nextSlug];
+        return {
+          ...course,
+          categoryId: course.categoryId === id ? id : course.categoryId,
+          categorySlug:
+            course.categorySlug.toLowerCase() === existing.slug.toLowerCase()
+              ? nextSlug
+              : course.categorySlug,
+          categorySlugs: nextSlugs,
+        };
+      });
+    }
+
+    await persistStore(store);
+    invalidatePublicPortalCache();
+
+    return updated;
+  });
 }
 
 export async function swapCategoryOrder(
@@ -1822,23 +1853,25 @@ export async function swapCategoryOrder(
     throw new RepositoryError('ক্রম অদলবদলের জন্য দুইটি ভিন্ন বৈধ ক্যাটাগরি নির্বাচন করুন।', 400);
   }
 
-  const store = await loadStore(true);
-  const firstIdx = store.categories.findIndex((c) => c.id === firstId);
-  const secondIdx = store.categories.findIndex((c) => c.id === secondId);
-  if (firstIdx === -1 || secondIdx === -1) {
-    throw new RepositoryError('এক বা একাধিক ক্যাটাগরি পাওয়া যায়নি।', 404);
-  }
+  return enqueueLocalCategoryWrite(async () => {
+    const store = await loadStore(true);
+    const firstIdx = store.categories.findIndex((c) => c.id === firstId);
+    const secondIdx = store.categories.findIndex((c) => c.id === secondId);
+    if (firstIdx === -1 || secondIdx === -1) {
+      throw new RepositoryError('এক বা একাধিক ক্যাটাগরি পাওয়া যায়নি।', 404);
+    }
 
-  const firstOrder = store.categories[firstIdx].displayOrder;
-  const secondOrder = store.categories[secondIdx].displayOrder;
-  store.categories[firstIdx] = { ...store.categories[firstIdx], displayOrder: secondOrder };
-  store.categories[secondIdx] = { ...store.categories[secondIdx], displayOrder: firstOrder };
-  store.categories = sortCategoriesByOrder(store.categories);
+    const firstOrder = store.categories[firstIdx].displayOrder;
+    const secondOrder = store.categories[secondIdx].displayOrder;
+    store.categories[firstIdx] = { ...store.categories[firstIdx], displayOrder: secondOrder };
+    store.categories[secondIdx] = { ...store.categories[secondIdx], displayOrder: firstOrder };
+    store.categories = sortCategoriesByOrder(store.categories);
 
-  await persistStore(store);
-  invalidatePublicPortalCache();
+    await persistStore(store);
+    invalidatePublicPortalCache();
 
-  return store.categories;
+    return store.categories;
+  });
 }
 
 export async function deleteCategoryById(
@@ -1852,30 +1885,32 @@ export async function deleteCategoryById(
     return result;
   }
 
-  const store = await loadStore(true);
-  const existing = store.categories.find((c) => c.id === id);
-  if (!existing) {
-    return { deleted: false, found: false };
-  }
+  return enqueueLocalCategoryWrite(async () => {
+    const store = await loadStore(true);
+    const existing = store.categories.find((c) => c.id === id);
+    if (!existing) {
+      return { deleted: false, found: false };
+    }
 
-  const linkedCoursesCount = store.courses.filter(
-    (c) =>
-      c.categoryId === id ||
-      getCourseCategorySlugs(c).includes(existing.slug.toLowerCase()) ||
-      (Array.isArray(c.categoryIds) && c.categoryIds.includes(id))
-  ).length;
-  if (linkedCoursesCount > 0) {
-    throw new RepositoryError(
-      `এই ক্যাটাগরিতে ${toBengaliNumber(linkedCoursesCount)}টি কোর্স যুক্ত রয়েছে। ক্যাটাগরি মুছে ফেলার আগে কোর্সগুলো অন্য ক্যাটাগরিতে স্থানান্তর করুন।`,
-      409
-    );
-  }
+    const linkedCoursesCount = store.courses.filter(
+      (c) =>
+        c.categoryId === id ||
+        getCourseCategorySlugs(c).includes(existing.slug.toLowerCase()) ||
+        (Array.isArray(c.categoryIds) && c.categoryIds.includes(id))
+    ).length;
+    if (linkedCoursesCount > 0) {
+      throw new RepositoryError(
+        `এই ক্যাটাগরিতে ${toBengaliNumber(linkedCoursesCount)}টি কোর্স যুক্ত রয়েছে। ক্যাটাগরি মুছে ফেলার আগে কোর্সগুলো অন্য ক্যাটাগরিতে স্থানান্তর করুন।`,
+        409
+      );
+    }
 
-  store.categories = store.categories.filter((c) => c.id !== id);
-  await persistStore(store);
-  invalidatePublicPortalCache();
+    store.categories = store.categories.filter((c) => c.id !== id);
+    await persistStore(store);
+    invalidatePublicPortalCache();
 
-  return { deleted: true, found: true };
+    return { deleted: true, found: true };
+  });
 }
 
 export async function updatePortalSettings(input: Record<string, unknown>) {

@@ -13,6 +13,8 @@ import {
 } from '../../lib/juniorClassFilters.ts';
 import { JuniorClassFilterBar } from './JuniorClassFilterBar.tsx';
 import { CourseCard } from './CourseCard.tsx';
+import { MobileCategoryCarousel } from './MobileCategoryCarousel.tsx';
+import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
 
 interface JuniorClassSectionProps {
   classNum: JuniorClassNumber5To8;
@@ -31,6 +33,9 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
 }) => {
   const meta = JUNIOR_CLASS_PAGE_META[classNum];
   const classKey = meta.slug;
+  const classSectionRef = useCategoryScrollIntoView<HTMLDivElement>(
+    `junior-class-${classKey}`
+  );
 
   const [storedFilter, setStoredFilter] = useHistoryViewState(
     'subFilter',
@@ -83,7 +88,11 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
           </nav>
 
           {/* Centered Class Heading + Underline + Description */}
-          <div className="text-center max-w-full mx-auto mb-5 sm:mb-7">
+          <div
+            ref={classSectionRef}
+            id="category-page-section"
+            className="scroll-mt-24 sm:scroll-mt-28 text-center max-w-full mx-auto mb-5 sm:mb-7"
+          >
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-[#2A0F12] tracking-tight">
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E22B2B] via-rose-600 to-[#B91C1C]">
                 {meta.label}
@@ -139,20 +148,29 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
-            {filteredCourses.map((course) => (
-              <div
-                key={`junior-class-${classNum}-course-${course.id}-${course.slug}`}
-                className="h-full flex flex-col"
-              >
-                <CourseCard
-                  course={course}
-                  onEnrollClick={onEnrollClick}
-                  headingLevel="h3"
-                />
-              </div>
-            ))}
-          </div>
+          <>
+            <MobileCategoryCarousel
+              categorySlug={classKey}
+              categoryName={meta.label}
+              courses={filteredCourses}
+              onEnrollClick={onEnrollClick}
+              headingLevel="h3"
+            />
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
+              {filteredCourses.map((course) => (
+                <div
+                  key={`junior-class-${classNum}-course-${course.id}-${course.slug}`}
+                  className="h-full flex flex-col"
+                >
+                  <CourseCard
+                    course={course}
+                    onEnrollClick={onEnrollClick}
+                    headingLevel="h3"
+                  />
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>

@@ -95,6 +95,7 @@ const RESERVED_ROOT_CATEGORY_SLUGS = new Set([
   'category',
   'categories',
   'academic',
+  'programs',
   'book-store',
   'sitemap.xml',
   'robots.txt',

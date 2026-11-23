@@ -1,6 +1,7 @@
 import React from 'react';
 import { Category, Course, CourseGroupKey } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
+import { MobileCategoryCarousel } from './MobileCategoryCarousel.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { useHistoryViewState } from '../../lib/navigationHistory.ts';
 import {
@@ -23,6 +24,7 @@ import { resolveFilteredCategoryKey } from '../../lib/categoryFilterConfigs.ts';
 import { Hsc28OverviewCategoryPage } from './categories/Hsc28OverviewCategoryPage.tsx';
 import { resolveCategoryNavGroup } from '../../lib/navbarCategories.ts';
 import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
+import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
 import { Search, Sparkles } from 'lucide-react';
 
 interface CategoryPageProps {
@@ -47,6 +49,9 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
 }) => {
   const decodedCategorySlug = normalizeCategorySlugKey(categorySlug);
   const normalizedSlug = decodedCategorySlug === 'free' ? 'free-course' : decodedCategorySlug;
+  const categorySectionRef = useCategoryScrollIntoView<HTMLDivElement>(
+    `category-${normalizedSlug}`
+  );
 
   const [searchQuery, setSearchQuery] = useHistoryViewState(
     'categorySearchQuery',
@@ -288,7 +293,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
       </nav>
 
       {/* Warm Frosted Category Header Card */}
-      <div className="glass-surface rounded-3xl p-6 sm:p-8 mb-8 relative overflow-hidden">
+      <div
+        ref={categorySectionRef}
+        id="category-page-section"
+        className="scroll-mt-24 sm:scroll-mt-28 glass-surface rounded-3xl p-6 sm:p-8 mb-8 relative overflow-hidden"
+      >
         <div className="relative flex items-center justify-between gap-6">
           <div className="max-w-2xl relative z-10 min-w-0">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-inset text-[#B91C1C] text-xs font-bold mb-3">
@@ -402,16 +411,25 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-            {filteredCourses.map((course) => (
-              <div
-                key={`category-course-${course.id}-${course.slug}`}
-                className="h-full flex flex-col"
-              >
-                <CourseCard course={course} onEnrollClick={onEnrollClick} headingLevel="h3" />
-              </div>
-            ))}
-          </div>
+          <>
+            <MobileCategoryCarousel
+              categorySlug={currentCategory.slug}
+              categoryName={currentCategory.name}
+              courses={filteredCourses}
+              onEnrollClick={onEnrollClick}
+              headingLevel="h3"
+            />
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5">
+              {filteredCourses.map((course) => (
+                <div
+                  key={`category-course-${course.id}-${course.slug}`}
+                  className="h-full flex flex-col"
+                >
+                  <CourseCard course={course} onEnrollClick={onEnrollClick} headingLevel="h3" />
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>

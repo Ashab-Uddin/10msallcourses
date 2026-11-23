@@ -381,6 +381,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [deleteModalCat, setDeleteModalCat] = useState<Category | null>(null);
 
   const [catSlugManuallyEdited, setCatSlugManuallyEdited] = useState(false);
+  const [catOrderManuallyEdited, setCatOrderManuallyEdited] = useState(false);
+  const catOrderManuallyEditedRef = useRef(false);
+  const [loadingNextCategoryOrder, setLoadingNextCategoryOrder] = useState(false);
+  const categoryModalRequestSeqRef = useRef(0);
 
   const [copiedCourseId, setCopiedCourseId] = useState<number | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -904,6 +908,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const openCreateCategoryModal = useCallback(async () => {
+    const requestSeq = categoryModalRequestSeqRef.current + 1;
+    categoryModalRequestSeqRef.current = requestSeq;
+
+    setEditingCategory(null);
+    setCatName('');
+    setCatSlug('');
+    setCatSlugManuallyEdited(false);
+    setCatOrderManuallyEdited(false);
+    catOrderManuallyEditedRef.current = false;
+    setCatSubtitle('');
+    setCatBadgeColor('red');
+    setCatDisplayOrderInput(String(nextAvailableCategoryOrder));
+    setCatNavGroup('auto');
+    setCatIconKey('auto');
+    setCatFormError(null);
+    setShowCategoryModal(true);
+
+    setLoadingNextCategoryOrder(true);
+    try {
+      const res = await fetch('/api/admin/categories/next-order', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (handleUnauthorizedResponse(res)) return;
+      if (!res.ok) return;
+      const data = (await res.json().catch(() => null)) as { nextDisplayOrder?: number } | null;
+      const nextOrder = Number(data?.nextDisplayOrder);
+      if (
+        categoryModalRequestSeqRef.current === requestSeq &&
+        !catOrderManuallyEditedRef.current &&
+        Number.isInteger(nextOrder) &&
+        nextOrder >= 1
+      ) {
+        setCatDisplayOrderInput(String(nextOrder));
+      }
+    } catch {
+      // Keep client-computed nextAvailableCategoryOrder fallback if offline
+    } finally {
+      if (categoryModalRequestSeqRef.current === requestSeq) {
+        setLoadingNextCategoryOrder(false);
+      }
+    }
+  }, [nextAvailableCategoryOrder, handleUnauthorizedResponse]);
+
   // Handle Save / Create Category
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -916,14 +966,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
-    const orderCheck = validateCategoryOrderInput(
-      catDisplayOrderInput,
-      editingCategory?.id ?? null
-    );
-    if (!orderCheck.valid) {
-      setCatFormError(orderCheck.error);
-      showToast(orderCheck.error, 'error');
-      return;
+    const useAutoOrder = !editingCategory && !catOrderManuallyEdited;
+    let resolvedOrderValue: number | undefined;
+
+    if (!useAutoOrder) {
+      const orderCheck = validateCategoryOrderInput(
+        catDisplayOrderInput,
+        editingCategory?.id ?? null
+      );
+      if (!orderCheck.valid) {
+        setCatFormError(orderCheck.error);
+        showToast(orderCheck.error, 'error');
+        return;
+      }
+      resolvedOrderValue = orderCheck.value;
     }
 
     const normalizedSlug =
@@ -947,7 +1003,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         slug: normalizedSlug,
         subtitle: catSubtitle.trim() || null,
         badgeColor: catBadgeColor,
-        displayOrder: orderCheck.value,
+        ...(useAutoOrder
+          ? { autoOrder: true }
+          : { displayOrder: resolvedOrderValue }),
         navGroup: catNavGroup,
         iconKey: catIconKey,
         status: 'active',
@@ -975,10 +1033,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (savedCategory && typeof savedCategory.id === 'number') {
         setCategories((prev) => {
           const exists = prev.some((c) => c.id === savedCategory.id);
-          if (exists) {
-            return prev.map((c) => (c.id === savedCategory.id ? savedCategory : c));
-          }
-          return [...prev, savedCategory];
+          const nextList = exists
+            ? prev.map((c) => (c.id === savedCategory.id ? savedCategory : c))
+            : [...prev, savedCategory];
+          return [...nextList].sort(
+            (a, b) => (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0) || a.id - b.id
+          );
         });
       }
 
@@ -990,6 +1050,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCatName('');
       setCatSlug('');
       setCatSlugManuallyEdited(false);
+      setCatOrderManuallyEdited(false);
+      catOrderManuallyEditedRef.current = false;
       setCatSubtitle('');
       setCatDisplayOrderInput('1');
       setCatNavGroup('auto');
@@ -1500,7 +1562,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* ===================================================== */
             <CourseEditorPage
               course={editingCourse}
-              categories={categories}
+              categories={sortedCategories}
               existingCourses={courses}
               whatsappNumber={whatsappNumber}
               whatsappLink={whatsappLink}
@@ -1514,7 +1576,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* VIEW 1B: DYNAMIC DRAG & DROP COURSE POSITION MANAGER  */
             /* ===================================================== */
             <CourseSortManager
-              categories={categories}
+              categories={sortedCategories}
               courses={courses}
               initialCategoryCourseOrders={categoryCourseOrders}
               initialCategorySlug={filterCat !== 'all' ? filterCat : undefined}
@@ -1991,7 +2053,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="w-full sm:w-auto px-3 py-2.5 rounded-xl border border-white/90 text-xs font-bold text-[#2A0F12] bg-white/85 focus:border-[#eb1c24] outline-none shadow-2xs cursor-pointer"
                   >
                     <option value="all">সব ক্যাটাগরি ({toBengaliNumber(courses.length)})</option>
-                    {categories.map((c) => (
+                    {sortedCategories.map((c) => (
                       <option key={c.slug} value={c.slug}>
                         {c.name}
                       </option>
@@ -2596,19 +2658,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setEditingCategory(null);
-                    setCatName('');
-                    setCatSlug('');
-                    setCatSlugManuallyEdited(false);
-                    setCatSubtitle('');
-                    setCatBadgeColor('red');
-                    setCatDisplayOrderInput(String(nextAvailableCategoryOrder));
-                    setCatNavGroup('auto');
-                    setCatIconKey('auto');
-                    setCatFormError(null);
-                    setShowCategoryModal(true);
-                  }}
+                  onClick={() => void openCreateCategoryModal()}
                   className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white font-bold text-xs flex items-center gap-2 shadow-[0_8px_20px_-4px_rgba(226,43,43,0.4)] transition cursor-pointer shrink-0"
                 >
                   <PlusCircle className="w-4 h-4" />
@@ -2755,6 +2805,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               setCatSubtitle(cat.subtitle || '');
                               setCatBadgeColor(cat.badgeColor || 'red');
                               setCatDisplayOrderInput(String(cat.displayOrder || 1));
+                              setCatOrderManuallyEdited(true);
+                              catOrderManuallyEditedRef.current = true;
                               setCatNavGroup(normalizeCategoryNavGroup(cat.navGroup));
                               setCatIconKey(normalizeCategoryIconKey(cat.iconKey));
                               setCatFormError(null);
@@ -3339,9 +3391,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-[#2A0F12] mb-1">
-                  প্রদর্শন ক্রম (Order) <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs font-bold text-[#2A0F12]">
+                    প্রদর্শন ক্রম (Order) <span className="text-red-500">*</span>
+                  </label>
+                  {!editingCategory && !catOrderManuallyEdited && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                      {loadingNextCategoryOrder ? 'যাচাই হচ্ছে...' : 'স্বয়ংক্রিয়'}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -3349,6 +3408,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   value={catDisplayOrderInput}
                   onChange={(e) => {
                     setCatDisplayOrderInput(e.target.value);
+                    setCatOrderManuallyEdited(true);
+                    catOrderManuallyEditedRef.current = true;
                     if (catFormError) setCatFormError(null);
                   }}
                   placeholder={String(nextAvailableCategoryOrder)}
@@ -3363,10 +3424,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <p className="text-[10px] font-bold text-red-600 mt-1 leading-snug">
                     {liveOrderValidation.error}
                   </p>
-                ) : (
+                ) : !editingCategory && !catOrderManuallyEdited ? (
                   <p className="text-[10px] text-[#6B4C4F] mt-1">
-                    পরবর্তী খালি ক্রম: {toBengaliNumber(nextAvailableCategoryOrder)}
+                    সর্বশেষ ক্রমের পর স্বয়ংক্রিয়ভাবে নির্ধারিত: {toBengaliNumber(Number(catDisplayOrderInput) || nextAvailableCategoryOrder)}
                   </p>
+                ) : (
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <p className="text-[10px] text-[#6B4C4F]">
+                      পরবর্তী খালি ক্রম: {toBengaliNumber(nextAvailableCategoryOrder)}
+                    </p>
+                    {!editingCategory && (
+                      <button
+                        type="button"
+                        onClick={() => void openCreateCategoryModal()}
+                        className="text-[10px] font-bold text-[#b91c1c] hover:underline cursor-pointer"
+                      >
+                        স্বয়ংক্রিয় ক্রম দিন
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 

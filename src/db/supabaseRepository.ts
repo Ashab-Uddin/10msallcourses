@@ -63,6 +63,7 @@ import {
   parseCategoryDisplayOrder,
   parseCourseDisplayOrder,
   parseSafePrice,
+  sortCategoriesByOrder,
   sortCoursesByOrder,
   type StorageInfo,
 } from './repositoryShared.ts';
@@ -2058,10 +2059,12 @@ async function sbFetchPublicPortalBase() {
   if (settingsRes.error) throw mapPgError(settingsRes.error, 'সেটিংস লোড করতে সমস্যা হয়েছে।');
   if (timerRes.error) throw mapPgError(timerRes.error, 'অফার টাইমার লোড করতে সমস্যা হয়েছে।');
 
-  const categories = attachNavGroupsToCategories(
-    (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
-    categoryNavGroupsMap,
-    categoryIconsMap
+  const categories = sortCategoriesByOrder(
+    attachNavGroupsToCategories(
+      (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
+      categoryNavGroupsMap,
+      categoryIconsMap
+    )
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
@@ -2449,10 +2452,12 @@ export async function sbGetAdminOverviewData() {
   if (settingsRes.error) throw mapPgError(settingsRes.error, 'সেটিংস লোড ব্যর্থ হয়েছে।');
   if (timerRes.error) throw mapPgError(timerRes.error, 'অফার টাইমার লোড ব্যর্থ হয়েছে।');
 
-  const allCategories = attachNavGroupsToCategories(
-    (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
-    categoryNavGroupsMap,
-    categoryIconsMap
+  const allCategories = sortCategoriesByOrder(
+    attachNavGroupsToCategories(
+      (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
+      categoryNavGroupsMap,
+      categoryIconsMap
+    )
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
   const mappedCourses = rawCourseRows.map((r) => mapCourseRow(r));
@@ -3885,6 +3890,38 @@ export async function sbImportCourseFeaturesFromCourse(
   };
 }
 
+let supabaseCategoryWriteQueue: Promise<void> = Promise.resolve();
+
+function enqueueSupabaseCategoryWrite<T>(task: () => Promise<T>): Promise<T> {
+  const run = supabaseCategoryWriteQueue.then(task, task);
+  supabaseCategoryWriteQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+export async function sbGetNextCategoryDisplayOrder(): Promise<number> {
+  const supabase = getSupabaseAdminClient();
+
+  const { data: rpcOrder, error: rpcErr } = await supabase.rpc(
+    'get_next_category_display_order'
+  );
+  if (!rpcErr && typeof rpcOrder === 'number' && Number.isInteger(rpcOrder) && rpcOrder >= 1) {
+    return rpcOrder;
+  }
+
+  const { data: maxRow, error: maxErr } = await supabase
+    .from('categories')
+    .select('display_order')
+    .order('display_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (maxErr) throw mapPgError(maxErr, 'ক্যাটাগরি ক্রম যাচাই ব্যর্থ হয়েছে।');
+  return Math.max(1, (Number(maxRow?.display_order) || 0) + 1);
+}
+
 export async function sbCreateNewCategory(input: Record<string, unknown>): Promise<Category> {
   const supabase = getSupabaseAdminClient();
   const name = String(input.name || '').trim();
@@ -3900,84 +3937,156 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
     );
   }
 
-  let displayOrder: number;
-  if (
+  const hasExplicitDisplayOrder =
+    input.autoOrder !== true &&
     input.displayOrder !== undefined &&
     input.displayOrder !== null &&
-    String(input.displayOrder).trim() !== ''
-  ) {
+    String(input.displayOrder).trim() !== '';
+
+  let explicitDisplayOrder: number | null = null;
+  if (hasExplicitDisplayOrder) {
     const parsedOrder = parseCategoryDisplayOrder(input.displayOrder);
     if (!parsedOrder.valid) {
       throw new RepositoryError(parsedOrder.error, 400);
     }
-    displayOrder = parsedOrder.value;
-  } else {
-    const { data: maxRow, error: maxErr } = await supabase
-      .from('categories')
-      .select('display_order')
-      .order('display_order', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (maxErr) throw mapPgError(maxErr, 'ক্যাটাগরি ক্রম যাচাই ব্যর্থ হয়েছে।');
-    displayOrder = (Number(maxRow?.display_order) || 0) + 1;
+    explicitDisplayOrder = parsedOrder.value;
   }
 
-  const { data: duplicateOrderRow, error: orderCheckErr } = await supabase
-    .from('categories')
-    .select('id, name')
-    .eq('display_order', displayOrder)
-    .limit(1)
-    .maybeSingle();
-
-  if (orderCheckErr) throw mapPgError(orderCheckErr, 'ক্যাটাগরি ক্রম যাচাই ব্যর্থ হয়েছে।');
-  if (duplicateOrderRow) {
-    throw new RepositoryError(
-      `এই ক্রম নম্বরটি (${toBengaliNumber(displayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${String(duplicateOrderRow.name || '')}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
-      409
-    );
-  }
-
-  const insertPayload = {
-    name: name.slice(0, 120),
-    slug: slug.slice(0, 120),
-    subtitle:
-      typeof input.subtitle === 'string' && input.subtitle.trim()
-        ? input.subtitle.trim().slice(0, 250)
-        : null,
-    badge_color: String(input.badgeColor || 'red').trim().slice(0, 30) || 'red',
-    display_order: displayOrder,
-    status: input.status === 'inactive' ? 'inactive' : 'active',
-  };
-
+  const cleanName = name.slice(0, 120);
+  const cleanSlug = slug.slice(0, 120);
+  const cleanSubtitle =
+    typeof input.subtitle === 'string' && input.subtitle.trim()
+      ? input.subtitle.trim().slice(0, 250)
+      : null;
+  const cleanBadgeColor = String(input.badgeColor || 'red').trim().slice(0, 30) || 'red';
+  const cleanStatus = input.status === 'inactive' ? 'inactive' : 'active';
   const requestedNavGroup = normalizeCategoryNavGroup(input.navGroup);
   const requestedIconKey = normalizeCategoryIconKey(input.iconKey);
 
-  const { data, error } = await supabase
-    .from('categories')
-    .insert(insertPayload)
-    .select('*')
-    .single();
+  const insertedRow = await enqueueSupabaseCategoryWrite(async () => {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc(
+      'create_category_with_auto_order',
+      {
+        p_name: cleanName,
+        p_slug: cleanSlug,
+        p_subtitle: cleanSubtitle,
+        p_badge_color: cleanBadgeColor,
+        p_display_order: explicitDisplayOrder,
+        p_status: cleanStatus,
+      }
+    );
 
-  if (error) {
-    if (error.code === '23505') {
-      if (isDisplayOrderUniqueError(error as PgErrorLike)) {
+    if (!rpcErr) {
+      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      if (row && typeof row === 'object') {
+        return row as Record<string, unknown>;
+      }
+    } else {
+      const rpcMsg = `${rpcErr.code || ''} ${rpcErr.message || ''}`.toLowerCase();
+      const isMissingRpc =
+        rpcErr.code === '42883' ||
+        rpcErr.code === 'PGRST202' ||
+        rpcMsg.includes('create_category_with_auto_order');
+
+      if (!isMissingRpc) {
+        if (rpcErr.code === '23505') {
+          if (isDisplayOrderUniqueError(rpcErr as PgErrorLike)) {
+            throw new RepositoryError(
+              `এই ক্রম নম্বরটি (${toBengaliNumber(explicitDisplayOrder || 1)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+              409
+            );
+          }
+          throw new RepositoryError(`"${cleanSlug}" স্লাগসহ একটি ক্যাটাগরি ইতিমধ্যে রয়েছে।`, 409);
+        }
+        throw mapPgError(rpcErr, 'ক্যাটাগরি তৈরি ব্যর্থ হয়েছে।');
+      }
+    }
+
+    // Fallback when SQL migration 0020 RPC is not yet applied:
+    // Serialize in Node + retry on unique display_order conflicts in auto-order mode.
+    const maxAttempts = explicitDisplayOrder === null ? 6 : 1;
+    let lastAttemptedOrder = explicitDisplayOrder ?? 1;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      let candidateOrder: number;
+      if (explicitDisplayOrder !== null) {
+        candidateOrder = explicitDisplayOrder;
+      } else {
+        const { data: maxRow, error: maxErr } = await supabase
+          .from('categories')
+          .select('display_order')
+          .order('display_order', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (maxErr) throw mapPgError(maxErr, 'ক্যাটাগরি ক্রম যাচাই ব্যর্থ হয়েছে।');
+        candidateOrder = Math.max(
+          attempt > 0 ? lastAttemptedOrder + 1 : 1,
+          (Number(maxRow?.display_order) || 0) + 1
+        );
+      }
+      lastAttemptedOrder = candidateOrder;
+
+      const { data: duplicateOrderRow, error: orderCheckErr } = await supabase
+        .from('categories')
+        .select('id, name')
+        .eq('display_order', candidateOrder)
+        .limit(1)
+        .maybeSingle();
+
+      if (orderCheckErr) throw mapPgError(orderCheckErr, 'ক্যাটাগরি ক্রম যাচাই ব্যর্থ হয়েছে।');
+      if (duplicateOrderRow) {
+        if (explicitDisplayOrder === null && attempt < maxAttempts - 1) {
+          continue;
+        }
         throw new RepositoryError(
-          `এই ক্রম নম্বরটি (${toBengaliNumber(displayOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+          `এই ক্রম নম্বরটি (${toBengaliNumber(candidateOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ("${String(duplicateOrderRow.name || '')}") ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
           409
         );
       }
-      throw new RepositoryError(`"${slug}" স্লাগসহ একটি ক্যাটাগরি ইতিমধ্যে রয়েছে।`, 409);
-    }
-    throw mapPgError(error, 'ক্যাটাগরি তৈরি ব্যর্থ হয়েছে।');
-  }
 
-  const created = mapCategoryRow(data as Record<string, unknown>);
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({
+          name: cleanName,
+          slug: cleanSlug,
+          subtitle: cleanSubtitle,
+          badge_color: cleanBadgeColor,
+          display_order: candidateOrder,
+          status: cleanStatus,
+        })
+        .select('*')
+        .single();
+
+      if (!error && data) {
+        return data as Record<string, unknown>;
+      }
+
+      if (error?.code === '23505') {
+        if (isDisplayOrderUniqueError(error as PgErrorLike)) {
+          if (explicitDisplayOrder === null && attempt < maxAttempts - 1) {
+            continue;
+          }
+          throw new RepositoryError(
+            `এই ক্রম নম্বরটি (${toBengaliNumber(candidateOrder)}) ইতিমধ্যে অন্য একটি ক্যাটাগরিতে ব্যবহৃত হচ্ছে। অনুগ্রহ করে ভিন্ন একটি নম্বর দিন।`,
+            409
+          );
+        }
+        throw new RepositoryError(`"${cleanSlug}" স্লাগসহ একটি ক্যাটাগরি ইতিমধ্যে রয়েছে।`, 409);
+      }
+
+      throw mapPgError(error, 'ক্যাটাগরি তৈরি ব্যর্থ হয়েছে।');
+    }
+
+    throw new RepositoryError('ক্যাটাগরি ক্রম নির্ধারণ করা সম্ভব হয়নি। অনুগ্রহ করে পুনরায় চেষ্টা করুন।', 409);
+  });
+
+  const created = mapCategoryRow(insertedRow);
   if (requestedNavGroup !== 'auto') {
     const navMap = await readCategoryNavGroupsFromStorage(supabase, { bypassCache: true });
     navMap[String(created.id)] = requestedNavGroup;
     await writeCategoryNavGroupsToStorage(supabase, navMap);
-    if (Object.prototype.hasOwnProperty.call(data as Record<string, unknown>, 'nav_group')) {
+    if (Object.prototype.hasOwnProperty.call(insertedRow, 'nav_group')) {
       await supabase
         .from('categories')
         .update({ nav_group: requestedNavGroup })
@@ -3989,7 +4098,7 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
     const iconMap = await readCategoryIconsFromStorage(supabase, { bypassCache: true });
     iconMap[String(created.id)] = requestedIconKey;
     await writeCategoryIconsToStorage(supabase, iconMap);
-    if (Object.prototype.hasOwnProperty.call(data as Record<string, unknown>, 'icon_key')) {
+    if (Object.prototype.hasOwnProperty.call(insertedRow, 'icon_key')) {
       await supabase
         .from('categories')
         .update({ icon_key: requestedIconKey })
@@ -4295,10 +4404,12 @@ export async function sbSwapCategoryOrder(
   ]);
 
   if (fetchSortedErr) throw mapPgError(fetchSortedErr, 'ক্যাটাগরি তালিকা লোড ব্যর্থ হয়েছে।');
-  return attachNavGroupsToCategories(
-    (sortedRows || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
-    navGroupsMap,
-    iconsMap
+  return sortCategoriesByOrder(
+    attachNavGroupsToCategories(
+      (sortedRows || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
+      navGroupsMap,
+      iconsMap
+    )
   );
 }
 
