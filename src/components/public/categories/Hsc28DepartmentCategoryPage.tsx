@@ -6,7 +6,6 @@ import { BookOpen, RotateCcw, Sparkles } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
 import { useHistoryViewState } from '../../../lib/navigationHistory.ts';
 import { CourseCard } from '../CourseCard.tsx';
-import { MobileCategoryCarousel } from '../MobileCategoryCarousel.tsx';
 import { courseMatchesCategorySlug } from '../../../lib/categoryMatching.ts';
 import {
   sortCoursesForCategory,
@@ -194,32 +193,23 @@ export const Hsc28DepartmentCategoryPage: React.FC<Hsc28DepartmentCategoryPagePr
             </button>
           </motion.div>
         ) : (
-          <>
-            <MobileCategoryCarousel
-              categorySlug={targetSlug}
-              categoryName={pageTitle}
-              courses={filteredCourses}
-              onEnrollClick={onEnrollClick}
-              headingLevel="h3"
-            />
-            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
-              {filteredCourses.map((course) => (
-                <motion.div
-                  key={`cat-hsc28dept-${track}-${course.id}-${course.slug}`}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className="h-full flex flex-col"
-                >
-                  <CourseCard
-                    course={course}
-                    onEnrollClick={onEnrollClick}
-                    headingLevel="h3"
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+            {filteredCourses.map((course) => (
+              <motion.div
+                key={`cat-hsc28dept-${track}-${course.id}-${course.slug}`}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.18 }}
+                className="h-full flex flex-col"
+              >
+                <CourseCard
+                  course={course}
+                  onEnrollClick={onEnrollClick}
+                  headingLevel="h3"
+                />
+              </motion.div>
+            ))}
+          </div>
         )}
       </section>
     </div>

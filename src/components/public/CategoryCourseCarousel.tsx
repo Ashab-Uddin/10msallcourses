@@ -59,7 +59,7 @@ export const CategoryCourseCarousel: React.FC<CategoryCourseCarouselProps> = ({
     const computedGap = parseFloat(window.getComputedStyle(el).columnGap || '0') || 0;
     const cardStride = firstCard
       ? firstCard.getBoundingClientRect().width + computedGap
-      : el.clientWidth / 2;
+      : (el.clientWidth + computedGap) / 2;
     const cardsPerView =
       cardStride > 0
         ? Math.max(1, Math.round((el.clientWidth + computedGap) / cardStride))
@@ -72,7 +72,7 @@ export const CategoryCourseCarousel: React.FC<CategoryCourseCarouselProps> = ({
     });
   };
 
-  // Mobile/Tablet show 2×1 cards (arrows needed if > 2); Laptop shows 4×1 cards (arrows needed if > 4)
+  // Mobile 2×1 (arrows if > 2) | Tablet 2×1 (arrows if > 2) | Laptop 4×1 (arrows if > 4)
   const showArrows = courses.length > 2;
   const arrowResponsiveVisibility = courses.length <= 4 ? 'lg:hidden' : '';
 

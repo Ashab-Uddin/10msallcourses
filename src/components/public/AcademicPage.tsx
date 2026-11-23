@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import { Category, Course } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
-import { MobileCategoryCarousel } from './MobileCategoryCarousel.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
 import {
   useHistoryViewState,
@@ -705,20 +704,11 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                   <p className="text-sm font-bold text-slate-700">এই বিভাগে কোনো কোর্স তালিকাভুক্ত নেই</p>
                 </div>
               ) : (
-                <>
-                  <MobileCategoryCarousel
-                    categorySlug={`${batchOrClass}-science`}
-                    categoryName="বিজ্ঞান বিভাগ"
-                    courses={filteredScienceCourses}
-                    onEnrollClick={onEnrollClick}
-                    headingLevel="h3"
-                  />
-                  <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5">
-                    {filteredScienceCourses.map((c) => (
-                      <CourseCard key={`sci-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
-                    ))}
-                  </div>
-                </>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+                  {filteredScienceCourses.map((c) => (
+                    <CourseCard key={`sci-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
+                  ))}
+                </div>
               )}
             </section>
           )}
@@ -759,20 +749,11 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                   <p className="text-sm font-bold text-slate-700">এই বিভাগে কোনো কোর্স তালিকাভুক্ত নেই</p>
                 </div>
               ) : (
-                <>
-                  <MobileCategoryCarousel
-                    categorySlug={`${batchOrClass}-business`}
-                    categoryName="ব্যবসায় শিক্ষা বিভাগ"
-                    courses={filteredBusinessCourses}
-                    onEnrollClick={onEnrollClick}
-                    headingLevel="h3"
-                  />
-                  <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5">
-                    {filteredBusinessCourses.map((c) => (
-                      <CourseCard key={`bus-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
-                    ))}
-                  </div>
-                </>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+                  {filteredBusinessCourses.map((c) => (
+                    <CourseCard key={`bus-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
+                  ))}
+                </div>
               )}
             </section>
           )}
@@ -813,20 +794,11 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                   <p className="text-sm font-bold text-slate-700">এই বিভাগে কোনো কোর্স তালিকাভুক্ত নেই</p>
                 </div>
               ) : (
-                <>
-                  <MobileCategoryCarousel
-                    categorySlug={`${batchOrClass}-humanities`}
-                    categoryName="মানবিক বিভাগ"
-                    courses={filteredHumanitiesCourses}
-                    onEnrollClick={onEnrollClick}
-                    headingLevel="h3"
-                  />
-                  <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5">
-                    {filteredHumanitiesCourses.map((c) => (
-                      <CourseCard key={`hum-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
-                    ))}
-                  </div>
-                </>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+                  {filteredHumanitiesCourses.map((c) => (
+                    <CourseCard key={`hum-${c.id}-${c.slug}`} course={c} onEnrollClick={onEnrollClick} headingLevel="h3" />
+                  ))}
+                </div>
               )}
             </section>
           )}
@@ -869,25 +841,16 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               )}
             </div>
           ) : (
-            <>
-              <MobileCategoryCarousel
-                categorySlug={batchOrClass}
-                categoryName={pageDetails.activeName}
-                courses={filteredBatchCourses}
-                onEnrollClick={onEnrollClick}
-                headingLevel="h3"
-              />
-              <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
-                {filteredBatchCourses.map((course) => (
-                  <div
-                    key={`academic-course-${course.id}-${course.slug}`}
-                    className="h-full flex flex-col"
-                  >
-                    <CourseCard course={course} onEnrollClick={onEnrollClick} headingLevel="h3" />
-                  </div>
-                ))}
-              </div>
-            </>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+              {filteredBatchCourses.map((course) => (
+                <div
+                  key={`academic-course-${course.id}-${course.slug}`}
+                  className="h-full flex flex-col"
+                >
+                  <CourseCard course={course} onEnrollClick={onEnrollClick} headingLevel="h3" />
+                </div>
+              ))}
+            </div>
           )}
         </section>
       )}

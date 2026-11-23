@@ -31,7 +31,6 @@ import { getCategoryLucideIcon } from '../../lib/categoryIconComponents.ts';
 import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { CategoryCourseCarousel } from './CategoryCourseCarousel.tsx';
-import { MobileCategoryCarousel } from './MobileCategoryCarousel.tsx';
 import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
 
 interface NavbarGroupCategoryPageProps {
@@ -431,32 +430,23 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
                 </button>
               </div>
             ) : (
-              <>
-                <MobileCategoryCarousel
-                  categorySlug={`navgroup-${groupKey}`}
-                  categoryName={meta.breadcrumbLabel}
-                  courses={filteredSingleViewCourses}
-                  onEnrollClick={onEnrollClick}
-                  headingLevel="h3"
-                />
-                <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
-                  {filteredSingleViewCourses.map((course) => (
-                    <motion.div
-                      key={`group-filtered-${course.id}-${course.slug}`}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18 }}
-                      className="h-full flex flex-col"
-                    >
-                      <CourseCard
-                        course={course}
-                        onEnrollClick={onEnrollClick}
-                        headingLevel="h3"
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-              </>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+                {filteredSingleViewCourses.map((course) => (
+                  <motion.div
+                    key={`group-filtered-${course.id}-${course.slug}`}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="h-full flex flex-col"
+                  >
+                    <CourseCard
+                      course={course}
+                      onEnrollClick={onEnrollClick}
+                      headingLevel="h3"
+                    />
+                  </motion.div>
+                ))}
+              </div>
             )}
           </section>
         )}

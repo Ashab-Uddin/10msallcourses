@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
-import { MobileCategoryCarousel } from '../MobileCategoryCarousel.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import { courseMatchesCategorySlug } from '../../../lib/categoryMatching.ts';
 import {
@@ -186,32 +185,23 @@ export const Hsc28ScienceCategoryPage: React.FC<Hsc28ScienceCategoryPageProps> =
             </button>
           </motion.div>
         ) : (
-          <>
-            <MobileCategoryCarousel
-              categorySlug={targetSlug}
-              categoryName={pageTitle}
-              courses={filteredCourses}
-              onEnrollClick={onEnrollClick}
-              headingLevel="h3"
-            />
-            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
-              {filteredCourses.map((course) => (
-                <motion.div
-                  key={`cat-hsc28sci-${course.id}-${course.slug}`}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className="h-full flex flex-col"
-                >
-                  <CourseCard
-                    course={course}
-                    onEnrollClick={onEnrollClick}
-                    headingLevel="h3"
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+            {filteredCourses.map((course) => (
+              <motion.div
+                key={`cat-hsc28sci-${course.id}-${course.slug}`}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.18 }}
+                className="h-full flex flex-col"
+              >
+                <CourseCard
+                  course={course}
+                  onEnrollClick={onEnrollClick}
+                  headingLevel="h3"
+                />
+              </motion.div>
+            ))}
+          </div>
         )}
       </section>
     </div>

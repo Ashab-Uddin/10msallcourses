@@ -18,7 +18,6 @@ import {
 import { resolveCategoryNavGroup } from '../../../lib/navbarCategories.ts';
 import { CourseCard } from '../CourseCard.tsx';
 import { CategoryCourseCarousel } from '../CategoryCourseCarousel.tsx';
-import { MobileCategoryCarousel } from '../MobileCategoryCarousel.tsx';
 import { ScienceBackdropAccent } from '../ScienceBackdropAccent.tsx';
 import { useCategoryScrollIntoView } from '../../../lib/useCategoryScrollIntoView.ts';
 
@@ -227,9 +226,7 @@ export const Hsc28OverviewCategoryPage: React.FC<Hsc28OverviewCategoryPageProps>
                 <button
                   key={`subcat-pill-${subCat.id}-${subCat.slug}`}
                   type="button"
-                  onClick={() =>
-                    setSelectedSubSlug(isSelected ? 'all' : subCat.slug)
-                  }
+                  onClick={() => onSelectCategory(subCat.slug)}
                   aria-pressed={isSelected}
                   className={`px-3.5 py-2 rounded-full text-xs font-bold border transition cursor-pointer ${
                     isSelected
@@ -354,32 +351,23 @@ export const Hsc28OverviewCategoryPage: React.FC<Hsc28OverviewCategoryPageProps>
               </button>
             </div>
           ) : (
-            <>
-              <MobileCategoryCarousel
-                categorySlug={activeSubSection?.category.slug || storageSlug}
-                categoryName={activeSubSection?.category.name || pageTitle}
-                courses={filteredSingleViewCourses}
-                onEnrollClick={onEnrollClick}
-                headingLevel="h3"
-              />
-              <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
-                {filteredSingleViewCourses.map((course) => (
-                  <motion.div
-                    key={`hsc-filtered-${course.id}-${course.slug}`}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className="h-full flex flex-col"
-                  >
-                    <CourseCard
-                      course={course}
-                      onEnrollClick={onEnrollClick}
-                      headingLevel="h3"
-                    />
-                  </motion.div>
-                ))}
-              </div>
-            </>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+              {filteredSingleViewCourses.map((course) => (
+                <motion.div
+                  key={`hsc-filtered-${course.id}-${course.slug}`}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="h-full flex flex-col"
+                >
+                  <CourseCard
+                    course={course}
+                    onEnrollClick={onEnrollClick}
+                    headingLevel="h3"
+                  />
+                </motion.div>
+              ))}
+            </div>
           )}
         </section>
       )}

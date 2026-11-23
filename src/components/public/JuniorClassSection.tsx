@@ -13,7 +13,6 @@ import {
 } from '../../lib/juniorClassFilters.ts';
 import { JuniorClassFilterBar } from './JuniorClassFilterBar.tsx';
 import { CourseCard } from './CourseCard.tsx';
-import { MobileCategoryCarousel } from './MobileCategoryCarousel.tsx';
 import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
 
 interface JuniorClassSectionProps {
@@ -148,29 +147,20 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
             )}
           </div>
         ) : (
-          <>
-            <MobileCategoryCarousel
-              categorySlug={classKey}
-              categoryName={meta.label}
-              courses={filteredCourses}
-              onEnrollClick={onEnrollClick}
-              headingLevel="h3"
-            />
-            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 items-stretch">
-              {filteredCourses.map((course) => (
-                <div
-                  key={`junior-class-${classNum}-course-${course.id}-${course.slug}`}
-                  className="h-full flex flex-col"
-                >
-                  <CourseCard
-                    course={course}
-                    onEnrollClick={onEnrollClick}
-                    headingLevel="h3"
-                  />
-                </div>
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 items-stretch">
+            {filteredCourses.map((course) => (
+              <div
+                key={`junior-class-${classNum}-course-${course.id}-${course.slug}`}
+                className="h-full flex flex-col"
+              >
+                <CourseCard
+                  course={course}
+                  onEnrollClick={onEnrollClick}
+                  headingLevel="h3"
+                />
+              </div>
+            ))}
+          </div>
         )}
       </section>
     </div>
