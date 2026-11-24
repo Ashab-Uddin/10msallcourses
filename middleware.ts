@@ -23,6 +23,9 @@ export function middleware(req: NextRequest) {
       .replace(/[\s]+/g, '-')
       .replace(/^\/+|\/+$/g, '');
 
+    if (decoded.toLowerCase() === 'admission') {
+      return NextResponse.redirect(new URL(`/programs/admission${search || ''}`, req.url), 301);
+    }
     if (decoded && !isReservedCategorySlug(decoded)) {
       const canonicalPath = `/${encodeURIComponent(decoded)}${search || ''}`;
       return NextResponse.redirect(new URL(canonicalPath, req.url), 301);

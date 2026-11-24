@@ -350,13 +350,18 @@ function resolveRouteSeo(
     clean === '/academic'
   ) {
     return withCourseOgFallback({
-      title: 'HSC 28 অনলাইন ব্যাচ (বিজ্ঞান, মানবিক, ব্যবসা) — ১০ মিনিট স্কুল',
+      title: 'একাডেমিক অনলাইন ব্যাচ (HSC 27, HSC 28, SSC 28, SSC 29) — ১০ মিনিট স্কুল',
       description:
-        'HSC ২০২৮ ব্যাচের প্রথম থেকেই A+ প্রস্তুতি: PCMB, BEI, ব্যবসায় শিক্ষা ও মানবিক বিভাগের পূর্ণাঙ্গ অনলাইন ব্যাচ।',
-      canonicalPath: '/hsc/hsc-28',
+        'HSC 27, HSC 28, SSC 28 ও SSC 29 একাডেমিক অনলাইন ব্যাচের বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা ও সকল শ্রেণির পূর্ণাঙ্গ কোর্সসমূহ।',
+      canonicalPath: '/academic',
       filterCourses: (all) =>
         all.filter(
-          (c) => isPublicVisibleCourse(c) && courseMatchesAcademicBatch(c, 'hsc-28')
+          (c) =>
+            isPublicVisibleCourse(c) &&
+            (courseMatchesAcademicBatch(c, 'hsc-28') ||
+              courseMatchesAcademicBatch(c, 'hsc-27') ||
+              courseMatchesAcademicBatch(c, 'ssc-2028') ||
+              courseMatchesAcademicBatch(c, 'ssc-2029'))
         ),
     });
   }
@@ -506,15 +511,35 @@ function resolveRouteSeo(
     clean === '/categories/admission'
   ) {
     const admissionCat = categories.find((c) => c.slug === 'admission');
+    if (admissionCat) {
+      return withCourseOgFallback({
+        title: `${admissionCat.name} — ১০ মিনিট স্কুল`,
+        description:
+          admissionCat.subtitle ||
+          NAVBAR_GROUP_PAGE_META.admission.seoDescription,
+        canonicalPath: `/${encodeURIComponent(admissionCat.slug)}`,
+        filterCourses: (all) =>
+          all.filter(
+            (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, admissionCat.slug)
+          ),
+      });
+    }
+    const admissionGroupMeta = NAVBAR_GROUP_PAGE_META.admission;
+    const admissionGroupCats = categories.filter(
+      (c) => (c.status || 'active') === 'active' && resolveCategoryNavGroup(c) === 'admission'
+    );
     return withCourseOgFallback({
-      title: `${admissionCat?.name || 'বিশ্ববিদ্যালয় ও মেডিকেল এডমিশন'} — ১০ মিনিট স্কুল`,
+      title: admissionGroupMeta.seoTitle,
       description:
-        admissionCat?.subtitle ||
-        'মেডিকেল, বুয়েট, ঢাকা বিশ্ববিদ্যালয় ক, খ, গ ইউনিট এবং গুচ্ছ ভর্তি পরীক্ষার পূর্ণাঙ্গ অনলাইন এডমিশন ব্যাচ।',
-      canonicalPath: '/admission',
+        admissionGroupCats.length > 0
+          ? `${admissionGroupCats.map((c) => c.name).join(', ')} — ${admissionGroupMeta.seoDescription}`
+          : admissionGroupMeta.seoDescription,
+      canonicalPath: NAVBAR_GROUP_PATHS.admission,
       filterCourses: (all) =>
         all.filter(
-          (c) => isPublicVisibleCourse(c) && courseMatchesCategorySlug(c, 'admission')
+          (c) =>
+            isPublicVisibleCourse(c) &&
+            admissionGroupCats.some((g) => courseMatchesCategorySlug(c, g.slug))
         ),
     });
   }

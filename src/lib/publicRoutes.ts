@@ -11,6 +11,7 @@ export type RouteState =
   | { view: 'bookstore'; categorySlug?: string }
   | { view: 'navgroup'; groupKey: NavbarGroupKey; categorySlug?: string }
   | { view: 'category'; slug: string; subFilter?: string }
+  | { view: 'academic_overview' }
   | { view: 'academic'; level: AcademicLevel; batchOrClass: string; sectionHash?: string }
   | { view: 'admin_login' }
   | { view: 'admin_dashboard' };
@@ -18,7 +19,6 @@ export type RouteState =
 export const VIRTUAL_ROOT_CATEGORY_SLUGS = new Set([
   'language-learning',
   'skills',
-  'admission',
   'free-course',
   'free',
   'free-courses',
@@ -69,9 +69,14 @@ export function parseCurrentRoute(
     return { view: 'category', slug: 'skills' };
   }
 
-  // 3. Admission: /admission/ or /category/admission/
+  // 3. Admission: /admission/ or /category/admission/ -> dynamic admission navgroup unless DB explicitly defines 'admission'
   if (clean === '/admission' || clean === '/category/admission' || clean === '/categories/admission') {
-    return { view: 'category', slug: 'admission' };
+    const hasExactAdmission = categories.some(
+      (c) => (c.status || 'active') === 'active' && categorySlugsMatch(c.slug, 'admission')
+    );
+    return hasExactAdmission
+      ? { view: 'category', slug: 'admission' }
+      : { view: 'navgroup', groupKey: 'admission' };
   }
 
   // 3b. Free Course: /free-course, /free, /free-courses, /category/free-course
@@ -100,18 +105,21 @@ export function parseCurrentRoute(
     return { view: 'bookstore', categorySlug: bookCatSlug || undefined };
   }
 
-  // 5. HSC Dedicated Routes: /hsc/hsc-26/, /hsc/hsc-27/, /hsc/hsc-28/ (plus legacy support)
+  // 5. Academic Batch Selector Overview (/academic, /hsc, /hsc/hsc-28) & Dedicated HSC 26/27 routes
   if (clean === '/hsc/hsc-26' || clean === '/academic/hsc/hsc-26') {
     return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-26', sectionHash: cleanHash };
   }
   if (clean === '/hsc/hsc-27' || clean === '/academic/hsc/hsc-27') {
     return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-27', sectionHash: cleanHash };
   }
-  if (clean === '/hsc/hsc-28' || clean === '/academic/hsc/hsc-28') {
-    return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-28', sectionHash: cleanHash };
-  }
-  if (clean === '/hsc' || clean === '/academic/hsc') {
-    return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-28', sectionHash: cleanHash };
+  if (
+    clean === '/academic' ||
+    clean === '/hsc' ||
+    clean === '/academic/hsc' ||
+    clean === '/hsc/hsc-28' ||
+    clean === '/academic/hsc/hsc-28'
+  ) {
+    return { view: 'academic_overview' };
   }
 
   // 6. SSC Routes: /ssc/ssc-27/ (দশম শ্রেণি), /class-9 & /ssc/ssc-29/ (৯ম শ্রেণি SSC 29)
@@ -169,10 +177,6 @@ export function parseCurrentRoute(
       return { view: 'course', slug: cleanCourseSlug };
     }
     return { view: 'home' };
-  }
-
-  if (clean === '/academic') {
-    return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-28' };
   }
 
   // Root-level dynamic category route: /:slug (e.g. /hsc-28-science)

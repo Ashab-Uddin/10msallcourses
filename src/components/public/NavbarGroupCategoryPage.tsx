@@ -260,7 +260,17 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
             এই বিভাগে এখনো কোনো ক্যাটাগরি যুক্ত করা হয়নি।
           </div>
         ) : (
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4 p-2 sm:p-5 rounded-2xl sm:rounded-3xl glass-surface items-stretch">
+          <div
+            className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 ${
+              categorySections.length <= 3
+                ? 'lg:grid-cols-3'
+                : categorySections.length === 4
+                  ? 'lg:grid-cols-4'
+                  : categorySections.length === 5
+                    ? 'lg:grid-cols-5'
+                    : 'lg:grid-cols-6'
+            } gap-3 sm:gap-4 p-3 sm:p-5 rounded-2xl sm:rounded-3xl glass-surface items-stretch`}
+          >
             {categorySections.map(({ category: cat }, idx) => {
               const IconComponent = getCategoryLucideIcon(cat);
               const theme = resolveCategoryCardTheme(cat, idx);
@@ -273,15 +283,15 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
                   data-category-id={cat.id}
                   data-category-slug={cat.slug}
                   onClick={() => handleCardClick(cat.slug)}
-                  className="group min-w-0 w-full max-w-[106px] sm:max-w-none mx-auto h-full flex flex-col items-center justify-between cursor-pointer text-center focus:outline-none touch-manipulation"
+                  className="group min-w-0 w-full h-full flex flex-col items-center justify-between cursor-pointer text-center focus:outline-none touch-manipulation"
                 >
                   {/* Split S-Wave 3D Glass Card matching ClassSelectorStrip & Reference Screenshot */}
                   <div
-                    className={`relative w-full flex-1 rounded-[12px] sm:rounded-[22px] overflow-hidden border bg-white/85 backdrop-blur-xl transition-all duration-300 flex flex-col justify-between border-white/95 shadow-[0_10px_28px_-10px_rgba(185,28,28,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] ${theme.hoverShadow} group-hover:-translate-y-1.5 group-active:scale-[0.98]`}
+                    className={`relative w-full flex-1 rounded-[18px] sm:rounded-[22px] overflow-hidden border bg-white/85 backdrop-blur-xl transition-all duration-300 flex flex-col justify-between border-white/95 shadow-[0_10px_28px_-10px_rgba(185,28,28,0.22),inset_0_1px_0_rgba(255,255,255,0.9)] ${theme.hoverShadow} group-hover:-translate-y-1.5 group-active:scale-[0.98]`}
                   >
                     {/* TOP RICH 3D RADIAL COLOR STAGE */}
                     <div
-                      className={`relative w-full h-[60px] min-[390px]:h-[66px] sm:h-[118px] shrink-0 ${theme.topGradient} flex flex-col items-center justify-center px-1 pt-2.5 pb-1.5 sm:px-3 sm:pb-5 sm:pt-4 overflow-hidden`}
+                      className={`relative w-full h-[90px] min-[390px]:h-[98px] sm:h-[118px] shrink-0 ${theme.topGradient} flex flex-col items-center justify-center px-2 pt-3 pb-3.5 sm:px-3 sm:pb-5 sm:pt-4 overflow-hidden`}
                     >
                       {/* Specular top-left glass sheen */}
                       <div
@@ -293,15 +303,15 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
                       />
 
                       {/* Compact Tag Badge at top-left */}
-                      <span className="absolute top-1 left-1 sm:top-2.5 sm:left-2.5 text-[6px] min-[390px]:text-[6.5px] sm:text-[9.5px] font-black tracking-wider text-white/95 bg-black/20 backdrop-blur-md border border-white/25 px-1 sm:px-2 py-[0.5px] sm:py-0.5 rounded-full max-w-[calc(100%-8px)] sm:max-w-[calc(100%-12px)] truncate">
+                      <span className="absolute top-2 left-2 sm:top-2.5 sm:left-2.5 text-[8px] min-[390px]:text-[8.5px] sm:text-[9.5px] font-black tracking-wider text-white/95 bg-black/20 backdrop-blur-md border border-white/25 px-1.5 sm:px-2 py-[1px] sm:py-0.5 rounded-full max-w-[calc(100%-16px)] sm:max-w-[calc(100%-12px)] truncate">
                         {theme.tag}
                       </span>
 
                       {/* Centered 3D Frosted Icon Medallion */}
                       <div
-                        className={`relative z-10 mt-1.5 sm:mt-2 w-6 h-6 min-[390px]:w-7 min-[390px]:h-7 sm:w-14 sm:h-14 rounded-lg sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/45 flex items-center justify-center text-white ${theme.iconGlow} group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300`}
+                        className={`relative z-10 mt-2 w-10 h-10 min-[390px]:w-11 min-[390px]:h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/45 flex items-center justify-center text-white ${theme.iconGlow} group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300`}
                       >
-                        <IconComponent className="w-3.5 h-3.5 min-[390px]:w-4 min-[390px]:h-4 sm:w-7 sm:h-7 stroke-[2.2] drop-shadow-sm" />
+                        <IconComponent className="w-5 h-5 sm:w-7 sm:h-7 stroke-[2.2] drop-shadow-sm" />
                       </div>
 
                       {/* Rising Frosted S-Curve Wave Divider */}
@@ -309,7 +319,7 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
                         viewBox="0 0 240 42"
                         preserveAspectRatio="none"
                         aria-hidden="true"
-                        className="absolute bottom-0 left-0 w-full h-[8px] sm:h-[26px] pointer-events-none block"
+                        className="absolute bottom-0 left-0 w-full h-[16px] sm:h-[26px] pointer-events-none block"
                       >
                         <path
                           d="M0,18 C68,-4 148,42 240,12 L240,42 L0,42 Z"
@@ -319,12 +329,12 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
                     </div>
 
                     {/* BOTTOM FROSTED ZONE WITH OUTLINED PILL TITLE */}
-                    <div className="relative flex-1 bg-white/92 backdrop-blur-md px-1 pt-0.5 pb-1 sm:px-2.5 sm:pt-0.5 sm:pb-3 flex flex-col items-center justify-center shadow-[inset_0_-6px_12px_rgba(185,28,28,0.05)]">
+                    <div className="relative flex-1 bg-white/92 backdrop-blur-md px-2 pt-0.5 pb-2.5 sm:px-2.5 sm:pt-0.5 sm:pb-3 flex flex-col items-center justify-center shadow-[inset_0_-6px_12px_rgba(185,28,28,0.05)]">
                       <div
-                        className={`w-full rounded-lg sm:rounded-full border sm:border-[1.5px] ${theme.pillBorder} ${theme.pillBg} px-1 py-0.5 sm:px-2 sm:py-1 min-h-[28px] sm:min-h-[40px] flex items-center justify-center text-center shadow-[inset_0_1px_2px_rgba(255,255,255,0.95),0_2px_6px_-2px_rgba(0,0,0,0.06)] group-hover:scale-[1.03] transition-transform duration-200`}
+                        className={`w-full rounded-xl sm:rounded-full border-[1.5px] ${theme.pillBorder} ${theme.pillBg} px-2 py-1 sm:px-2 sm:py-1 min-h-[38px] sm:min-h-[40px] flex items-center justify-center text-center shadow-[inset_0_1px_2px_rgba(255,255,255,0.95),0_2px_6px_-2px_rgba(0,0,0,0.06)] group-hover:scale-[1.03] transition-transform duration-200`}
                       >
                         <span
-                          className={`block w-full font-black text-[8.5px] min-[390px]:text-[9px] sm:text-[12px] tracking-tight leading-[1.15] sm:leading-snug text-center break-words ${theme.pillText}`}
+                          className={`block w-full font-black text-[11px] min-[390px]:text-[11.5px] sm:text-[12px] tracking-tight leading-[1.25] sm:leading-snug text-center break-words ${theme.pillText}`}
                         >
                           {cat.name}
                         </span>
@@ -334,7 +344,7 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
 
                   {/* Clean Live Batch Title Caption below card matching Home Page style */}
                   <span
-                    className={`mt-1.5 sm:mt-2 shrink-0 text-[9px] min-[390px]:text-[9.5px] sm:text-[11px] font-bold text-center leading-tight sm:whitespace-nowrap max-w-full truncate ${theme.statusColor} opacity-90 group-hover:opacity-100 transition-opacity`}
+                    className={`mt-1.5 sm:mt-2 shrink-0 text-[10px] min-[390px]:text-[10.5px] sm:text-[11px] font-bold text-center leading-tight sm:whitespace-nowrap max-w-full truncate ${theme.statusColor} opacity-90 group-hover:opacity-100 transition-opacity`}
                   >
                     {cardBatchTitle}
                   </span>

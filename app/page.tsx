@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import App from '@/src/App';
-import { CrawlableCatalog } from '@/src/components/public/CrawlableCatalog';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import {
@@ -65,7 +64,6 @@ export default async function Page() {
         initialBookCategories={bookData.bookCategories}
         initialBooks={bookData.books}
       />
-      <CrawlableCatalog categories={data.categories} courses={data.courses} />
     </>
   );
 }

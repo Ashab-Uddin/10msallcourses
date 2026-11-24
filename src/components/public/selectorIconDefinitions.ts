@@ -19,7 +19,10 @@ import {
   categorySlugsMatch,
   normalizeCategoryMatchText,
 } from '../../lib/categoryMatching.ts';
-import { resolveCategoryNavGroup } from '../../lib/navbarCategories.ts';
+import {
+  NAVBAR_GROUP_PATHS,
+  resolveCategoryNavGroup,
+} from '../../lib/navbarCategories.ts';
 import { buildReadableCategoryPath } from '../../lib/courseSlug.ts';
 import {
   normalizeSelectorIconLabels,
@@ -66,11 +69,11 @@ export const SELECTOR_ICON_DEFINITIONS: SelectorIconDefinition[] = [
   },
   {
     id: 'hsc-27',
-    categorySlug: 'hsc',
+    categorySlug: 'hsc-27',
     tag: 'HSC 27',
     title: 'HSC ২৭',
     subLabel: 'অনলাইন ব্যাচ চলছে',
-    path: '/hsc/hsc-27/',
+    path: NAVBAR_GROUP_PATHS.hsc27,
     topGradient:
       'bg-[radial-gradient(circle_at_25%_20%,#3b82f6_0%,#1d4ed8_52%,#1e1b4b_100%)]',
     iconGlow: 'shadow-[0_12px_24px_-6px_rgba(30,27,75,0.65)]',
@@ -83,11 +86,11 @@ export const SELECTOR_ICON_DEFINITIONS: SelectorIconDefinition[] = [
   },
   {
     id: 'hsc-28',
-    categorySlug: 'hsc',
+    categorySlug: 'hsc-28',
     tag: 'HSC 28',
     title: 'HSC ২৮',
     subLabel: 'অনলাইন ব্যাচ চলছে',
-    path: '/hsc/hsc-28/',
+    path: NAVBAR_GROUP_PATHS.hsc28,
     topGradient:
       'bg-[radial-gradient(circle_at_25%_20%,#22d3ee_0%,#0284c7_52%,#0c4a6e_100%)]',
     iconGlow: 'shadow-[0_12px_24px_-6px_rgba(12,74,110,0.65)]',
@@ -387,84 +390,24 @@ function resolveSelectorIconTarget(
     }
   }
 
-  // 3. HSC 27
+  // 3. HSC 27 — Always open the HSC 27 Category Selection Page (/programs/hsc-27)
+  // so users choose among active HSC 27 categories (SMP, বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা, BEI, etc.)
   if (def.id === 'hsc-27') {
-    const hsc27Cats = activeCategories.filter(
-      (c) =>
-        resolveCategoryNavGroup(c) === 'hsc27' ||
-        categoryMatchesAnyToken(c, [
-          'hsc-27',
-          'hsc 27',
-          'hsc27',
-          'hsc-2027',
-          'hsc 2027',
-          'hsc ২৭',
-          'hsc ২০২৭',
-          'এইচএসসি ২৭',
-        ])
-    );
-    const exact = hsc27Cats.find((c) => categorySlugsMatch(c.slug, 'hsc-27'));
-    if (exact) {
-      return {
-        categoryId: exact.id,
-        categorySlug: exact.slug,
-        path: buildReadableCategoryPath(exact.slug),
-      };
-    }
-    if (hsc27Cats.length === 1) {
-      return {
-        categoryId: hsc27Cats[0].id,
-        categorySlug: hsc27Cats[0].slug,
-        path: buildReadableCategoryPath(hsc27Cats[0].slug),
-      };
-    }
-    if (hsc27Cats.length > 1) {
-      return {
-        categoryId: hsc27Cats[0].id,
-        categorySlug: 'hsc-27',
-        path: '/hsc-27',
-      };
-    }
+    return {
+      categoryId: undefined,
+      categorySlug: 'hsc-27',
+      path: NAVBAR_GROUP_PATHS.hsc27,
+    };
   }
 
-  // 4. HSC 28
+  // 4. HSC 28 — Always open the HSC 28 Category Selection Page (/programs/hsc-28)
+  // so users see the 3D category icon cards and navigate directly to each stream page
   if (def.id === 'hsc-28') {
-    const hsc28Cats = activeCategories.filter(
-      (c) =>
-        resolveCategoryNavGroup(c) === 'hsc28' ||
-        categoryMatchesAnyToken(c, [
-          'hsc-28',
-          'hsc 28',
-          'hsc28',
-          'hsc-2028',
-          'hsc 2028',
-          'hsc ২৮',
-          'hsc ২০২৮',
-          'এইচএসসি ২৮',
-        ])
-    );
-    const exact = hsc28Cats.find((c) => categorySlugsMatch(c.slug, 'hsc-28'));
-    if (exact) {
-      return {
-        categoryId: exact.id,
-        categorySlug: exact.slug,
-        path: buildReadableCategoryPath(exact.slug),
-      };
-    }
-    if (hsc28Cats.length === 1) {
-      return {
-        categoryId: hsc28Cats[0].id,
-        categorySlug: hsc28Cats[0].slug,
-        path: buildReadableCategoryPath(hsc28Cats[0].slug),
-      };
-    }
-    if (hsc28Cats.length > 1) {
-      return {
-        categoryId: hsc28Cats[0].id,
-        categorySlug: 'hsc-28',
-        path: '/hsc-28',
-      };
-    }
+    return {
+      categoryId: undefined,
+      categorySlug: 'hsc-28',
+      path: NAVBAR_GROUP_PATHS.hsc28,
+    };
   }
 
   // 5. এডমিশন (Admission / HSC 26 slot)

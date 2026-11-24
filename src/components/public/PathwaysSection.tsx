@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { BookOpen, ChevronLeft, ChevronRight, Landmark, Terminal } from 'lucide-react';
+import { NAVBAR_GROUP_PATHS } from '../../lib/navbarCategories.ts';
 
 interface PathwaysSectionProps {
   onNavigate: (path: string) => void;
@@ -107,11 +108,11 @@ export const PathwaysSection: React.FC<PathwaysSectionProps> = ({ onNavigate }) 
               role="link"
               tabIndex={0}
               aria-label="একাডেমিক পূর্ণাঙ্গ প্রস্তুতি — অনলাইন ব্যাচ সমূহ দেখুন"
-              onClick={() => handleCardNavigation('/academic/hsc/hsc-28/')}
+              onClick={() => handleCardNavigation('/academic')}
               onKeyDown={(e) => {
                 if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                   e.preventDefault();
-                  onNavigate('/academic/hsc/hsc-28/');
+                  onNavigate('/academic');
                 }
               }}
               className="w-[calc((100%-10px)/2)] sm:w-[calc((100%-16px)/2)] shrink-0 snap-start md:w-auto md:shrink glass-card rounded-[18px] sm:rounded-[22px] md:rounded-[24px] overflow-hidden flex flex-col min-w-0 cursor-pointer group select-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/60"
@@ -143,7 +144,7 @@ export const PathwaysSection: React.FC<PathwaysSectionProps> = ({ onNavigate }) 
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onNavigate('/academic/hsc/hsc-28/');
+                    onNavigate('/academic');
                   }}
                   className="w-full text-center py-2 sm:py-2.5 px-1.5 min-[380px]:px-2.5 md:px-4 rounded-full bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb2026] hover:to-[#991b1b] text-white text-[9.5px] min-[380px]:text-[10.5px] sm:text-xs md:text-sm font-bold whitespace-nowrap truncate shadow-[0_8px_20px_-8px_rgba(226,43,43,0.65)] transition cursor-pointer"
                 >
@@ -204,11 +205,11 @@ export const PathwaysSection: React.FC<PathwaysSectionProps> = ({ onNavigate }) 
               role="link"
               tabIndex={0}
               aria-label="ভার্সিটি + গুচ্ছ এডমিশন — এডমিশন কোর্সসমূহ দেখুন"
-              onClick={() => handleCardNavigation('/admission')}
+              onClick={() => handleCardNavigation(NAVBAR_GROUP_PATHS.admission)}
               onKeyDown={(e) => {
                 if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                   e.preventDefault();
-                  onNavigate('/admission');
+                  onNavigate(NAVBAR_GROUP_PATHS.admission);
                 }
               }}
               className="w-[calc((100%-10px)/2)] sm:w-[calc((100%-16px)/2)] shrink-0 snap-start md:w-auto md:shrink glass-card rounded-[18px] sm:rounded-[22px] md:rounded-[24px] overflow-hidden flex flex-col min-w-0 cursor-pointer group select-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/60"
@@ -238,8 +239,8 @@ export const PathwaysSection: React.FC<PathwaysSectionProps> = ({ onNavigate }) 
                 </div>
                 <Link
                   className="w-full text-center py-2 sm:py-2.5 px-1.5 min-[380px]:px-2.5 md:px-4 rounded-full bg-gradient-to-r from-[#be123c] to-[#881337] hover:from-[#e11d48] hover:to-[#9f1239] text-white text-[9.5px] min-[380px]:text-[10.5px] sm:text-xs md:text-sm font-bold whitespace-nowrap truncate shadow-[0_8px_20px_-8px_rgba(190,18,60,0.6)] transition block"
-                  href="/admission"
-                  onClick={(e) => handleLinkClick(e, '/admission')}
+                  href={NAVBAR_GROUP_PATHS.admission}
+                  onClick={(e) => handleLinkClick(e, NAVBAR_GROUP_PATHS.admission)}
                 >
                   এডমিশন কোর্সসমূহ দেখুন →
                 </Link>

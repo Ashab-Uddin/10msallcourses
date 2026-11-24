@@ -10,14 +10,14 @@ export function GET() {
 
 ## Main pages
 - [Home](${base}/): all courses
-- [HSC 28](${base}/hsc/hsc-28)
+- [Academic Batches](${base}/academic)
 - [HSC 27](${base}/hsc/hsc-27)
 - [HSC 26](${base}/hsc/hsc-26)
 - [SSC 27](${base}/ssc/ssc-27)
 - [SSC 28](${base}/ssc/ssc-28)
 - [SSC 29 / Class 9](${base}/class-9)
 - [Skills](${base}/skills)
-- [Admission](${base}/admission)
+- [Admission](${base}/programs/admission)
 - [Language Learning](${base}/language-learning)
 - [Free Courses](${base}/free-course)
 - [Books](${base}/books)

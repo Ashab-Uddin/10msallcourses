@@ -20,7 +20,11 @@ import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { Hsc28ScienceCategoryPage } from './categories/Hsc28ScienceCategoryPage.tsx';
 import { FilteredCategoryPage } from './categories/FilteredCategoryPage.tsx';
 import { resolveFilteredCategoryKey } from '../../lib/categoryFilterConfigs.ts';
-import { Hsc28OverviewCategoryPage } from './categories/Hsc28OverviewCategoryPage.tsx';
+import { NavbarGroupCategoryPage } from './NavbarGroupCategoryPage.tsx';
+import type {
+  SelectorIconId,
+  SelectorIconText,
+} from '../../lib/selectorIconOrder.ts';
 import { resolveCategoryNavGroup } from '../../lib/navbarCategories.ts';
 import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
 import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
@@ -31,6 +35,7 @@ interface CategoryPageProps {
   categories: Category[];
   courses: Course[];
   categoryCourseOrders?: CategoryCourseOrdersMap;
+  selectorIconLabels?: Partial<Record<SelectorIconId, Partial<SelectorIconText>>>;
   onBack: () => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   onSelectCategory: (slug: string) => void;
@@ -42,6 +47,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   categories,
   courses,
   categoryCourseOrders,
+  selectorIconLabels,
   onBack,
   onEnrollClick,
   onSelectCategory,
@@ -72,7 +78,6 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   >('categoryGroupFilter', 'all', normalizedSlug);
   const isLanguageLearning = normalizedSlug === 'language-learning';
   const isSkills = normalizedSlug === 'skills';
-  const isAdmission = normalizedSlug === 'admission';
   const isBooks = normalizedSlug === 'books';
   const isFreeCourse = normalizedSlug === 'free-course';
 
@@ -95,16 +100,6 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
       subtitle: 'ক্যারিয়ার গড়ার আধুনিক ও প্রফেশনাল অনলাইন কোর্সসমূহ',
       badgeColor: '#1E63D6',
       displayOrder: 3,
-      status: 'active',
-    };
-  } else if (!currentCategory && isAdmission) {
-    currentCategory = {
-      id: 4,
-      name: 'বিশ্ববিদ্যালয় ও মেডিকেল এডমিশন',
-      slug: 'admission',
-      subtitle: 'বুয়েট, মেডিকেল, ঢাকা বিশ্ববিদ্যালয় ও প্রযুক্তি গুচ্ছ এডমিশন প্রস্তুতি',
-      badgeColor: '#E22B2B',
-      displayOrder: 4,
       status: 'active',
     };
   } else if (!currentCategory && isBooks) {
@@ -215,14 +210,15 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
     );
     if (hasOverviewSubcategories) {
       return (
-        <Hsc28OverviewCategoryPage
+        <NavbarGroupCategoryPage
           groupKey={overviewGroupKey}
           categories={categories}
           courses={courses}
           categoryCourseOrders={categoryCourseOrders}
+          selectorIconLabels={selectorIconLabels}
           onBack={onBack}
+          onOpenStandaloneCategory={onSelectCategory}
           onEnrollClick={onEnrollClick}
-          onSelectCategory={onSelectCategory}
         />
       );
     }

@@ -23,6 +23,7 @@ import { HeroOfferCountdown } from './components/public/HeroOfferCountdown.tsx';
 import { MobileBottomNav, MobileTab } from './components/public/MobileBottomNav.tsx';
 import { HeaderNav } from './components/public/HeaderNav.tsx';
 import { AcademicPage, type AcademicLevel } from './components/public/AcademicPage.tsx';
+import { AcademicBatchSelectorPage } from './components/public/AcademicBatchSelectorPage.tsx';
 import { CategoryPage } from './components/public/CategoryPage.tsx';
 import { NavbarGroupCategoryPage } from './components/public/NavbarGroupCategoryPage.tsx';
 import { CourseSharePage } from './components/public/CourseSharePage.tsx';
@@ -845,7 +846,7 @@ export default function App({
       <SiteContactProvider
         value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
       >
-      <div className="relative min-h-screen pb-20 md:pb-0">
+      <div className="relative min-h-screen">
         <GlassAmbientBackdrop />
 
         <HeaderNav
@@ -917,7 +918,7 @@ export default function App({
       <SiteContactProvider
         value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
       >
-      <div className="relative min-h-screen pb-20 md:pb-0">
+      <div className="relative min-h-screen">
         <GlassAmbientBackdrop />
 
         <HeaderNav
@@ -989,7 +990,7 @@ export default function App({
       <SiteContactProvider
         value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
       >
-      <div className="relative min-h-screen pb-20 md:pb-0">
+      <div className="relative min-h-screen">
         <GlassAmbientBackdrop />
 
         <HeaderNav
@@ -1060,7 +1061,7 @@ export default function App({
       <SiteContactProvider
         value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
       >
-      <div className="relative min-h-screen pb-20 md:pb-0">
+      <div className="relative min-h-screen">
         <GlassAmbientBackdrop />
 
         <HeaderNav
@@ -1085,6 +1086,7 @@ export default function App({
             categories={orderedCategories}
             courses={courses}
             categoryCourseOrders={categoryCourseOrders}
+            selectorIconLabels={selectorIconLabels}
             onBack={() => navigate('/')}
             onEnrollClick={handleEnrollClick}
             onSelectCategory={(slug) => navigate(buildReadableCategoryPath(slug))}
@@ -1127,12 +1129,80 @@ export default function App({
     );
   }
 
+  if (route.view === 'academic_overview') {
+    return (
+      <SiteContactProvider
+        value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
+      >
+      <div className="relative min-h-screen">
+        <GlassAmbientBackdrop />
+
+        <HeaderNav
+          courses={courses}
+          categories={orderedCategories}
+          bookCategories={bookCategories}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchSubmit={handleHeaderSearchSubmit}
+          onSelectCategory={(slug, q) => handleQuickFilterSelect(slug, q)}
+          onNavigateHome={handleNavigateHome}
+          onEnrollClick={handleEnrollClick}
+          onOpenCategoryPage={(slug) => navigate(buildReadableCategoryPath(slug))}
+          onNavigate={navigate}
+          currentPath={currentPath}
+          currentHash={currentHash}
+        />
+
+        <main className="relative z-10 pt-2">
+          <AcademicBatchSelectorPage
+            categories={orderedCategories}
+            courses={courses}
+            selectorIconLabels={selectorIconLabels}
+            onBack={() => navigate('/')}
+            onNavigate={navigate}
+          />
+        </main>
+
+        <SiteFooter
+          onNavigate={navigate}
+          onQuickFilter={handleQuickFilterSelect}
+          onDirectCourseLink={handleDirectCourseLink}
+          categories={orderedCategories}
+          courses={courses}
+          isAdminAuthenticated={Boolean(adminSession)}
+          whatsappNumber={whatsappNumber}
+          whatsappLink={whatsappLink}
+          facebookLink={facebookLink}
+          youtubeLink={youtubeLink}
+          instagramLink={instagramLink}
+        />
+
+        <MobileBottomNav
+          activeTab={getMobileActiveTab()}
+          onTabChange={handleMobileNav}
+          categories={orderedCategories}
+          courses={courses}
+          currentPath={currentPath}
+          onNavigate={navigate}
+        />
+
+        <FloatingContactWidget
+          whatsappLink={whatsappLink}
+          whatsappNumber={whatsappNumber}
+          callNumber={callNumber}
+          messengerLink={messengerLink}
+        />
+      </div>
+      </SiteContactProvider>
+    );
+  }
+
   if (route.view === 'academic') {
     return (
       <SiteContactProvider
         value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
       >
-      <div className="relative min-h-screen pb-20 md:pb-0">
+      <div className="relative min-h-screen">
         <GlassAmbientBackdrop />
 
         <HeaderNav
@@ -1257,7 +1327,7 @@ export default function App({
     <SiteContactProvider
       value={{ whatsappNumber, whatsappLink, callNumber, messengerLink }}
     >
-    <div className="relative min-h-screen pb-20 md:pb-0">
+    <div className="relative min-h-screen">
       <GlassAmbientBackdrop />
 
       {/* FLOATING FROSTED GLASS HEADER */}

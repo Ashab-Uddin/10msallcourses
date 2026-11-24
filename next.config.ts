@@ -124,10 +124,11 @@ const nextConfig: NextConfig = {
       alias('/ssc-29', '/class-9'),
       alias('/academic/class-9', '/class-9'),
       alias('/academic/class9', '/class-9'),
-      alias('/hsc', '/hsc/hsc-28'),
-      alias('/academic/hsc', '/hsc/hsc-28'),
-      alias('/academic', '/hsc/hsc-28'),
-      alias('/academic/hsc/:batch(hsc-26|hsc-27|hsc-28)', '/hsc/:batch'),
+      alias('/hsc', '/academic'),
+      alias('/academic/hsc', '/academic'),
+      alias('/hsc/hsc-28', '/academic'),
+      alias('/academic/hsc/hsc-28', '/academic'),
+      alias('/academic/hsc/:batch(hsc-26|hsc-27)', '/hsc/:batch'),
       alias('/ssc', '/ssc/ssc-27'),
       alias('/academic/ssc', '/ssc/ssc-27'),
       alias('/class-10', '/ssc/ssc-27'),
@@ -139,6 +140,7 @@ const nextConfig: NextConfig = {
       alias('/free', '/free-course'),
       alias('/free-courses', '/free-course'),
       alias('/book-store', '/books'),
+      alias('/admission', '/programs/admission'),
     ];
   },
   async headers() {
