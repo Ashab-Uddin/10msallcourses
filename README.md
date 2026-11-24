@@ -1,6 +1,6 @@
-# 10msallcourse.com — 10 Minute School Affiliate Course Portal
+# 10msallcourses.com — 10 Minute School Affiliate Course Portal
 
-A production-ready Next.js 15 App Router affiliate course catalog and admin management platform for **10 Minute School** courses (`10msallcourse.com`). Built with TypeScript, Tailwind CSS v4, SSR SEO metadata, structured data (JSON-LD), real-time course offer countdown timers, and Vercel-compatible persistence & cloud media upload.
+A production-ready Next.js 15 App Router affiliate course catalog and admin management platform for **10 Minute School** courses (`10msallcourses.com`). Built with TypeScript, Tailwind CSS v4, SSR SEO metadata, structured data (JSON-LD), real-time course offer countdown timers, and Vercel-compatible persistence & cloud media upload.
 
 ---
 
@@ -66,7 +66,7 @@ npm run build
 
 | Variable | Required in Prod | Description |
 | --- | --- | --- |
-| `APP_URL` | Recommended | Canonical domain (e.g., `https://10msallcourse.com`) |
+| `APP_URL` | Recommended | Canonical domain (e.g., `https://10msallcourses.com`) |
 | `NEXT_PUBLIC_SITE_URL` | Recommended | Public site URL for metadata/canonical tags |
 | `ADMIN_EMAIL` | **Yes** | Admin login email address |
 | `ADMIN_PASSWORD` | **Yes** (or hash) | Strong admin login password |
@@ -107,4 +107,4 @@ npm run build
    - In **Project Settings -> Environment Variables**, add `APP_URL`, `NEXT_PUBLIC_SITE_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`, and `ADMIN_SESSION_SECRET`.
 6. **Deploy & Connect Custom Domain**:
    - Trigger a deployment.
-   - Under **Settings -> Domains**, add `10msallcourse.com` and `www.10msallcourse.com` and update your registrar's DNS `A` / `CNAME` records as instructed by Vercel.
+   - Under **Settings -> Domains**, add `10msallcourses.com` and `www.10msallcourses.com` and update your registrar's DNS `A` / `CNAME` records as instructed by Vercel.

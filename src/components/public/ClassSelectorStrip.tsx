@@ -59,12 +59,16 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
               : undefined) ||
             (item.categorySlug ? categoryBySlug.get(item.categorySlug) : undefined);
           return (
-            <button
+            <a
               key={item.id}
-              type="button"
+              href={item.path}
               data-category-id={linkedCategory?.id ?? item.categoryId ?? undefined}
               data-category-slug={item.categorySlug}
-              onClick={() => onNavigate(item.path)}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                e.preventDefault();
+                onNavigate(item.path);
+              }}
               className="group min-w-0 w-full flex flex-col items-center cursor-pointer text-left focus:outline-none"
             >
               {/* Split S-Wave Glass Card matching structural archetype */}
@@ -130,7 +134,7 @@ export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({
               >
                 {item.subLabel}
               </span>
-            </button>
+            </a>
           );
         })}
       </div>

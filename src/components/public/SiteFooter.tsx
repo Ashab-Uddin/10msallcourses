@@ -84,7 +84,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
       content: (
         <div className="space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed">
           <p>
-            <strong>10msallcourse.com</strong> হলো ১০ মিনিট স্কুলের সকল একাডেমিক, এডমিশন ও প্রফেশনাল স্কিল কোর্সের একটি ডেডিকেটেড ডিসকাউন্ট ও ইনফরমেশন প্ল্যাটফর্ম।
+            <strong>10msallcourses.com</strong> হলো ১০ মিনিট স্কুলের সকল একাডেমিক, এডমিশন ও প্রফেশনাল স্কিল কোর্সের একটি ডেডিকেটেড ডিসকাউন্ট ও ইনফরমেশন প্ল্যাটফর্ম।
           </p>
           <p>
             শিক্ষার্থীরা যেন প্রতিটি কোর্সের সঠিক সিলেবাস, ক্লাস রুটিন, অভিজ্ঞ শিক্ষক মণ্ডলী এবং সর্বোচ্চ অনুমোদিত প্রোমো/কুপন কোড ব্যবহার করে সাশ্রয়ী মূল্যে সরাসরি ১০ মিনিট স্কুলে ভর্তি হতে পারে—সেটি নিশ্চিত করাই আমাদের প্রধান লক্ষ্য।
@@ -545,7 +545,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
             {/* BOTTOM SUB-FOOTER: COPYRIGHT                          */}
             {/* ===================================================== */}
             <div className="pt-6 border-t border-rose-800/40 text-center md:text-left text-xs text-rose-200/80">
-              © ২০২৬ | <strong className="text-white">10msallcourse.com</strong> (১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস)। সর্বস্বত্ব সংরক্ষিত।
+              © ২০২৬ | <strong className="text-white">10msallcourses.com</strong> (১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস)। সর্বস্বত্ব সংরক্ষিত।
             </div>
           </div>
         </div>

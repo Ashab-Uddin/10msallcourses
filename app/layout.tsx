@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { MotionProvider } from '@/src/components/MotionProvider';
 import {
@@ -12,7 +12,29 @@ import {
 const siteUrl = getSiteBaseUrl();
 const ogImageUrl = `${siteUrl}${DEFAULT_OG_IMAGE_PATH}`;
 
+export const viewport: Viewport = {
+  themeColor: '#dc2626',
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
+  applicationName: DEFAULT_SITE_NAME,
+  keywords: [
+    '10 Minute School courses',
+    '10ms all courses',
+    '10msallcourses',
+    'HSC online batch',
+    'SSC online batch',
+    'admission course',
+    'skills course',
+    'টেন মিনিট স্কুল কোর্স',
+  ],
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
+  },
   metadataBase: new URL(siteUrl),
   title: DEFAULT_SITE_TITLE,
   description: DEFAULT_SITE_DESCRIPTION,
@@ -21,10 +43,14 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico' },
-      { url: '/favicon.png', type: 'image/png' },
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-48.png', type: 'image/png', sizes: '48x48' },
+      { url: '/icon-96.png', type: 'image/png', sizes: '96x96' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icon-512.png', type: 'image/png', sizes: '512x512' },
     ],
-    apple: [{ url: '/apple-touch-icon.png' }],
+    shortcut: [{ url: '/favicon.ico' }],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
   openGraph: {
     title: DEFAULT_SITE_TITLE,

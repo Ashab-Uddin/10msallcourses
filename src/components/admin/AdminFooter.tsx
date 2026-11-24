@@ -305,7 +305,7 @@ export const AdminFooter: React.FC<AdminFooterProps> = React.memo(({
           {/* Sub-Footer: Copyright & Version */}
           <div className="pt-5 border-t border-rose-800/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-rose-200/80">
             <div className="text-center sm:text-left">
-              © ২০২৬ | <strong className="text-white">10msallcourse.com</strong> Admin Console · সর্বস্বত্ব সংরক্ষিত · ভার্সন ২.৫
+              © ২০২৬ | <strong className="text-white">10msallcourses.com</strong> Admin Console · সর্বস্বত্ব সংরক্ষিত · ভার্সন ২.৫
             </div>
           </div>
         </div>

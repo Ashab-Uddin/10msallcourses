@@ -254,7 +254,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({
       </div>
 
       <footer className="relative z-10 text-center text-xs text-[#6B4C4F] font-medium py-3">
-        © ২০২৬ · 10msallcourse.com Admin Console
+        © ২০২৬ · 10msallcourses.com Admin Console
       </footer>
     </div>
   );

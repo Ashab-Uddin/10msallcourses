@@ -110,6 +110,37 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    // Alias URLs -> single canonical URL (keeps canonicals, links and sitemap aligned)
+    const alias = (source: string, destination: string) => ({
+      source,
+      destination,
+      statusCode: 301 as const,
+    });
+    return [
+      alias('/sitemap', '/sitemap.xml'),
+      alias('/ssc/ssc-29', '/class-9'),
+      alias('/academic/ssc/ssc-29', '/class-9'),
+      alias('/ssc-29', '/class-9'),
+      alias('/academic/class-9', '/class-9'),
+      alias('/academic/class9', '/class-9'),
+      alias('/hsc', '/hsc/hsc-28'),
+      alias('/academic/hsc', '/hsc/hsc-28'),
+      alias('/academic', '/hsc/hsc-28'),
+      alias('/academic/hsc/:batch(hsc-26|hsc-27|hsc-28)', '/hsc/:batch'),
+      alias('/ssc', '/ssc/ssc-27'),
+      alias('/academic/ssc', '/ssc/ssc-27'),
+      alias('/class-10', '/ssc/ssc-27'),
+      alias('/academic/class-10', '/ssc/ssc-27'),
+      alias('/academic/class10', '/ssc/ssc-27'),
+      alias('/academic/ssc/:batch(ssc-27|ssc-28)', '/ssc/:batch'),
+      alias('/academic/class-:n([5-8])', '/class-:n'),
+      alias('/academic/class:n([5-8])', '/class-:n'),
+      alias('/free', '/free-course'),
+      alias('/free-courses', '/free-course'),
+      alias('/book-store', '/books'),
+    ];
+  },
   async headers() {
     return [
       {

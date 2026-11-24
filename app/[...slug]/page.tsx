@@ -1,13 +1,17 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
 import App from '@/src/App';
+import { CrawlableCatalog } from '@/src/components/public/CrawlableCatalog';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import {
   buildSeoMetadata,
   buildStructuredData,
+  getRouteCourses,
   resolveSiteOriginFromHeaders,
 } from '@/src/lib/seo';
+import { isKnownPublicRoute } from '@/src/lib/publicRoutes';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +30,9 @@ export async function generateMetadata({ params }: CatchAllRouteProps): Promise<
     getPublicBookStoreData(),
     headers().then((h) => resolveSiteOriginFromHeaders(h)),
   ]);
+  if (!isKnownPublicRoute(pathname, data.categories, bookData.bookCategories)) {
+    return { title: 'পেজ পাওয়া যায়নি', robots: { index: false, follow: false } };
+  }
   return buildSeoMetadata(
     pathname,
     data.categories,
@@ -49,6 +56,9 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
     getPublicBookStoreData(),
     headers().then((h) => resolveSiteOriginFromHeaders(h)),
   ]);
+  if (!isKnownPublicRoute(pathname, data.categories, bookData.bookCategories)) {
+    notFound();
+  }
   const structuredData = buildStructuredData(
     pathname,
     data.categories,
@@ -79,6 +89,13 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
         initialServerNow={data.serverNow}
         initialBookCategories={bookData.bookCategories}
         initialBooks={bookData.books}
+      />
+      <CrawlableCatalog
+        categories={data.categories}
+        courses={getRouteCourses(pathname, data.categories, data.courses)}
+        heading="এই পেজের কোর্সসমূহ"
+        maxCourses={60}
+        showCategories={false}
       />
     </>
   );

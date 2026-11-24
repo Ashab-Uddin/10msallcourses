@@ -22,7 +22,7 @@ import {
   resolveCategoryNavGroup,
 } from '@/src/lib/navbarCategories';
 
-export const DEFAULT_PUBLIC_SITE_URL = 'https://10msallcourse.com';
+export const DEFAULT_PUBLIC_SITE_URL = 'https://10msallcourses.com';
 export const DEFAULT_SITE_NAME = '10ms All Courses';
 export const COURSE_BRAND_NAME = '10msallcourses';
 export const DEFAULT_SITE_TITLE = '10ms All Courses';
@@ -258,7 +258,7 @@ function resolveRouteSeo(
 
   if (clean.startsWith('/admin')) {
     return {
-      title: 'অ্যাডমিন প্যানেল — 10msallcourse.com',
+      title: 'অ্যাডমিন প্যানেল — 10msallcourses.com',
       description: '১০ মিনিট স্কুল কোর্স মার্কেটপ্লেসের অ্যাডমিন কন্ট্রোল প্যানেল।',
       canonicalPath: clean,
       filterCourses: () => [],
@@ -541,7 +541,7 @@ function resolveRouteSeo(
     return {
       title: matchedBookCat
         ? `${matchedBookCat.sectionTitle || matchedBookCat.name} — 10MS বুক স্টোর`
-        : '10MS বুক স্টোর — সেরা শিক্ষার্থীদের প্রয়োজনীয় বই ও উপকরণ — 10msallcourse.com',
+        : '10MS বুক স্টোর — সেরা শিক্ষার্থীদের প্রয়োজনীয় বই ও উপকরণ — 10msallcourses.com',
       description:
         matchedBookCat?.subtitle ||
         'এইচএসসি, এসএসসি, অষ্টম, ৭ম ও ৬ষ্ঠ শ্রেণির সেরা প্রিন্টেড মাস্টারবুক, লেকচার গাইড ও প্রয়োজনীয় শিক্ষাউপকরণ সংগ্রহ।',
@@ -672,12 +672,10 @@ function resolveRouteSeo(
     }
   }
 
-  const homeTitle = settings?.siteTitle?.trim()
-    ? `${sanitizeOgText(settings.siteTitle)} — ১০ মিনিট স্কুল সকল অনলাইন কোর্স ও ব্যাচ`
-    : `${COURSE_BRAND_NAME} — ১০ মিনিট স্কুল সকল অনলাইন কোর্স ও ব্যাচ`;
+  void settings;
+  const homeTitle = `${COURSE_BRAND_NAME} — ১০ মিনিট স্কুলের সকল অনলাইন কোর্স ও ব্যাচ (HSC, SSC, এডমিশন, স্কিলস)`;
   const homeDescription =
-    sanitizeOgText(settings?.heroSubtitle) ||
-    'HSC, SSC, ৫ম–৮ম শ্রেণি, বিশ্ববিদ্যালয় এডমিশন, স্কিলস ও ফ্রি কোর্সসহ ১০ মিনিট স্কুলের সকল জনপ্রিয় অনলাইন কোর্স ও বুক স্টোর বিশেষ ছাড়ে দেখুন।';
+    'HSC, SSC, ৫ম–৯ম শ্রেণি, বিশ্ববিদ্যালয় এডমিশন, স্কিলস ও ফ্রি কোর্সসহ ১০ মিনিট স্কুলের সকল জনপ্রিয় অনলাইন কোর্সের মূল্য, ছাড় ও ভর্তির লিংক এক জায়গায় দেখুন।';
 
   return {
     title: homeTitle,
@@ -807,6 +805,10 @@ export function buildStructuredData(
     .sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1))
     .slice(0, 12);
   const pageUrl = `${baseUrl}${resolved.canonicalPath}`;
+  const isCoursePage = resolved.canonicalPath.startsWith('/courses/') && matched.length === 1;
+  const crumbName = isCoursePage
+    ? matched[0].title
+    : resolved.title.split(' — ')[0].split(' | ')[0];
 
   return {
     '@context': 'https://schema.org',
@@ -814,23 +816,27 @@ export function buildStructuredData(
       {
         '@type': 'Organization',
         '@id': `${baseUrl}/#organization`,
-        name: '10msallcourse.com — ১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস',
+        name: COURSE_BRAND_NAME,
+        alternateName: ['10ms All Courses', '10msallcourses.com'],
         url: baseUrl,
         logo: {
           '@type': 'ImageObject',
-          url: `${baseUrl}/images/logo.png`,
+          url: `${baseUrl}/icon-512.png`,
+          width: 512,
+          height: 512,
         },
       },
       {
         '@type': 'WebSite',
         '@id': `${baseUrl}/#website`,
         url: baseUrl,
-        name: '১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস',
+        name: COURSE_BRAND_NAME,
+        alternateName: ['10ms All Courses', '১০ মিনিট স্কুল কোর্স মার্কেটপ্লেস'],
         inLanguage: 'bn-BD',
         publisher: { '@id': `${baseUrl}/#organization` },
       },
       {
-        '@type': 'CollectionPage',
+        '@type': isCoursePage ? 'WebPage' : 'CollectionPage',
         '@id': `${pageUrl}#webpage`,
         url: pageUrl,
         name: resolved.title,
@@ -852,14 +858,41 @@ export function buildStructuredData(
                 {
                   '@type': 'ListItem',
                   position: 2,
-                  name: resolved.title,
+                  name: crumbName,
                   item: pageUrl,
                 },
               ],
             },
           ]
         : []),
-      ...(matched.length > 0
+      ...(isCoursePage
+        ? [
+            {
+              '@type': 'Course',
+              '@id': `${pageUrl}#course`,
+              name: matched[0].title,
+              url: pageUrl,
+              description: matched[0].description || matched[0].title,
+              inLanguage: 'bn-BD',
+              image:
+                matched[0].imageUrl && matched[0].imageUrl.startsWith('https://')
+                  ? matched[0].imageUrl
+                  : `${baseUrl}/icon-512.png`,
+              provider: { '@type': 'Organization', name: '10 Minute School' },
+              offers: {
+                '@type': 'Offer',
+                priceCurrency: 'BDT',
+                price: matched[0].discountPrice,
+                availability:
+                  matched[0].status === 'active'
+                    ? 'https://schema.org/InStock'
+                    : 'https://schema.org/SoldOut',
+                url: pageUrl,
+              },
+            },
+          ]
+        : []),
+      ...(matched.length > 0 && !isCoursePage
         ? [
             {
               '@type': 'ItemList',
@@ -871,6 +904,7 @@ export function buildStructuredData(
                 item: {
                   '@type': 'Course',
                   name: course.title,
+                  url: `${baseUrl}/courses/${encodeURIComponent(course.slug)}`,
                   description: course.description || course.title,
                   image:
                     course.imageUrl && course.imageUrl.startsWith('https://')
@@ -888,7 +922,7 @@ export function buildStructuredData(
                       course.status === 'active'
                         ? 'https://schema.org/InStock'
                         : 'https://schema.org/SoldOut',
-                    url: `${baseUrl}/go/${course.slug}`,
+                    url: `${baseUrl}/courses/${encodeURIComponent(course.slug)}`,
                   },
                 },
               })),
@@ -897,4 +931,14 @@ export function buildStructuredData(
         : []),
     ],
   };
+}
+
+/** Public courses shown on a route; used for sitemap lastmod from real course dates. */
+export function getRouteCourses(
+  pathname: string,
+  categories: Category[],
+  courses: Course[]
+): Course[] {
+  const resolved = resolveRouteSeo(pathname, categories, null, [], courses);
+  return resolved.filterCourses(courses);
 }

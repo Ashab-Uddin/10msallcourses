@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import { permanentRedirect } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import App from '@/src/App';
+import { CrawlableCatalog, CourseSeoSummary } from '@/src/components/public/CrawlableCatalog';
 import { getCourseBySlug, getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import { decodeCourseSlug, generateUnicodeCourseSlug } from '@/src/lib/courseSlug';
@@ -78,6 +79,10 @@ export default async function CoursePage({ params }: CoursePageProps) {
     matchedCourse = await getCourseBySlug(decodedSlug).catch(() => null);
   }
 
+  if (!matchedCourse) {
+    notFound();
+  }
+
   if (
     matchedCourse &&
     decodedSlug &&
@@ -126,6 +131,8 @@ export default async function CoursePage({ params }: CoursePageProps) {
         initialBookCategories={bookData.bookCategories}
         initialBooks={bookData.books}
       />
+      <CourseSeoSummary course={matchedCourse} />
+      <CrawlableCatalog categories={data.categories} courses={[]} heading="আরও কোর্স ও ক্যাটাগরি" />
     </>
   );
 }

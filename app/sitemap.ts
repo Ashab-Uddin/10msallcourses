@@ -1,103 +1,98 @@
 import { MetadataRoute } from 'next';
 import { getPublicPortalData } from '@/src/db/repository';
-import { getSiteBaseUrl } from '@/src/lib/seo';
-import { getCourseCategorySlugs } from '@/src/lib/categoryMatching';
+import { getRouteCourses, getSiteBaseUrl } from '@/src/lib/seo';
+import { isReservedCategorySlug } from '@/src/lib/courseSlug';
 import { NAVBAR_GROUP_PATHS } from '@/src/lib/navbarCategories';
 
 export const dynamic = 'force-dynamic';
 
+type Freq = MetadataRoute.Sitemap[number]['changeFrequency'];
+
+// Canonical, indexable (HTTP 200, self-canonical) paths only. Aliases such as
+// /ssc/ssc-29, /hsc, /ssc, /class-10 and /academic/* redirect (301) and are excluded.
+const STATIC_PATHS: Array<{ path: string; freq: Freq; priority: number }> = [
+  { path: '/', freq: 'daily', priority: 1.0 },
+  { path: '/hsc/hsc-28', freq: 'weekly', priority: 0.9 },
+  { path: '/hsc/hsc-27', freq: 'weekly', priority: 0.9 },
+  { path: '/hsc/hsc-26', freq: 'weekly', priority: 0.9 },
+  { path: '/ssc/ssc-27', freq: 'weekly', priority: 0.9 },
+  { path: '/ssc/ssc-28', freq: 'weekly', priority: 0.9 },
+  { path: '/class-9', freq: 'weekly', priority: 0.9 },
+  { path: '/class-5', freq: 'monthly', priority: 0.8 },
+  { path: '/class-6', freq: 'monthly', priority: 0.8 },
+  { path: '/class-7', freq: 'monthly', priority: 0.8 },
+  { path: '/class-8', freq: 'monthly', priority: 0.8 },
+  { path: '/skills', freq: 'weekly', priority: 0.85 },
+  { path: '/free-course', freq: 'weekly', priority: 0.85 },
+  { path: '/admission', freq: 'weekly', priority: 0.85 },
+  { path: '/language-learning', freq: 'weekly', priority: 0.85 },
+  { path: '/books', freq: 'weekly', priority: 0.7 },
+  ...Object.values(NAVBAR_GROUP_PATHS).map((path) => ({
+    path,
+    freq: 'weekly' as Freq,
+    priority: 0.8,
+  })),
+];
+
+const ALIAS_SLUGS = new Set(['ssc-29', 'free', 'free-courses', 'school', 'hsc', 'ssc', 'class-10']);
+
+function toDate(raw?: string | null): Date | undefined {
+  if (!raw) return undefined;
+  const ts = new Date(raw).getTime();
+  return Number.isFinite(ts) ? new Date(ts) : undefined;
+}
+
+function latest(dates: Array<Date | undefined>): Date | undefined {
+  let max = 0;
+  for (const d of dates) if (d && d.getTime() > max) max = d.getTime();
+  return max ? new Date(max) : undefined;
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = getSiteBaseUrl();
 
-  const canonicalPaths: Array<{
-    path: string;
-    changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'];
-    priority: number;
-  }> = [
-    { path: '/', changeFrequency: 'daily', priority: 1.0 },
-    { path: '/hsc/hsc-28', changeFrequency: 'weekly', priority: 0.9 },
-    { path: '/hsc/hsc-27', changeFrequency: 'weekly', priority: 0.9 },
-    { path: '/hsc/hsc-26', changeFrequency: 'weekly', priority: 0.9 },
-    { path: '/ssc/ssc-27', changeFrequency: 'weekly', priority: 0.9 },
-    { path: '/ssc/ssc-28', changeFrequency: 'weekly', priority: 0.9 },
-    { path: '/ssc/ssc-29', changeFrequency: 'weekly', priority: 0.9 },
-    { path: '/class-9', changeFrequency: 'weekly', priority: 0.9 },
-    { path: '/class-5', changeFrequency: 'monthly', priority: 0.8 },
-    { path: '/class-6', changeFrequency: 'monthly', priority: 0.8 },
-    { path: '/class-7', changeFrequency: 'monthly', priority: 0.8 },
-    { path: '/class-8', changeFrequency: 'monthly', priority: 0.8 },
-    { path: '/skills', changeFrequency: 'weekly', priority: 0.85 },
-    { path: '/free-course', changeFrequency: 'weekly', priority: 0.85 },
-    { path: '/admission', changeFrequency: 'weekly', priority: 0.85 },
-    { path: '/books', changeFrequency: 'weekly', priority: 0.8 },
-    { path: '/language-learning', changeFrequency: 'weekly', priority: 0.85 },
-    ...Object.values(NAVBAR_GROUP_PATHS).map((path) => ({
-      path,
-      changeFrequency: 'weekly' as const,
-      priority: 0.9,
-    })),
-  ];
-
-  const fallbackNow = new Date();
-  let latestSiteDate = fallbackNow;
-  const categoryLastMod = new Map<string, Date>();
-  let dynamicCategories: Array<{ slug: string; updatedAt?: string }> = [];
-
+  let categories: Awaited<ReturnType<typeof getPublicPortalData>>['categories'] = [];
+  let courses: Awaited<ReturnType<typeof getPublicPortalData>>['courses'] = [];
   try {
     const data = await getPublicPortalData();
-    dynamicCategories = data.categories || [];
-    const candidateDates: number[] = [];
-
-    if (data.settings?.updatedAt) {
-      const ts = new Date(data.settings.updatedAt).getTime();
-      if (Number.isFinite(ts)) candidateDates.push(ts);
-    }
-
-    for (const course of data.courses || []) {
-      const raw = course.updatedAt || course.createdAt;
-      if (!raw) continue;
-      const ts = new Date(raw).getTime();
-      if (!Number.isFinite(ts)) continue;
-      candidateDates.push(ts);
-
-      for (const assignedSlug of getCourseCategorySlugs(course)) {
-        const existing = categoryLastMod.get(assignedSlug);
-        if (!existing || ts > existing.getTime()) {
-          categoryLastMod.set(assignedSlug, new Date(ts));
-        }
-      }
-    }
-
-    if (candidateDates.length > 0) {
-      latestSiteDate = new Date(Math.max(...candidateDates));
-    }
+    categories = data.categories || [];
+    courses = (data.courses || []).filter((c) => c.status === 'active' || c.status === 'closed');
   } catch {
-    // Fall back to canonical entries with current date if repository read fails
+    // Fall back to static entries without lastmod
   }
 
-  const seenUrls = new Set<string>();
-  const entries: MetadataRoute.Sitemap = canonicalPaths.map((item) => {
-    const url = item.path === '/' ? baseUrl : `${baseUrl}${item.path}`;
-    seenUrls.add(url);
-    return {
+  const seen = new Set<string>();
+  const entries: MetadataRoute.Sitemap = [];
+  const add = (path: string, freq: Freq, priority: number, lastModified?: Date) => {
+    const url = path === '/' ? baseUrl : `${baseUrl}${path}`;
+    if (seen.has(url)) return;
+    seen.add(url);
+    entries.push({
       url,
-      lastModified: latestSiteDate,
-      changeFrequency: item.changeFrequency,
-      priority: item.priority,
-    };
-  });
+      ...(lastModified ? { lastModified } : {}),
+      changeFrequency: freq,
+      priority,
+    });
+  };
 
-  for (const cat of dynamicCategories) {
-    const catUrl = `${baseUrl}/${cat.slug}`;
-    if (!seenUrls.has(catUrl)) {
-      seenUrls.add(catUrl);
-      entries.push({
-        url: catUrl,
-        lastModified: categoryLastMod.get(cat.slug) || latestSiteDate,
-        changeFrequency: 'weekly',
-        priority: 0.85,
-      });
-    }
+  const courseDate = (c: (typeof courses)[number]) => toDate(c.updatedAt || c.createdAt);
+
+  for (const item of STATIC_PATHS) {
+    // lastmod = newest course shown on that page; omitted when unknown
+    const pageCourses = item.path === '/books' ? [] : getRouteCourses(item.path, categories, courses);
+    add(item.path, item.freq, item.priority, latest(pageCourses.map(courseDate)));
+  }
+
+  for (const cat of categories) {
+    if ((cat.status || 'active') !== 'active') continue;
+    if (!cat.slug || isReservedCategorySlug(cat.slug) || ALIAS_SLUGS.has(cat.slug.toLowerCase())) continue;
+    const path = `/${encodeURIComponent(cat.slug)}`;
+    const pageCourses = getRouteCourses(path, categories, courses);
+    add(path, 'weekly', 0.75, latest(pageCourses.map(courseDate)));
+  }
+
+  for (const course of courses) {
+    add(`/courses/${encodeURIComponent(course.slug)}`, 'weekly', 0.6, courseDate(course));
   }
 
   return entries;
