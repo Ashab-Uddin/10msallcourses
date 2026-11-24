@@ -235,6 +235,7 @@ export function resolveBatchSelectorIconOrder(
 }
 
 export interface SelectorIconText {
+  tag: string;
   title: string;
   subLabel: string;
 }
@@ -249,26 +250,28 @@ export interface SelectorIconConfig {
 export interface SelectorIconConfigItem {
   iconId: SelectorIconId;
   position: number;
+  tag: string;
   title: string;
   subLabel: string;
 }
 
+export const SELECTOR_ICON_TAG_MAX_LENGTH = 24;
 export const SELECTOR_ICON_TITLE_MAX_LENGTH = 40;
 export const SELECTOR_ICON_SUBLABEL_MAX_LENGTH = 60;
 
 export const DEFAULT_SELECTOR_ICON_TEXTS: Record<SelectorIconId, SelectorIconText> = {
-  'hsc-26': { title: 'HSC ২৬', subLabel: 'এডমিশন ভর্তি চলছে' },
-  'hsc-27': { title: 'HSC ২৭', subLabel: 'অনলাইন ব্যাচ চলছে' },
-  'hsc-28': { title: 'HSC ২৮', subLabel: 'অনলাইন ব্যাচ চলছে' },
-  'ssc-27': { title: 'দশম শ্রেণি', subLabel: 'SSC ২০২৭ ব্যাচ' },
-  'ssc-28': { title: '৯ম শ্রেণি', subLabel: 'SSC ২০২৮ ব্যাচ' },
-  'class-8': { title: '৮ম শ্রেণি', subLabel: 'বার্ষিক অনলাইন ব্যাচ' },
-  'class-7': { title: '৭ম শ্রেণি', subLabel: 'বার্ষিক অনলাইন ব্যাচ' },
-  'class-6': { title: '৬ষ্ঠ শ্রেণি', subLabel: 'বার্ষিক অনলাইন ব্যাচ' },
-  'class-5': { title: '৫ম শ্রেণি', subLabel: 'প্রাথমিক অনলাইন ব্যাচ' },
-  'book-store': { title: 'বুক স্টোর', subLabel: 'প্রিন্টেড মাস্টারবুক' },
-  skills: { title: 'স্কিলস', subLabel: 'ক্যারিয়ার ও আইটি কোর্স' },
-  'free-course': { title: 'ফ্রি কোর্স', subLabel: 'বিনামূল্যে শিখুন' },
+  'hsc-26': { tag: 'HSC 26', title: 'HSC ২৬', subLabel: 'এডমিশন ভর্তি চলছে' },
+  'hsc-27': { tag: 'HSC 27', title: 'HSC ২৭', subLabel: 'অনলাইন ব্যাচ চলছে' },
+  'hsc-28': { tag: 'HSC 28', title: 'HSC ২৮', subLabel: 'অনলাইন ব্যাচ চলছে' },
+  'ssc-27': { tag: 'SSC 27', title: 'দশম শ্রেণি', subLabel: 'SSC ২০২৭ ব্যাচ' },
+  'ssc-28': { tag: 'CLASS 9', title: '৯ম শ্রেণি', subLabel: 'SSC ২০২৮ ব্যাচ' },
+  'class-8': { tag: 'CLASS 8', title: '৮ম শ্রেণি', subLabel: 'বার্ষিক অনলাইন ব্যাচ' },
+  'class-7': { tag: 'CLASS 7', title: '৭ম শ্রেণি', subLabel: 'বার্ষিক অনলাইন ব্যাচ' },
+  'class-6': { tag: 'CLASS 6', title: '৬ষ্ঠ শ্রেণি', subLabel: 'বার্ষিক অনলাইন ব্যাচ' },
+  'class-5': { tag: 'CLASS 5', title: '৫ম শ্রেণি', subLabel: 'প্রাথমিক অনলাইন ব্যাচ' },
+  'book-store': { tag: 'BOOK STORE', title: 'বুক স্টোর', subLabel: 'প্রিন্টেড মাস্টারবুক' },
+  skills: { tag: 'SKILLS', title: 'স্কিলস', subLabel: 'ক্যারিয়ার ও আইটি কোর্স' },
+  'free-course': { tag: 'FREE COURSE', title: 'ফ্রি কোর্স', subLabel: 'বিনামূল্যে শিখুন' },
 };
 
 export function sanitizeSelectorIconText(rawValue: unknown): string {
@@ -281,13 +284,27 @@ export function sanitizeSelectorIconText(rawValue: unknown): string {
 
 export function validateSelectorIconTextFields(
   rawTitle: unknown,
-  rawSubLabel: unknown
+  rawSubLabel: unknown,
+  rawTag?: unknown
 ):
-  | { valid: true; title: string; subLabel: string }
-  | { valid: false; error: string; fieldErrors: { title?: string; subLabel?: string } } {
+  | { valid: true; tag: string; title: string; subLabel: string }
+  | {
+      valid: false;
+      error: string;
+      fieldErrors: { tag?: string; title?: string; subLabel?: string };
+    } {
+  const tag = sanitizeSelectorIconText(rawTag);
   const title = sanitizeSelectorIconText(rawTitle);
   const subLabel = sanitizeSelectorIconText(rawSubLabel);
-  const fieldErrors: { title?: string; subLabel?: string } = {};
+  const fieldErrors: { tag?: string; title?: string; subLabel?: string } = {};
+
+  if (rawTag !== undefined) {
+    if (!tag) {
+      fieldErrors.tag = 'ব্যাজ / আইকন টেক্সট (Badge Text) খালি রাখা যাবে না।';
+    } else if (Array.from(tag).length > SELECTOR_ICON_TAG_MAX_LENGTH) {
+      fieldErrors.tag = `ব্যাজ টেক্সট সর্বোচ্চ ${SELECTOR_ICON_TAG_MAX_LENGTH} অক্ষরের মধ্যে হতে হবে।`;
+    }
+  }
 
   if (!title) {
     fieldErrors.title = 'আইকনের মূল নাম (Title) খালি রাখা যাবে না।';
@@ -301,15 +318,15 @@ export function validateSelectorIconTextFields(
     fieldErrors.subLabel = `সাব নাম সর্বোচ্চ ${SELECTOR_ICON_SUBLABEL_MAX_LENGTH} অক্ষরের মধ্যে হতে হবে।`;
   }
 
-  if (fieldErrors.title || fieldErrors.subLabel) {
+  if (fieldErrors.tag || fieldErrors.title || fieldErrors.subLabel) {
     return {
       valid: false,
-      error: fieldErrors.title || fieldErrors.subLabel || 'অবৈধ ইনপুট।',
+      error: fieldErrors.tag || fieldErrors.title || fieldErrors.subLabel || 'অবৈধ ইনপুট।',
       fieldErrors,
     };
   }
 
-  return { valid: true, title, subLabel };
+  return { valid: true, tag, title, subLabel };
 }
 
 export function cloneDefaultSelectorIconLabels(): SelectorIconLabelsMap {
@@ -326,6 +343,9 @@ export function normalizeSelectorIconLabels(
     | ReadonlyArray<{
         iconId?: unknown;
         icon_id?: unknown;
+        tag?: unknown;
+        badgeText?: unknown;
+        badge_text?: unknown;
         title?: unknown;
         subLabel?: unknown;
         sub_label?: unknown;
@@ -337,11 +357,19 @@ export function normalizeSelectorIconLabels(
 
   const applyEntry = (
     id: SelectorIconId,
+    rawTag: unknown,
     rawTitle: unknown,
     rawSubLabel: unknown
   ) => {
+    const cleanTag = sanitizeSelectorIconText(rawTag);
     const cleanTitle = sanitizeSelectorIconText(rawTitle);
     const cleanSubLabel = sanitizeSelectorIconText(rawSubLabel);
+    if (
+      cleanTag &&
+      Array.from(cleanTag).length <= SELECTOR_ICON_TAG_MAX_LENGTH
+    ) {
+      normalized[id].tag = cleanTag;
+    }
     if (
       cleanTitle &&
       Array.from(cleanTitle).length <= SELECTOR_ICON_TITLE_MAX_LENGTH
@@ -362,21 +390,41 @@ export function normalizeSelectorIconLabels(
       const rec = row as {
         iconId?: unknown;
         icon_id?: unknown;
+        tag?: unknown;
+        badgeText?: unknown;
+        badge_text?: unknown;
         title?: unknown;
         subLabel?: unknown;
         sub_label?: unknown;
       };
       const rawId = rec.iconId ?? rec.icon_id;
       if (!isValidSelectorIconId(rawId)) continue;
-      applyEntry(rawId, rec.title, rec.subLabel ?? rec.sub_label);
+      applyEntry(
+        rawId,
+        rec.tag ?? rec.badgeText ?? rec.badge_text,
+        rec.title,
+        rec.subLabel ?? rec.sub_label
+      );
     }
   } else if (typeof input === 'object') {
     const recMap = input as Record<string, unknown>;
     for (const id of DEFAULT_SELECTOR_ICON_IDS) {
       const entry = recMap[id];
       if (!entry || typeof entry !== 'object') continue;
-      const rec = entry as { title?: unknown; subLabel?: unknown; sub_label?: unknown };
-      applyEntry(id, rec.title, rec.subLabel ?? rec.sub_label);
+      const rec = entry as {
+        tag?: unknown;
+        badgeText?: unknown;
+        badge_text?: unknown;
+        title?: unknown;
+        subLabel?: unknown;
+        sub_label?: unknown;
+      };
+      applyEntry(
+        id,
+        rec.tag ?? rec.badgeText ?? rec.badge_text,
+        rec.title,
+        rec.subLabel ?? rec.sub_label
+      );
     }
   }
 
@@ -392,6 +440,7 @@ export function toSelectorIconConfigItems(
   return normalizedOrder.map((iconId, idx) => ({
     iconId,
     position: idx + 1,
+    tag: normalizedLabels[iconId].tag,
     title: normalizedLabels[iconId].title,
     subLabel: normalizedLabels[iconId].subLabel,
   }));

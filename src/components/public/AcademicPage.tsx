@@ -134,7 +134,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   const mobileSchoolGridOptions: ToggleOption[] = useMemo(
     () => [
       { id: 'ssc-27', label: 'Class 10', subLabel: '১০ম শ্রেণি', path: '/ssc/ssc-27' },
-      { id: 'ssc-28', label: 'Class 9', subLabel: '৯ম শ্রেণি', path: '/ssc/ssc-28' },
+      { id: 'ssc-29', label: 'Class 9', subLabel: '৯ম শ্রেণি', path: '/class-9' },
       { id: 'class8', label: 'Class 8', subLabel: '৮ম শ্রেণি', path: '/class-8' },
       { id: 'class7', label: 'Class 7', subLabel: '৭ম শ্রেণি', path: '/class-7' },
       { id: 'class6', label: 'Class 6', subLabel: '৬ষ্ঠ শ্রেণি', path: '/class-6' },

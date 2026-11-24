@@ -13,6 +13,7 @@ import {
 } from '../types.ts';
 import { normalizeCategoryNavGroup } from '../lib/navbarCategories.ts';
 import {
+  normalizeCategoryCardTitle,
   normalizeCategoryIconKey,
   type CategoryIconKey,
 } from '../lib/categoryIcons.ts';
@@ -90,6 +91,7 @@ const CATEGORY_COURSE_ORDERS_OBJECT = 'category-course-orders.json';
 const COURSE_CATEGORY_ASSIGNMENTS_OBJECT = 'course-category-assignments.json';
 const CATEGORY_NAV_GROUPS_OBJECT = 'category-nav-groups.json';
 const CATEGORY_ICONS_OBJECT = 'category-icons.json';
+const CATEGORY_CARD_TITLES_OBJECT = 'category-card-titles.json';
 const SOCIAL_LINKS_CONFIG_OBJECT = 'social-links-config.json';
 const COURSE_FEATURES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_FEATURES_STORAGE_CACHE_TTL_MS = 30 * 1000;
@@ -99,6 +101,7 @@ const COURSE_CATEGORIES_TABLE_MISSING_TTL_MS = 5 * 60 * 1000;
 const COURSE_CATEGORIES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_NAV_GROUPS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const CATEGORY_ICONS_STORAGE_CACHE_TTL_MS = 30 * 1000;
+const CATEGORY_CARD_TITLES_STORAGE_CACHE_TTL_MS = 30 * 1000;
 const SOCIAL_LINKS_STORAGE_CACHE_TTL_MS = 30 * 1000;
 
 let courseFeaturesTableMissingUntil = 0;
@@ -133,6 +136,12 @@ let cachedCategoryIconsStorage: {
   expiresAt: number;
 } | null = null;
 let inFlightCategoryIconsStorageRead: Promise<Record<string, CategoryIconKey>> | null = null;
+
+let cachedCategoryCardTitlesStorage: {
+  data: Record<string, string>;
+  expiresAt: number;
+} | null = null;
+let inFlightCategoryCardTitlesStorageRead: Promise<Record<string, string>> | null = null;
 
 interface SocialLinksConfig {
   facebookLink?: string;
@@ -399,12 +408,15 @@ async function writeCategoryNavGroupsToStorage(
 function attachNavGroupsToCategories(
   categories: Category[],
   navGroupsMap: Record<string, CategoryNavAssignment>,
-  iconsMap?: Record<string, CategoryIconKey>
+  iconsMap?: Record<string, CategoryIconKey>,
+  cardTitlesMap?: Record<string, string>
 ): Category[] {
   return categories.map((cat) => ({
     ...cat,
     navGroup: navGroupsMap[String(cat.id)] ?? normalizeCategoryNavGroup(cat.navGroup),
     iconKey: iconsMap?.[String(cat.id)] ?? normalizeCategoryIconKey(cat.iconKey),
+    cardTitle:
+      cardTitlesMap?.[String(cat.id)] ?? normalizeCategoryCardTitle(cat.cardTitle),
   }));
 }
 
@@ -529,6 +541,129 @@ async function writeCategoryIconsToStorage(
   }
 
   throw new RepositoryError('ক্যাটাগরি আইকন কনফিগারেশন সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
+}
+
+function normalizeCategoryCardTitlesMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {};
+  const result: Record<string, string> = {};
+  for (const [rawId, rawVal] of Object.entries(raw as Record<string, unknown>)) {
+    const idNum = Number(rawId);
+    if (!Number.isInteger(idNum) || idNum <= 0) continue;
+    const normalized = normalizeCategoryCardTitle(rawVal);
+    if (normalized) {
+      result[String(idNum)] = normalized;
+    }
+  }
+  return result;
+}
+
+async function readCategoryCardTitlesFromStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  options?: { bypassCache?: boolean }
+): Promise<Record<string, string>> {
+  if (
+    !options?.bypassCache &&
+    cachedCategoryCardTitlesStorage &&
+    Date.now() < cachedCategoryCardTitlesStorage.expiresAt
+  ) {
+    return { ...cachedCategoryCardTitlesStorage.data };
+  }
+
+  if (!options?.bypassCache && inFlightCategoryCardTitlesStorageRead) {
+    const shared = await inFlightCategoryCardTitlesStorageRead;
+    return { ...shared };
+  }
+
+  const reader = (async (): Promise<Record<string, string>> => {
+    try {
+      const { data, error } = await supabase.storage
+        .from(SELECTOR_ICON_CONFIG_BUCKET)
+        .download(CATEGORY_CARD_TITLES_OBJECT);
+      if (error || !data) {
+        cachedCategoryCardTitlesStorage = {
+          data: {},
+          expiresAt: Date.now() + CATEGORY_CARD_TITLES_STORAGE_CACHE_TTL_MS,
+        };
+        return {};
+      }
+      const text = await data.text();
+      const parsed = JSON.parse(text) as { cardTitles?: unknown };
+      const normalized = normalizeCategoryCardTitlesMap(parsed?.cardTitles ?? parsed);
+      cachedCategoryCardTitlesStorage = {
+        data: normalized,
+        expiresAt: Date.now() + CATEGORY_CARD_TITLES_STORAGE_CACHE_TTL_MS,
+      };
+      return normalized;
+    } catch {
+      return {};
+    } finally {
+      inFlightCategoryCardTitlesStorageRead = null;
+    }
+  })();
+
+  if (!options?.bypassCache) {
+    inFlightCategoryCardTitlesStorageRead = reader;
+  }
+
+  const result = await reader;
+  return { ...result };
+}
+
+async function writeCategoryCardTitlesToStorage(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  map: Record<string, string>
+): Promise<void> {
+  const normalized = normalizeCategoryCardTitlesMap(map);
+  const payload = Buffer.from(
+    JSON.stringify(
+      {
+        cardTitles: normalized,
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
+
+  const attemptUpload = async () =>
+    supabase.storage
+      .from(SELECTOR_ICON_CONFIG_BUCKET)
+      .upload(CATEGORY_CARD_TITLES_OBJECT, payload, {
+        upsert: true,
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: '0',
+      });
+
+  const first = await attemptUpload();
+  if (!first.error) {
+    cachedCategoryCardTitlesStorage = {
+      data: normalized,
+      expiresAt: Date.now() + CATEGORY_CARD_TITLES_STORAGE_CACHE_TTL_MS,
+    };
+    return;
+  }
+
+  const errMsg = String(first.error.message || '').toLowerCase();
+  if (errMsg.includes('not found') || errMsg.includes('bucket')) {
+    const { error: createErr } = await supabase.storage.createBucket(
+      SELECTOR_ICON_CONFIG_BUCKET,
+      { public: false }
+    );
+    if (createErr && !String(createErr.message || '').toLowerCase().includes('already exists')) {
+      throw new RepositoryError('ক্যাটাগরি কার্ড টাইটেল স্টোরেজ বাকেট তৈরি করতে সমস্যা হয়েছে।', 500);
+    }
+    const retry = await attemptUpload();
+    if (!retry.error) {
+      cachedCategoryCardTitlesStorage = {
+        data: normalized,
+        expiresAt: Date.now() + CATEGORY_CARD_TITLES_STORAGE_CACHE_TTL_MS,
+      };
+      return;
+    }
+  }
+
+  throw new RepositoryError('ক্যাটাগরি কার্ড টাইটেল সংরক্ষণ করতে সমস্যা হয়েছে।', 500);
 }
 
 function cloneCourseFeaturesStorageMap(
@@ -816,8 +951,10 @@ function isMissingSelectorIconsError(err: unknown): boolean {
     (msg.includes('selector_icons') ||
       msg.includes('save_selector_icon_positions') ||
       msg.includes('save_selector_icons_config') ||
+      msg.includes('save_selector_icons_config_v2') ||
       msg.includes('sub_label') ||
-      msg.includes('title'))
+      msg.includes('title') ||
+      msg.includes('tag'))
   );
 }
 
@@ -826,7 +963,17 @@ function isMissingSelectorLabelColumnError(err: unknown): boolean {
   const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
   return (
     (pg.code === '42703' || pg.code === 'PGRST204' || msg.includes('schema cache') || msg.includes('does not exist')) &&
-    (msg.includes('title') || msg.includes('sub_label')) &&
+    (msg.includes('title') || msg.includes('sub_label') || msg.includes('tag')) &&
+    !msg.includes('relation')
+  );
+}
+
+function isMissingSelectorTagColumnOnlyError(err: unknown): boolean {
+  const pg = (err || {}) as PgErrorLike;
+  const msg = `${pg.code || ''} ${pg.message || ''} ${pg.details || ''}`.toLowerCase();
+  return (
+    (pg.code === '42703' || pg.code === 'PGRST204' || msg.includes('schema cache') || msg.includes('does not exist')) &&
+    msg.includes('tag') &&
     !msg.includes('relation')
   );
 }
@@ -923,11 +1070,41 @@ export async function sbGetSelectorIconConfig(): Promise<SelectorIconConfig> {
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from('selector_icons')
-    .select('icon_id, position, title, sub_label')
+    .select('icon_id, position, title, sub_label, tag')
     .order('position', { ascending: true })
     .order('icon_id', { ascending: true });
 
   if (error) {
+    if (isMissingSelectorTagColumnOnlyError(error)) {
+      const [legacyLabelRes, storageConfig] = await Promise.all([
+        supabase
+          .from('selector_icons')
+          .select('icon_id, position, title, sub_label')
+          .order('position', { ascending: true })
+          .order('icon_id', { ascending: true }),
+        readSelectorIconConfigFromStorage(supabase),
+      ]);
+      if (!legacyLabelRes.error && Array.isArray(legacyLabelRes.data) && legacyLabelRes.data.length > 0) {
+        const sqlLabels = normalizeSelectorIconLabels(
+          legacyLabelRes.data as Array<{ icon_id?: unknown; title?: unknown; sub_label?: unknown }>
+        );
+        const mergedLabels = {} as SelectorIconLabelsMap;
+        for (const id of DEFAULT_SELECTOR_ICON_IDS) {
+          mergedLabels[id] = {
+            tag: storageConfig.labels[id].tag,
+            title: sqlLabels[id].title,
+            subLabel: sqlLabels[id].subLabel,
+          };
+        }
+        return {
+          orderedIds: normalizeSelectorIconOrder(
+            legacyLabelRes.data as Array<{ icon_id?: unknown; position?: unknown }>
+          ),
+          labels: mergedLabels,
+        };
+      }
+    }
+
     if (isMissingSelectorLabelColumnError(error)) {
       const [posRes, storageConfig] = await Promise.all([
         supabase
@@ -963,7 +1140,7 @@ export async function sbGetSelectorIconConfig(): Promise<SelectorIconConfig> {
       data as Array<{ icon_id?: unknown; position?: unknown }>
     ),
     labels: normalizeSelectorIconLabels(
-      data as Array<{ icon_id?: unknown; title?: unknown; sub_label?: unknown }>
+      data as Array<{ icon_id?: unknown; tag?: unknown; title?: unknown; sub_label?: unknown }>
     ),
   };
 }
@@ -978,22 +1155,24 @@ export async function sbSaveSelectorIconConfig(input: {
 
   const pTitles = normalizedOrder.map((id) => normalizedLabels[id].title);
   const pSubLabels = normalizedOrder.map((id) => normalizedLabels[id].subLabel);
+  const pTags = normalizedOrder.map((id) => normalizedLabels[id].tag);
 
-  const { data, error } = await supabase.rpc('save_selector_icons_config', {
+  const v2Res = await supabase.rpc('save_selector_icons_config_v2', {
     p_ordered_ids: normalizedOrder,
     p_titles: pTitles,
     p_sub_labels: pSubLabels,
+    p_tags: pTags,
   });
 
-  if (!error) {
-    const rows = Array.isArray(data) ? data : [];
+  if (!v2Res.error) {
+    const rows = Array.isArray(v2Res.data) ? v2Res.data : [];
     return rows.length > 0
       ? {
           orderedIds: normalizeSelectorIconOrder(
             rows as Array<{ icon_id?: unknown; position?: unknown }>
           ),
           labels: normalizeSelectorIconLabels(
-            rows as Array<{ icon_id?: unknown; title?: unknown; sub_label?: unknown }>
+            rows as Array<{ icon_id?: unknown; tag?: unknown; title?: unknown; sub_label?: unknown }>
           ),
         }
       : {
@@ -1002,15 +1181,28 @@ export async function sbSaveSelectorIconConfig(input: {
         };
   }
 
-  if (isMissingSelectorIconsError(error)) {
-    // If table/legacy position RPC exists (0011 without 0012), keep SQL positions synced too
-    const legacyRes = await supabase.rpc('save_selector_icon_positions', {
+  if (isMissingSelectorIconsError(v2Res.error)) {
+    const v1Res = await supabase.rpc('save_selector_icons_config', {
       p_ordered_ids: normalizedOrder,
+      p_titles: pTitles,
+      p_sub_labels: pSubLabels,
     });
-    if (legacyRes.error && !isMissingSelectorIconsError(legacyRes.error)) {
-      throw mapPgError(legacyRes.error, 'আইকনের পজিশন সংরক্ষণ করতে সমস্যা হয়েছে।');
+
+    if (v1Res.error && !isMissingSelectorIconsError(v1Res.error)) {
+      throw mapPgError(v1Res.error, 'আইকনের তথ্য ও পজিশন সংরক্ষণ করতে সমস্যা হয়েছে।');
     }
 
+    if (v1Res.error && isMissingSelectorIconsError(v1Res.error)) {
+      // If table/legacy position RPC exists (0011 without 0012), keep SQL positions synced too
+      const legacyRes = await supabase.rpc('save_selector_icon_positions', {
+        p_ordered_ids: normalizedOrder,
+      });
+      if (legacyRes.error && !isMissingSelectorIconsError(legacyRes.error)) {
+        throw mapPgError(legacyRes.error, 'আইকনের পজিশন সংরক্ষণ করতে সমস্যা হয়েছে।');
+      }
+    }
+
+    // Always persist full config (including tag) in storage when 0013 SQL migration isn't applied yet
     await writeSelectorIconConfigToStorage(supabase, {
       orderedIds: normalizedOrder,
       labels: normalizedLabels,
@@ -1021,7 +1213,7 @@ export async function sbSaveSelectorIconConfig(input: {
     };
   }
 
-  throw mapPgError(error, 'আইকনের তথ্য ও পজিশন সংরক্ষণ করতে সমস্যা হয়েছে।');
+  throw mapPgError(v2Res.error, 'আইকনের তথ্য ও পজিশন সংরক্ষণ করতে সমস্যা হয়েছে।');
 }
 
 export async function sbGetSelectorIconOrder(): Promise<SelectorIconId[]> {
@@ -1829,6 +2021,9 @@ function mapCategoryRow(row: Record<string, unknown>): Category {
     ...(row.icon_key !== undefined
       ? { iconKey: normalizeCategoryIconKey(row.icon_key) }
       : {}),
+    ...(row.card_title !== undefined
+      ? { cardTitle: normalizeCategoryCardTitle(row.card_title) }
+      : {}),
     createdAt: row.created_at ? String(row.created_at) : null,
   };
 }
@@ -2024,6 +2219,7 @@ async function sbFetchPublicPortalBase() {
     courseCategoriesMap,
     categoryNavGroupsMap,
     categoryIconsMap,
+    categoryCardTitlesMap,
     socialLinksConfig,
   ] = await Promise.all([
     supabase
@@ -2051,6 +2247,7 @@ async function sbFetchPublicPortalBase() {
     sbFetchCourseCategoriesMap(supabase),
     readCategoryNavGroupsFromStorage(supabase),
     readCategoryIconsFromStorage(supabase),
+    readCategoryCardTitlesFromStorage(supabase),
     readSocialLinksFromStorage(supabase),
   ]);
 
@@ -2063,7 +2260,8 @@ async function sbFetchPublicPortalBase() {
     attachNavGroupsToCategories(
       (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
       categoryNavGroupsMap,
-      categoryIconsMap
+      categoryIconsMap,
+      categoryCardTitlesMap
     )
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
@@ -2416,6 +2614,7 @@ export async function sbGetAdminOverviewData() {
     courseCategoriesMap,
     categoryNavGroupsMap,
     categoryIconsMap,
+    categoryCardTitlesMap,
     socialLinksConfig,
   ] = await Promise.all([
     supabase
@@ -2443,6 +2642,7 @@ export async function sbGetAdminOverviewData() {
     sbFetchCourseCategoriesMap(supabase),
     readCategoryNavGroupsFromStorage(supabase),
     readCategoryIconsFromStorage(supabase),
+    readCategoryCardTitlesFromStorage(supabase),
     readSocialLinksFromStorage(supabase),
   ]);
 
@@ -2456,7 +2656,8 @@ export async function sbGetAdminOverviewData() {
     attachNavGroupsToCategories(
       (catRes.data || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
       categoryNavGroupsMap,
-      categoryIconsMap
+      categoryIconsMap,
+      categoryCardTitlesMap
     )
   );
   const rawCourseRows = (courseRes.data || []) as Array<Record<string, unknown>>;
@@ -3962,6 +4163,7 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
   const cleanStatus = input.status === 'inactive' ? 'inactive' : 'active';
   const requestedNavGroup = normalizeCategoryNavGroup(input.navGroup);
   const requestedIconKey = normalizeCategoryIconKey(input.iconKey);
+  const requestedCardTitle = normalizeCategoryCardTitle(input.cardTitle);
 
   const insertedRow = await enqueueSupabaseCategoryWrite(async () => {
     const { data: rpcData, error: rpcErr } = await supabase.rpc(
@@ -4106,10 +4308,23 @@ export async function sbCreateNewCategory(input: Record<string, unknown>): Promi
     }
   }
 
+  if (requestedCardTitle) {
+    const cardTitleMap = await readCategoryCardTitlesFromStorage(supabase, { bypassCache: true });
+    cardTitleMap[String(created.id)] = requestedCardTitle;
+    await writeCategoryCardTitlesToStorage(supabase, cardTitleMap);
+    if (Object.prototype.hasOwnProperty.call(insertedRow, 'card_title')) {
+      await supabase
+        .from('categories')
+        .update({ card_title: requestedCardTitle })
+        .eq('id', created.id);
+    }
+  }
+
   return {
     ...created,
     navGroup: requestedNavGroup,
     iconKey: requestedIconKey,
+    cardTitle: requestedCardTitle,
   };
 }
 
@@ -4178,10 +4393,16 @@ export async function sbUpdateExistingCategory(
     existingRow as Record<string, unknown>,
     'icon_key'
   );
+  const hasCardTitleColumn = Object.prototype.hasOwnProperty.call(
+    existingRow as Record<string, unknown>,
+    'card_title'
+  );
   const requestedNavGroup =
     input.navGroup !== undefined ? normalizeCategoryNavGroup(input.navGroup) : undefined;
   const requestedIconKey =
     input.iconKey !== undefined ? normalizeCategoryIconKey(input.iconKey) : undefined;
+  const requestedCardTitle =
+    input.cardTitle !== undefined ? normalizeCategoryCardTitle(input.cardTitle) : undefined;
 
   const updatePayload = {
     name: nextName.slice(0, 120),
@@ -4209,6 +4430,9 @@ export async function sbUpdateExistingCategory(
     ...(hasIconKeyColumn && requestedIconKey !== undefined
       ? { icon_key: requestedIconKey }
       : {}),
+    ...(hasCardTitleColumn && requestedCardTitle !== undefined
+      ? { card_title: requestedCardTitle }
+      : {}),
   };
 
   // Trigger `trg_categories_sync_course_slug` automatically cascades slug rename to linked courses.
@@ -4235,9 +4459,10 @@ export async function sbUpdateExistingCategory(
     throw mapPgError(error, 'ক্যাটাগরি আপডেট ব্যর্থ হয়েছে।');
   }
 
-  const [navMap, iconMap] = await Promise.all([
+  const [navMap, iconMap, cardTitleMap] = await Promise.all([
     readCategoryNavGroupsFromStorage(supabase, { bypassCache: true }),
     readCategoryIconsFromStorage(supabase, { bypassCache: true }),
+    readCategoryCardTitlesFromStorage(supabase, { bypassCache: true }),
   ]);
 
   if (requestedNavGroup !== undefined) {
@@ -4261,6 +4486,18 @@ export async function sbUpdateExistingCategory(
     } else {
       iconMap[String(id)] = requestedIconKey;
       await writeCategoryIconsToStorage(supabase, iconMap);
+    }
+  }
+
+  if (requestedCardTitle !== undefined) {
+    if (!requestedCardTitle) {
+      if (Object.prototype.hasOwnProperty.call(cardTitleMap, String(id))) {
+        delete cardTitleMap[String(id)];
+        await writeCategoryCardTitlesToStorage(supabase, cardTitleMap);
+      }
+    } else {
+      cardTitleMap[String(id)] = requestedCardTitle;
+      await writeCategoryCardTitlesToStorage(supabase, cardTitleMap);
     }
   }
 
@@ -4314,6 +4551,10 @@ export async function sbUpdateExistingCategory(
       requestedIconKey !== undefined
         ? requestedIconKey
         : iconMap[String(id)] ?? normalizeCategoryIconKey(mapped.iconKey),
+    cardTitle:
+      requestedCardTitle !== undefined
+        ? requestedCardTitle
+        : cardTitleMap[String(id)] ?? normalizeCategoryCardTitle(mapped.cardTitle),
   };
 }
 
@@ -4393,7 +4634,7 @@ export async function sbSwapCategoryOrder(
     }
   }
 
-  const [{ data: sortedRows, error: fetchSortedErr }, navGroupsMap, iconsMap] = await Promise.all([
+  const [{ data: sortedRows, error: fetchSortedErr }, navGroupsMap, iconsMap, cardTitlesMap] = await Promise.all([
     supabase
       .from('categories')
       .select('*')
@@ -4401,6 +4642,7 @@ export async function sbSwapCategoryOrder(
       .order('id', { ascending: true }),
     readCategoryNavGroupsFromStorage(supabase),
     readCategoryIconsFromStorage(supabase),
+    readCategoryCardTitlesFromStorage(supabase),
   ]);
 
   if (fetchSortedErr) throw mapPgError(fetchSortedErr, 'ক্যাটাগরি তালিকা লোড ব্যর্থ হয়েছে।');
@@ -4408,7 +4650,8 @@ export async function sbSwapCategoryOrder(
     attachNavGroupsToCategories(
       (sortedRows || []).map((r) => mapCategoryRow(r as Record<string, unknown>)),
       navGroupsMap,
-      iconsMap
+      iconsMap,
+      cardTitlesMap
     )
   );
 }
@@ -4472,9 +4715,10 @@ export async function sbDeleteCategoryById(
   }
 
   try {
-    const [navMap, iconMap] = await Promise.all([
+    const [navMap, iconMap, cardTitleMap] = await Promise.all([
       readCategoryNavGroupsFromStorage(supabase, { bypassCache: true }),
       readCategoryIconsFromStorage(supabase, { bypassCache: true }),
+      readCategoryCardTitlesFromStorage(supabase, { bypassCache: true }),
     ]);
     if (Object.prototype.hasOwnProperty.call(navMap, String(id))) {
       delete navMap[String(id)];
@@ -4483,6 +4727,10 @@ export async function sbDeleteCategoryById(
     if (Object.prototype.hasOwnProperty.call(iconMap, String(id))) {
       delete iconMap[String(id)];
       await writeCategoryIconsToStorage(supabase, iconMap);
+    }
+    if (Object.prototype.hasOwnProperty.call(cardTitleMap, String(id))) {
+      delete cardTitleMap[String(id)];
+      await writeCategoryCardTitlesToStorage(supabase, cardTitleMap);
     }
   } catch {
     // Non-fatal cleanup

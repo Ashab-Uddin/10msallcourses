@@ -40,9 +40,16 @@ export const BATCH_KEYWORD_OPTIONS: BatchKeywordOption[] = [
   {
     id: 'ssc-2028',
     label: 'SSC 2028',
+    subLabel: 'SSC ২০২৮',
+    matcher:
+      /(?:^|[\s,|/(\[])(?:ssc[\s-]*(?:2028|28|২০২৮|২৮)|এসএসসি[\s-]*(?:2028|28|২০২৮|২৮))(?=$|[\s,|/)\].!])/i,
+  },
+  {
+    id: 'ssc-2029',
+    label: 'SSC 2029',
     subLabel: '৯ম শ্রেণি',
     matcher:
-      /(?:^|[\s,|/(\[])(?:ssc[\s-]*(?:2028|28|২০২৮|২৮)|এসএসসি[\s-]*(?:2028|28|২০২৮|২৮)|class[\s-]*9|(?:৯ম|নবম)(?:[\s-]*শ্রে[ণন]ি)?)(?=$|[\s,|/)\].!])/i,
+      /(?:^|[\s,|/(\[])(?:ssc[\s-]*(?:2029|29|২০২৯|২৯)|এসএসসি[\s-]*(?:2029|29|২০২৯|২৯)|class[\s-]*9|(?:৯ম|নবম)(?:[\s-]*শ্রে[ণন]ি)?)(?=$|[\s,|/)\].!])/i,
   },
   {
     id: 'class-5',
@@ -128,8 +135,12 @@ export function normalizeTargetBatchId(raw: unknown): string | null {
     ssc28: 'ssc-2028',
     'ssc-2028': 'ssc-2028',
     ssc2028: 'ssc-2028',
-    class9: 'ssc-2028',
-    'class-9': 'ssc-2028',
+    'ssc-29': 'ssc-2029',
+    ssc29: 'ssc-2029',
+    'ssc-2029': 'ssc-2029',
+    ssc2029: 'ssc-2029',
+    class9: 'ssc-2029',
+    'class-9': 'ssc-2029',
     class5: 'class-5',
     'class-5': 'class-5',
     class6: 'class-6',

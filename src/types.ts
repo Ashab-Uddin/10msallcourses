@@ -8,6 +8,7 @@ export interface Category {
   name: string;
   slug: string;
   subtitle: string | null;
+  cardTitle?: string | null;
   badgeColor: string;
   displayOrder: number;
   status: string;
@@ -189,7 +190,7 @@ export interface AdminOverviewData {
   settings: SiteSettings | null;
   offerTimers: OfferTimer[];
   selectorIconOrder?: string[];
-  selectorIconLabels?: Record<string, { title?: string; subLabel?: string }>;
+  selectorIconLabels?: Record<string, { tag?: string; title?: string; subLabel?: string }>;
   categoryCourseOrders?: Record<string, number[]>;
   storageInfo?: {
     backend: string;

@@ -303,32 +303,42 @@ function resolveSelectorIconTarget(
     };
   }
 
-  // 1. ৯ম শ্রেণি (CLASS 9 / SSC 28)
+  // 1. ৯ম শ্রেণি (CLASS 9 / SSC 29)
   if (def.id === 'ssc-28') {
     const matched =
       activeCategories.find(
-        (c) => categorySlugsMatch(c.slug, 'ssc-28') || categorySlugsMatch(c.slug, 'class-9')
+        (c) =>
+          categorySlugsMatch(c.slug, 'class-9') ||
+          categorySlugsMatch(c.slug, 'ssc-29') ||
+          categorySlugsMatch(c.slug, 'ssc-2029') ||
+          categorySlugsMatch(c.slug, 'ssc-28')
       ) ||
       activeCategories.find((c) =>
         categoryMatchesAnyToken(
           c,
           [
+            'ssc-29',
+            'ssc 29',
+            'ssc29',
+            'ssc-2029',
+            'ssc 2029',
+            'ssc2029',
+            'ssc ২৯',
+            'ssc ২০২৯',
+            'এসএসসি ২৯',
+            '৯ম',
+            'নবম',
+            'class-9',
+            'class 9',
+            'class9',
             'ssc-28',
             'ssc 28',
             'ssc28',
             'ssc-2028',
             'ssc 2028',
             'ssc2028',
-            'ssc ২৮',
-            'ssc ২০২৮',
-            'এসএসসি ২৮',
-            '৯ম',
-            'নবম',
-            'class-9',
-            'class 9',
-            'class9',
           ],
-          ['hsc', 'এইচএসসি']
+          ['hsc', 'এইচএসসি', '১০ম', 'দশম', 'class-10', 'class 10']
         )
       );
     if (matched) {
@@ -522,6 +532,7 @@ export function getOrderedSelectorIcons(
       const def = SELECTOR_ICON_MAP.get(id);
       if (!def) return null;
       const custom = normalizedLabels[id];
+      const tag = custom?.tag || def.tag;
       const title = custom?.title || def.title;
       const subLabel = custom?.subLabel || def.subLabel;
       const resolvedTarget = resolveSelectorIconTarget(
@@ -540,6 +551,7 @@ export function getOrderedSelectorIcons(
         ...def,
         ...resolvedTarget,
         Icon: resolvedIcon,
+        tag,
         title,
         subLabel,
       };

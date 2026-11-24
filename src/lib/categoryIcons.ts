@@ -1,6 +1,11 @@
 import type { Category } from '../types.ts';
 import { normalizeCategoryMatchText } from './categoryMatching.ts';
 import { resolveCategoryNavGroup, type NavbarGroupKey } from './navbarCategories.ts';
+import {
+  DEFAULT_SELECTOR_ICON_TEXTS,
+  type SelectorIconId,
+  type SelectorIconText,
+} from './selectorIconOrder.ts';
 
 export const RESOLVED_CATEGORY_ICON_KEYS = [
   'atom',
@@ -154,7 +159,7 @@ export function inferCategoryIconKey(
   if (includesAny(nameAndSlug, ['class 8', 'class-8', '৮ম', 'অষ্টম'])) {
     return 'backpack';
   }
-  if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'নবম', 'ssc 28', 'ssc-28'])) {
+  if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'নবম', 'ssc 29', 'ssc-29', 'ssc 2029', 'ssc ২৯', 'ssc ২০২৯'])) {
     return 'lightbulb';
   }
   if (includesAny(nameAndSlug, ['শেষ মুহূর্ত', 'smp', 'চূড়ান্ত'])) {
@@ -401,9 +406,12 @@ function resolveCategoryTag(
     if (includesAny(nameAndSlug, ['class 6', 'class-6', '৬ষ্ঠ'])) return 'CLASS 6';
     if (includesAny(nameAndSlug, ['class 7', 'class-7', '৭ম'])) return 'CLASS 7';
     if (includesAny(nameAndSlug, ['class 8', 'class-8', '৮ম'])) return 'CLASS 8';
-    if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'ssc 28', 'ssc-28'])) return 'CLASS 9';
+    if (includesAny(nameAndSlug, ['ssc 29', 'ssc-29', 'ssc 2029', 'ssc ২৯', 'ssc ২০২৯'])) return 'SSC 29';
+    if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম'])) return 'SSC 29';
     if (includesAny(nameAndSlug, ['শেষ মুহূর্ত', 'smp'])) return 'SSC · SMP';
-    if (includesAny(nameAndSlug, ['ssc 27', 'ssc-27', 'দশম', '১০ম'])) return 'SSC 27';
+    if (includesAny(nameAndSlug, ['ssc 27', 'ssc-27', 'ssc 28', 'ssc-28', 'দশম', '১০ম'])) {
+      return includesAny(nameAndSlug, ['28', '২৮']) ? 'SSC 28' : 'SSC 27';
+    }
     return 'SSC · 6–10';
   }
   if (navGroup === 'skills' || includesAny(nameAndSlug, ['skill', 'স্কিল'])) {
@@ -446,7 +454,7 @@ export function resolveCategoryCardTheme(
     themeKey = 'teal';
   } else if (includesAny(nameAndSlug, ['hsc 27', 'hsc-27'])) {
     themeKey = 'blue';
-  } else if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'ssc 28', 'ssc-28'])) {
+  } else if (includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'নবম', 'ssc 29', 'ssc-29', 'ssc 2029', 'ssc ২৯', 'ssc ২০২৯'])) {
     themeKey = 'purple';
   } else if (includesAny(nameAndSlug, ['শেষ মুহূর্ত', 'smp'])) {
     themeKey = 'indigo';
@@ -471,4 +479,174 @@ export function resolveCategoryCardTheme(
     tag: resolveCategoryTag(cat),
     ...CARD_THEME_PALETTES[themeKey],
   };
+}
+
+export const CATEGORY_CARD_TITLE_MAX_LENGTH = 60;
+
+export function normalizeCategoryCardTitle(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return null;
+  return Array.from(cleaned).slice(0, CATEGORY_CARD_TITLE_MAX_LENGTH).join('');
+}
+
+export function resolveMatchedSelectorIconIdForCategory(
+  cat: Pick<Category, 'name' | 'slug' | 'navGroup'>
+): SelectorIconId | null {
+  const slugLower = String(cat.slug || '').trim().toLowerCase();
+  const nameAndSlug = normalizeCategoryMatchText(`${cat.name || ''} ${cat.slug || ''}`);
+
+  if (slugLower === 'skills') return 'skills';
+  if (slugLower === 'free-course') return 'free-course';
+  if (slugLower === 'admission') return 'hsc-26';
+  if (slugLower === 'hsc-27') return 'hsc-27';
+  if (slugLower === 'hsc-28') return 'hsc-28';
+
+  if (includesAny(nameAndSlug, ['class 5', 'class-5', '৫ম', 'পঞ্চম'])) {
+    return 'class-5';
+  }
+  if (includesAny(nameAndSlug, ['class 6', 'class-6', '৬ষ্ঠ', 'ষষ্ঠ'])) {
+    return 'class-6';
+  }
+  if (includesAny(nameAndSlug, ['class 7', 'class-7', '৭ম', 'সপ্তম'])) {
+    return 'class-7';
+  }
+  if (includesAny(nameAndSlug, ['class 8', 'class-8', '৮ম', 'অষ্টম'])) {
+    return 'class-8';
+  }
+
+  const isHscOrSmp = includesAny(nameAndSlug, ['hsc', 'এইচএসসি', 'শেষ মুহূর্ত', 'smp']);
+  if (!isHscOrSmp) {
+    if (
+      includesAny(nameAndSlug, [
+        'class 9',
+        'class-9',
+        '৯ম',
+        'নবম',
+        'ssc 29',
+        'ssc-29',
+        'ssc 2029',
+        'ssc ২৯',
+        'ssc ২০২৯',
+      ])
+    ) {
+      return 'ssc-28';
+    }
+    if (
+      includesAny(nameAndSlug, [
+        '১০ম',
+        'দশম',
+        'class 10',
+        'class-10',
+        'ssc 27',
+        'ssc-27',
+        'ssc 2027',
+        'ssc ২৭',
+        'ssc ২০২৭',
+        'ssc 28',
+        'ssc-28',
+        'ssc 2028',
+        'ssc ২৮',
+        'ssc ২০২৮',
+      ])
+    ) {
+      return 'ssc-27';
+    }
+  }
+
+  return null;
+}
+
+export function resolveCategoryCardBatchTitle(
+  cat: Pick<Category, 'name' | 'slug' | 'subtitle' | 'navGroup' | 'cardTitle'>,
+  selectorIconLabels?: Partial<Record<string, Partial<SelectorIconText>>> | null
+): string {
+  const customCardTitle = normalizeCategoryCardTitle(cat.cardTitle);
+  if (customCardTitle) {
+    return customCardTitle;
+  }
+
+  const matchedIconId = resolveMatchedSelectorIconIdForCategory(cat);
+  if (matchedIconId) {
+    const customLabel = normalizeCategoryCardTitle(selectorIconLabels?.[matchedIconId]?.subLabel);
+    if (customLabel) {
+      return customLabel;
+    }
+    const nameAndSlug = normalizeCategoryMatchText(`${cat.name || ''} ${cat.slug || ''}`);
+    if (
+      matchedIconId === 'ssc-28' &&
+      includesAny(nameAndSlug, ['class 9', 'class-9', '৯ম', 'নবম', '29', '২৯'])
+    ) {
+      return 'SSC ২০২৯ ব্যাচ';
+    }
+    if (
+      matchedIconId === 'ssc-27' &&
+      includesAny(nameAndSlug, ['28', '২৮'])
+    ) {
+      return 'SSC ২০২৮ ব্যাচ';
+    }
+    return DEFAULT_SELECTOR_ICON_TEXTS[matchedIconId].subLabel;
+  }
+
+  const nameAndSlug = normalizeCategoryMatchText(`${cat.name || ''} ${cat.slug || ''}`);
+  const navGroup = resolveCategoryNavGroup(cat);
+
+  if (includesAny(nameAndSlug, ['শেষ মুহূর্ত', 'smp'])) {
+    if (includesAny(nameAndSlug, ['hsc 27', 'hsc-27'])) return 'HSC ২৭ রিভিশন ব্যাচ';
+    if (includesAny(nameAndSlug, ['hsc 28', 'hsc-28'])) return 'HSC ২৮ রিভিশন ব্যাচ';
+    if (includesAny(nameAndSlug, ['ssc 27', 'ssc-27'])) return 'SSC ২৭ রিভিশন ব্যাচ';
+    if (includesAny(nameAndSlug, ['ssc 28', 'ssc-28'])) return 'SSC ২৮ রিভিশন ব্যাচ';
+    return 'চূড়ান্ত রিভিশন ব্যাচ';
+  }
+  if (includesAny(nameAndSlug, ['মেডিকেল', 'medical'])) {
+    return 'মেডিকেল ভর্তি ব্যাচ';
+  }
+  if (includesAny(nameAndSlug, ['ইঞ্জিনিয়ারিং', 'ইঞ্জিনিয়ারিং', 'engineering'])) {
+    return 'ইঞ্জিনিয়ারিং ভর্তি ব্যাচ';
+  }
+  if (includesAny(nameAndSlug, ['বিশ্ববিদ্যালয়', 'বিশ্ববিদ্যালয়', 'university', 'ভার্সিটি'])) {
+    return 'ভার্সিটি ভর্তি ব্যাচ';
+  }
+  if (includesAny(nameAndSlug, ['ভাষা', 'language'])) {
+    return 'ভাষা দক্ষতা কোর্স';
+  }
+  if (includesAny(nameAndSlug, ['ফ্রিল্যান্সিং', 'freelancing'])) {
+    return 'ফ্রিল্যান্সিং ও ক্যারিয়ার';
+  }
+  if (includesAny(nameAndSlug, ['ডিজাইন', 'ক্রিয়েটিভ', 'ক্রিয়েটিভ', 'design', 'creative'])) {
+    return 'ক্রিয়েটিভ স্কিল ব্যাচ';
+  }
+
+  if (navGroup === 'hsc28') {
+    return (
+      normalizeCategoryCardTitle(selectorIconLabels?.['hsc-28']?.subLabel) ||
+      'অনলাইন ব্যাচ চলছে'
+    );
+  }
+  if (navGroup === 'hsc27') {
+    return (
+      normalizeCategoryCardTitle(selectorIconLabels?.['hsc-27']?.subLabel) ||
+      'অনলাইন ব্যাচ চলছে'
+    );
+  }
+  if (navGroup === 'admission') {
+    return (
+      normalizeCategoryCardTitle(selectorIconLabels?.['hsc-26']?.subLabel) ||
+      'এডমিশন ভর্তি চলছে'
+    );
+  }
+  if (navGroup === 'skills') {
+    return (
+      normalizeCategoryCardTitle(selectorIconLabels?.['skills']?.subLabel) ||
+      'ক্যারিয়ার ও আইটি কোর্স'
+    );
+  }
+  if (navGroup === 'school') {
+    return 'বার্ষিক অনলাইন ব্যাচ';
+  }
+
+  return 'অনলাইন ব্যাচ';
 }

@@ -20,6 +20,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { path: '/hsc/hsc-26', changeFrequency: 'weekly', priority: 0.9 },
     { path: '/ssc/ssc-27', changeFrequency: 'weekly', priority: 0.9 },
     { path: '/ssc/ssc-28', changeFrequency: 'weekly', priority: 0.9 },
+    { path: '/ssc/ssc-29', changeFrequency: 'weekly', priority: 0.9 },
+    { path: '/class-9', changeFrequency: 'weekly', priority: 0.9 },
     { path: '/class-5', changeFrequency: 'monthly', priority: 0.8 },
     { path: '/class-6', changeFrequency: 'monthly', priority: 0.8 },
     { path: '/class-7', changeFrequency: 'monthly', priority: 0.8 },

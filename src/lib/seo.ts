@@ -383,16 +383,44 @@ function resolveRouteSeo(
   }
 
   if (
-    clean === '/ssc/ssc-28' ||
-    clean === '/academic/ssc/ssc-28' ||
+    clean === '/ssc/ssc-29' ||
+    clean === '/academic/ssc/ssc-29' ||
+    clean === '/ssc-29' ||
     clean === '/class-9' ||
     clean === '/academic/class-9' ||
     clean === '/academic/class9'
   ) {
+    const class9Cat = categories.find(
+      (c) =>
+        categorySlugsMatch(c.slug, 'class-9') ||
+        categorySlugsMatch(c.slug, 'ssc-29') ||
+        categorySlugsMatch(c.slug, 'ssc-2029') ||
+        categorySlugsMatch(c.slug, '৯ম-শ্রেণি-ssc-29')
+    );
+    const resolvedSlug = class9Cat?.slug || 'class-9';
     return withCourseOgFallback({
-      title: 'SSC 28 (নবম শ্রেণি) অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
+      title: class9Cat?.name
+        ? `${class9Cat.name} — ১০ মিনিট স্কুল`
+        : '৯ম শ্রেণি (SSC 29) অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
       description:
-        'নবম শ্রেণি ও SSC ২০২৮ ব্যাচের বাংলা, ইংরেজি, গণিত, বিজ্ঞান, মানবিক ও ব্যবসায় শিক্ষার পূর্ণাঙ্গ একাডেমিক ব্যাচ।',
+        class9Cat?.subtitle ||
+        'নবম শ্রেণি ও SSC ২০২৯ ব্যাচের বাংলা, ইংরেজি, গণিত, বিজ্ঞান, মানবিক ও ব্যবসায় শিক্ষার পূর্ণাঙ্গ একাডেমিক ব্যাচ।',
+      canonicalPath: `/${encodeURIComponent(resolvedSlug)}`,
+      filterCourses: (all) =>
+        all.filter(
+          (c) =>
+            isPublicVisibleCourse(c) &&
+            (courseMatchesCategorySlug(c, resolvedSlug) ||
+              courseMatchesAcademicBatch(c, 'ssc-2029'))
+        ),
+    });
+  }
+
+  if (clean === '/ssc/ssc-28' || clean === '/academic/ssc/ssc-28') {
+    return withCourseOgFallback({
+      title: 'SSC 28 অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
+      description:
+        'SSC ২০২৮ ব্যাচের বাংলা, ইংরেজি, গণিত, বিজ্ঞান, মানবিক ও ব্যবসায় শিক্ষার পূর্ণাঙ্গ একাডেমিক ব্যাচ।',
       canonicalPath: '/ssc/ssc-28',
       filterCourses: (all) =>
         all.filter(
@@ -635,6 +663,8 @@ function resolveRouteSeo(
         matchedCat ||
         normalizedSlug === 'hsc-28' ||
         normalizedSlug === 'hsc-27' ||
+        normalizedSlug === 'ssc-29' ||
+        normalizedSlug === 'class-9' ||
         normalizedSlug === 'school'
       ) {
         return resolveDynamicCategorySeo(matchedCat?.slug || decodedSlug);

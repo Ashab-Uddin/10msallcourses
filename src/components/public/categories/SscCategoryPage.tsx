@@ -25,7 +25,7 @@ import {
   type CategoryCourseOrdersMap,
 } from '../../../lib/courseSorting.ts';
 
-type SscBatchId = 'all' | 'ssc-2027' | 'ssc-2028';
+type SscBatchId = 'all' | 'ssc-2027' | 'ssc-2028' | 'ssc-2029';
 type SscDeptId = 'all' | CourseGroupKey;
 
 interface SscCategoryPageProps {
@@ -43,7 +43,8 @@ const SSC_BATCHES: ReadonlyArray<{
 }> = [
   { id: 'all', label: 'সব SSC ব্যাচ', alwaysVisible: true },
   { id: 'ssc-2027', label: 'SSC 2027 (১০ম শ্রেণি)' },
-  { id: 'ssc-2028', label: 'SSC 2028 (৯ম শ্রেণি)' },
+  { id: 'ssc-2028', label: 'SSC 2028 (১০ম শ্রেণি)' },
+  { id: 'ssc-2029', label: 'SSC 2029 (৯ম শ্রেণি)' },
 ];
 
 const SSC_DEPARTMENTS: ReadonlyArray<{

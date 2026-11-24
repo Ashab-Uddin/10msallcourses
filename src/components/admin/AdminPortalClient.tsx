@@ -169,9 +169,11 @@ export const AdminPortalClient: React.FC<AdminPortalClientProps> = ({
     setAdminSession((prev) => (prev ? { ...prev, name: nextName } : prev));
   }, []);
 
-  // No-op in dedicated admin shell: server-side cache tags are already invalidated on mutation,
-  // so navigating to the public site automatically serves fresh SSR data without wasted admin fetches.
-  const handleDataMutated = useCallback(() => {}, []);
+  // Refresh Next.js client router cache when admin mutates data so returning to public routes
+  // immediately reflects the updated database state.
+  const handleDataMutated = useCallback(() => {
+    router.refresh();
+  }, [router]);
 
   const isLoginPath = currentPath === '/admin/login';
 

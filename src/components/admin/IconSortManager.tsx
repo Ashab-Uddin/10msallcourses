@@ -1,23 +1,27 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
   AlertCircle,
   CheckCircle2,
   ListOrdered,
+  Pencil,
   RotateCcw,
   Save,
   Sparkles,
+  Tag,
   Type,
   Undo2,
+  X,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import {
   DEFAULT_SELECTOR_ICON_IDS,
   DEFAULT_SELECTOR_ICON_TEXTS,
   SELECTOR_ICON_SUBLABEL_MAX_LENGTH,
+  SELECTOR_ICON_TAG_MAX_LENGTH,
   SELECTOR_ICON_TITLE_MAX_LENGTH,
   cloneDefaultSelectorIconLabels,
   moveSelectorIconInList,
@@ -43,6 +47,8 @@ interface IconSortManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
+type EditableTextField = 'tag' | 'title' | 'subLabel';
+
 function buildDraftRecord(orderedIds: ReadonlyArray<SelectorIconId>): Record<string, string> {
   const draft: Record<string, string> = {};
   orderedIds.forEach((id, idx) => {
@@ -57,6 +63,7 @@ function cloneLabelsMap(
   const copy = {} as Record<SelectorIconId, SelectorIconText>;
   for (const id of DEFAULT_SELECTOR_ICON_IDS) {
     copy[id] = {
+      tag: labels[id].tag,
       title: labels[id].title,
       subLabel: labels[id].subLabel,
     };
@@ -69,7 +76,7 @@ function buildPropSignature(
   labels: SelectorIconLabelsMap
 ): string {
   const labelSig = DEFAULT_SELECTOR_ICON_IDS.map(
-    (id) => `${id}=${labels[id].title}|${labels[id].subLabel}`
+    (id) => `${id}=${labels[id].tag}|${labels[id].title}|${labels[id].subLabel}`
   ).join(';;');
   return `${orderedIds.join(',')}::${labelSig}`;
 }
@@ -102,6 +109,9 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
     cloneLabelsMap(normalizedInitialLabels)
   );
   const [saving, setSaving] = useState(false);
+  const [savingCardId, setSavingCardId] = useState<SelectorIconId | null>(null);
+  const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const incomingSignature = buildPropSignature(normalizedInitialOrder, normalizedInitialLabels);
   const [prevPropSignature, setPrevPropSignature] = useState<string>(() => incomingSignature);
@@ -129,10 +139,11 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
       SelectorIconId,
       {
         valid: boolean;
+        tag: string;
         title: string;
         subLabel: string;
         changed: boolean;
-        fieldErrors: { title?: string; subLabel?: string };
+        fieldErrors: { tag?: string; title?: string; subLabel?: string };
       }
     >;
     let firstError: string | null = null;
@@ -141,7 +152,11 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
     for (const id of DEFAULT_SELECTOR_ICON_IDS) {
       const draftEntry = draftLabels[id] ?? savedLabels[id];
       const savedEntry = savedLabels[id];
-      const check = validateSelectorIconTextFields(draftEntry.title, draftEntry.subLabel);
+      const check = validateSelectorIconTextFields(
+        draftEntry.title,
+        draftEntry.subLabel,
+        draftEntry.tag
+      );
 
       if (!check.valid) {
         if (!firstError) {
@@ -149,6 +164,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
         }
         byId[id] = {
           valid: false,
+          tag: draftEntry.tag,
           title: draftEntry.title,
           subLabel: draftEntry.subLabel,
           changed: true,
@@ -156,12 +172,15 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
         };
       } else {
         const changed =
-          check.title !== savedEntry.title || check.subLabel !== savedEntry.subLabel;
+          check.tag !== savedEntry.tag ||
+          check.title !== savedEntry.title ||
+          check.subLabel !== savedEntry.subLabel;
         if (changed) {
           changedLabelsCount += 1;
         }
         byId[id] = {
           valid: true,
+          tag: check.tag,
           title: check.title,
           subLabel: check.subLabel,
           changed,
@@ -197,10 +216,12 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
     const baseList = getOrderedSelectorIcons(targetOrder, savedLabels);
     return baseList.map((icon) => {
       const draft = draftLabels[icon.id];
+      const tagText = draft?.tag?.trim() ? draft.tag.trim() : icon.tag;
       const titleText = draft?.title?.trim() ? draft.title.trim() : icon.title;
       const subText = draft?.subLabel?.trim() ? draft.subLabel.trim() : icon.subLabel;
       return {
         ...icon,
+        tag: tagText,
         title: titleText,
         subLabel: subText,
       };
@@ -220,9 +241,24 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
     return DEFAULT_SELECTOR_ICON_IDS.every((id) => {
       const val = labelValidationState.byId[id];
       const def = DEFAULT_SELECTOR_ICON_TEXTS[id];
-      return val.valid && val.title === def.title && val.subLabel === def.subLabel;
+      return (
+        val.valid &&
+        val.tag === def.tag &&
+        val.title === def.title &&
+        val.subLabel === def.subLabel
+      );
     });
   }, [batchResolution, labelValidationState]);
+
+  const focusAndSelectField = (iconId: SelectorIconId, field: EditableTextField) => {
+    const key = `${iconId}-${field}`;
+    setActiveFieldKey(key);
+    const el = inputRefs.current[key];
+    if (el) {
+      el.focus();
+      el.select();
+    }
+  };
 
   const handlePositionInputChange = (iconId: SelectorIconId, value: string) => {
     setDraftPositions((prev) => ({
@@ -233,16 +269,49 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
 
   const handleLabelInputChange = (
     iconId: SelectorIconId,
-    field: 'title' | 'subLabel',
+    field: EditableTextField,
     value: string
   ) => {
+    setDraftLabels((prev) => {
+      const current = prev[iconId] ?? savedLabels[iconId];
+      return {
+        ...prev,
+        [iconId]: {
+          tag: field === 'tag' ? value : current.tag,
+          title: field === 'title' ? value : current.title,
+          subLabel: field === 'subLabel' ? value : current.subLabel,
+        },
+      };
+    });
+  };
+
+  const handleRevertSingleField = (iconId: SelectorIconId, field: EditableTextField) => {
+    const saved = savedLabels[iconId];
+    setDraftLabels((prev) => {
+      const current = prev[iconId] ?? saved;
+      return {
+        ...prev,
+        [iconId]: {
+          ...current,
+          [field]: saved[field],
+        },
+      };
+    });
+  };
+
+  const handleRevertSingleCard = (iconId: SelectorIconId) => {
+    const savedPos = savedOrder.indexOf(iconId) + 1;
     setDraftLabels((prev) => ({
       ...prev,
-      [iconId]: {
-        title: field === 'title' ? value : prev[iconId]?.title ?? '',
-        subLabel: field === 'subLabel' ? value : prev[iconId]?.subLabel ?? '',
-      },
+      [iconId]: { ...savedLabels[iconId] },
     }));
+    if (savedPos >= 1) {
+      setDraftPositions((prev) => ({
+        ...prev,
+        [iconId]: String(savedPos),
+      }));
+    }
+    onShowToast(`${savedLabels[iconId].title} কার্ডের পরিবর্তন বাতিল করা হয়েছে।`, 'info');
   };
 
   const handleRestoreSingleDefaultLabel = (iconId: SelectorIconId) => {
@@ -250,6 +319,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
     setDraftLabels((prev) => ({
       ...prev,
       [iconId]: {
+        tag: def.tag,
         title: def.title,
         subLabel: def.subLabel,
       },
@@ -277,9 +347,102 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
     setDraftPositions(buildDraftRecord(DEFAULT_SELECTOR_ICON_IDS));
     setDraftLabels(cloneDefaultSelectorIconLabels());
     onShowToast(
-      'ডিফল্ট ক্রম ও নাম লোড করা হয়েছে। কার্যকর করতে "সব পরিবর্তন সংরক্ষণ করুন" বাটনে ক্লিক করুন।',
+      'ডিফল্ট ক্রম, ব্যাজ, নাম ও সাব-নাম লোড করা হয়েছে। কার্যকর করতে "সব পরিবর্তন সংরক্ষণ করুন" বাটনে ক্লিক করুন।',
       'info'
     );
+  };
+
+  const handleSaveSingleCard = async (iconId: SelectorIconId) => {
+    const labelCheck = labelValidationState.byId[iconId];
+    if (!labelCheck.valid) {
+      onShowToast(
+        labelCheck.fieldErrors.tag ||
+          labelCheck.fieldErrors.title ||
+          labelCheck.fieldErrors.subLabel ||
+          'কার্ডের টেক্সট সঠিকভাবে পূরণ করুন।',
+        'error'
+      );
+      return;
+    }
+
+    const currentPos = savedOrder.indexOf(iconId) + 1;
+    const draftPosRaw = draftPositions[iconId];
+    const singlePosChanged =
+      draftPosRaw !== undefined && String(draftPosRaw).trim() !== String(currentPos);
+
+    if (singlePosChanged && !batchResolution.ok) {
+      onShowToast(batchResolution.error, 'error');
+      return;
+    }
+
+    const nextOrder =
+      singlePosChanged && batchResolution.ok ? batchResolution.orderedIds : savedOrder;
+
+    const nextLabelsPayload: SelectorIconLabelsMap = {
+      ...cloneLabelsMap(savedLabels),
+      [iconId]: {
+        tag: labelCheck.tag,
+        title: labelCheck.title,
+        subLabel: labelCheck.subLabel,
+      },
+    };
+
+    setSaving(true);
+    setSavingCardId(iconId);
+    try {
+      const res = await fetch('/api/admin/icon-sort', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderedIds: nextOrder,
+          labels: nextLabelsPayload,
+        }),
+      });
+
+      if (res.status === 401) {
+        onUnauthorized();
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'কার্ডের তথ্য সংরক্ষণ করতে সমস্যা হয়েছে।');
+      }
+
+      const persistedOrder = normalizeSelectorIconOrder(
+        Array.isArray(data.orderedIds) ? data.orderedIds : nextOrder
+      );
+      const persistedLabels = normalizeSelectorIconLabels(
+        data.labels && typeof data.labels === 'object' ? data.labels : nextLabelsPayload
+      );
+
+      setSavedOrder(persistedOrder);
+      setSavedLabels(persistedLabels);
+      setDraftPositions((prev) =>
+        singlePosChanged ? buildDraftRecord(persistedOrder) : prev
+      );
+      setDraftLabels((prev) => ({
+        ...prev,
+        [iconId]: { ...persistedLabels[iconId] },
+      }));
+      setPrevPropSignature(buildPropSignature(persistedOrder, persistedLabels));
+      onConfigSaved(persistedOrder, persistedLabels);
+      onDataMutated();
+      onShowToast(
+        `"${persistedLabels[iconId].title}" কার্ডের ব্যাজ, নাম ও তথ্য সফলভাবে আপডেট ও সেভ করা হয়েছে।`,
+        'success'
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'কার্ডের তথ্য সংরক্ষণ করতে সমস্যা হয়েছে।';
+      onShowToast(message, 'error');
+    } finally {
+      setSaving(false);
+      setSavingCardId(null);
+    }
   };
 
   const handleSaveAll = async (e?: React.FormEvent) => {
@@ -292,7 +455,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
 
     if (labelValidationState.hasInvalid) {
       onShowToast(
-        labelValidationState.firstError || 'আইকনের নাম ও সাব-নাম সঠিকভাবে পূরণ করুন।',
+        labelValidationState.firstError || 'আইকনের ব্যাজ, নাম ও সাব-নাম সঠিকভাবে পূরণ করুন।',
         'error'
       );
       return;
@@ -302,7 +465,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
       batchResolution.changedCount === 0 &&
       labelValidationState.changedLabelsCount === 0
     ) {
-      onShowToast('কোনো আইকনের পজিশন বা নাম পরিবর্তন করা হয়নি।', 'info');
+      onShowToast('কোনো আইকনের পজিশন বা টেক্সট পরিবর্তন করা হয়নি।', 'info');
       return;
     }
 
@@ -310,6 +473,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
     for (const id of DEFAULT_SELECTOR_ICON_IDS) {
       const checked = labelValidationState.byId[id];
       sanitizedLabelsPayload[id] = {
+        tag: checked.tag,
         title: checked.title,
         subLabel: checked.subLabel,
       };
@@ -336,7 +500,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'আইকনের পজিশন ও নাম সংরক্ষণ করতে সমস্যা হয়েছে।');
+        throw new Error(data.error || 'আইকনের পজিশন ও টেক্সট সংরক্ষণ করতে সমস্যা হয়েছে।');
       }
 
       const persistedOrder = normalizeSelectorIconOrder(
@@ -356,14 +520,14 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
       onConfigSaved(persistedOrder, persistedLabels);
       onDataMutated();
       onShowToast(
-        'মেইন ওয়েবসাইটের আইকন পজিশন, নাম ও সাব-নাম সফলভাবে সংরক্ষণ ও আপডেট করা হয়েছে।',
+        'মেইন ওয়েবসাইটের আইকন পজিশন, ব্যাজ, নাম ও সাব-নাম সফলভাবে সংরক্ষণ ও আপডেট করা হয়েছে।',
         'success'
       );
     } catch (err: unknown) {
       const message =
         err instanceof Error
           ? err.message
-          : 'আইকনের পজিশন ও নাম সংরক্ষণ করতে সমস্যা হয়েছে।';
+          : 'আইকনের পজিশন ও টেক্সট সংরক্ষণ করতে সমস্যা হয়েছে।';
       onShowToast(message, 'error');
     } finally {
       setSaving(false);
@@ -390,14 +554,14 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-[#b91c1c] bg-rose-50 border border-rose-200/80 px-2.5 py-0.5 rounded-full">
               <ListOrdered className="w-3.5 h-3.5" />
-              <span>Icon Sort & Labels · মোট {toBengaliNumber(orderedIcons.length)}টি আইকন</span>
+              <span>Icon Sort & Dynamic Labels · মোট {toBengaliNumber(orderedIcons.length)}টি আইকন</span>
             </div>
             <h2 className="text-lg sm:text-xl font-black text-[#2A0F12] tracking-tight">
-              মেইন ওয়েবসাইট আইকন পজিশন, নাম ও সাব-নাম ম্যানেজার
+              মেইন ওয়েবসাইট আইকন পজিশন, ব্যাজ, নাম ও সাব-নাম ম্যানেজার
             </h2>
             <p className="text-xs text-[#6B4C4F] leading-relaxed max-w-2xl">
-              প্রতিটি আইকনের মূল নাম (Title), সাব নাম (Sub Name) বাংলা বা ইংরেজিতে এডিট করুন এবং পজিশন নম্বর (১ থেকে{' '}
-              {toBengaliNumber(orderedIcons.length)}) পরিবর্তন করে একসঙ্গে Save করুন। Save করার সাথে সাথে মেইন ওয়েবসাইটে নতুন নাম ও ক্রম প্রদর্শিত হবে।
+              প্রতিটি কার্ডের উপরের ব্যাজ টেক্সট (যেমন SSC 27), মূল নাম (Title), সাব নাম (Sub Name) ও পজিশন নম্বর (১ থেকে{' '}
+              {toBengaliNumber(orderedIcons.length)}) এডিট করে লাইভ প্রিভিউ দেখুন এবং Save করুন।
             </p>
           </div>
 
@@ -407,10 +571,10 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
               onClick={handleLoadDefaultDraft}
               disabled={saving || isAlreadyDefaultConfig}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white/90 hover:bg-rose-50 hover:border-rose-200 text-[#2A0F12] hover:text-[#b91c1c] text-xs font-bold transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-              title="মূল সিরিয়াল ও ডিফল্ট নাম লোড করুন"
+              title="সব কার্ডের ডিফল্ট ক্রম, ব্যাজ, নাম ও সাব-নাম লোড করুন"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>ডিফল্ট ক্রম ও নাম</span>
+              <span>ডিফল্ট ক্রম ও টেক্সট</span>
             </button>
 
             {hasUnsavedChanges && (
@@ -432,10 +596,10 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
             >
               <Save className="w-3.5 h-3.5" />
               <span>
-                {saving
+                {saving && !savingCardId
                   ? 'সংরক্ষণ হচ্ছে...'
                   : hasUnsavedChanges && !activeErrorBanner
-                  ? `পরিবর্তন সংরক্ষণ করুন (${toBengaliNumber(totalChangedCount)}টি)`
+                  ? `সেভ ও আপডেট করুন (${toBengaliNumber(totalChangedCount)}টি)`
                   : 'সব পরিবর্তন সংরক্ষণ করুন'}
               </span>
             </button>
@@ -481,6 +645,9 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
                       {toBengaliNumber(idx + 1)}
                     </span>
                     <div className="min-w-0 flex-1">
+                      <div className="text-[9px] font-extrabold uppercase tracking-wide text-[#b91c1c]/80 truncate">
+                        {item.tag}
+                      </div>
                       <div className="font-black truncate">{item.title}</div>
                       <div className="text-[9.5px] font-semibold text-[#6B4C4F] truncate">
                         {item.subLabel}
@@ -495,17 +662,17 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
           <div className="flex items-center gap-2 rounded-2xl border border-emerald-200/80 bg-emerald-50/60 px-4 py-2.5 text-xs font-bold text-emerald-800">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              সবগুলো আইকনের পজিশন, মূল নাম ও সাব-নাম মেইন ওয়েবসাইটে সঠিকভাবে সংরক্ষিত ও সক্রিয় রয়েছে।
+              সবগুলো আইকনের পজিশন, ব্যাজ টেক্সট, মূল নাম ও সাব-নাম মেইন ওয়েবসাইটে সঠিকভাবে সংরক্ষিত ও সক্রিয় রয়েছে।
             </span>
           </div>
         )}
       </div>
 
-      {/* Icon Position + Name & Sub Name Editor Rows */}
+      {/* Icon Position + Badge, Title & Sub Name Editor Rows */}
       <div className="glass-strong rounded-3xl overflow-hidden">
         <div className="hidden lg:grid grid-cols-[190px_1fr_210px] items-center gap-4 px-6 py-3.5 border-b border-rose-200/60 bg-rose-50/50 text-[11px] font-black text-[#6B4C4F] uppercase tracking-wider">
           <div>ক্রম ও লাইভ আইকন প্রিভিউ</div>
-          <div>আইকনের মূল নাম ও সাব-নাম এডিট</div>
+          <div>ব্যাজ টেক্সট, মূল নাম ও সাব-নাম এডিট</div>
           <div className="text-right">পজিশন নম্বর ও স্থানান্তর</div>
         </div>
 
@@ -515,6 +682,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
             const IconComponent = item.Icon;
             const draftPosVal = draftPositions[item.id] ?? String(currentPos);
             const draftLabelVal = draftLabels[item.id] ?? {
+              tag: item.tag,
               title: item.title,
               subLabel: item.subLabel,
             };
@@ -526,16 +694,28 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
               : currentPos;
             const willMove = batchResolution.ok && previewPos !== currentPos;
             const textChanged = labelCheck.changed;
+            const cardChanged = willMove || textChanged || isConflictingPos;
+
+            const savedEntry = savedLabels[item.id];
+            const tagDirty = draftLabelVal.tag.trim() !== savedEntry.tag;
+            const titleDirty = draftLabelVal.title.trim() !== savedEntry.title;
+            const subLabelDirty = draftLabelVal.subLabel.trim() !== savedEntry.subLabel;
+
             const defText = DEFAULT_SELECTOR_ICON_TEXTS[item.id];
             const differsFromDefaultText =
+              draftLabelVal.tag.trim() !== defText.tag ||
               draftLabelVal.title.trim() !== defText.title ||
               draftLabelVal.subLabel.trim() !== defText.subLabel;
 
+            const tagCharCount = Array.from(draftLabelVal.tag.trim()).length;
             const titleCharCount = Array.from(draftLabelVal.title.trim()).length;
             const subLabelCharCount = Array.from(draftLabelVal.subLabel.trim()).length;
 
+            const livePreviewTag = draftLabelVal.tag.trim() || item.tag;
             const livePreviewTitle = draftLabelVal.title.trim() || item.title;
             const livePreviewSub = draftLabelVal.subLabel.trim() || item.subLabel;
+
+            const isSavingThisCard = saving && savingCardId === item.id;
 
             return (
               <div
@@ -550,7 +730,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
               >
                 {/* Column 1: Serial Badges + Faithful Live Miniature Icon Card Preview */}
                 <div className="flex sm:flex-row lg:flex-col items-center sm:items-start lg:items-center gap-3">
-                  <div className="flex items-center gap-1.5 self-start lg:self-auto">
+                  <div className="flex items-center gap-1.5 self-start lg:self-auto flex-wrap">
                     <span className="inline-flex items-center justify-center min-w-[34px] h-7 px-2.5 rounded-xl bg-rose-100/90 border border-rose-200 text-xs font-black text-[#b91c1c] tabular-nums">
                       #{toBengaliNumber(currentPos)}
                     </span>
@@ -573,7 +753,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
                         className={`relative w-full h-[68px] ${item.topGradient} flex flex-col items-center justify-center pt-3 pb-3 overflow-hidden`}
                       >
                         <span className="absolute top-1.5 left-1.5 text-[7.5px] font-black tracking-wider text-white/95 bg-black/20 border border-white/25 px-1.5 py-[1px] rounded-full truncate max-w-[92%]">
-                          {item.tag}
+                          {livePreviewTag}
                         </span>
                         <div
                           className={`relative z-10 mt-1.5 w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md border border-white/45 flex items-center justify-center text-white ${item.iconGlow}`}
@@ -612,36 +792,141 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
                   </div>
                 </div>
 
-                {/* Column 2: Editable Icon Name (Title) & Sub Name (Subtitle) */}
+                {/* Column 2: Editable Badge Text (Tag), Icon Name (Title) & Sub Name (Subtitle) */}
                 <div className="space-y-3 min-w-0">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span
                         className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${item.pillBorder} ${item.pillBg} ${item.pillText}`}
                       >
-                        {item.tag}
+                        {livePreviewTag}
                       </span>
                       <span className="font-mono text-[10.5px] text-slate-500 truncate">
                         {item.path}
                       </span>
                     </div>
 
-                    {differsFromDefaultText && (
-                      <button
-                        type="button"
-                        onClick={() => handleRestoreSingleDefaultLabel(item.id)}
-                        disabled={saving}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-slate-200 bg-white/90 hover:bg-rose-50 hover:border-rose-200 text-[10.5px] font-bold text-[#6B4C4F] hover:text-[#b91c1c] transition cursor-pointer disabled:opacity-45"
-                        title="এই আইকনের ডিফল্ট নাম ও সাব-নাম ফিরিয়ে আনুন"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>ডিফল্ট নাম</span>
-                      </button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {differsFromDefaultText && (
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreSingleDefaultLabel(item.id)}
+                          disabled={saving}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-slate-200 bg-white/90 hover:bg-rose-50 hover:border-rose-200 text-[10.5px] font-bold text-[#6B4C4F] hover:text-[#b91c1c] transition cursor-pointer disabled:opacity-45"
+                          title="এই আইকনের ডিফল্ট ব্যাজ, নাম ও সাব-নাম ফিরিয়ে আনুন"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>ডিফল্ট নাম</span>
+                        </button>
+                      )}
+
+                      {cardChanged && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleRevertSingleCard(item.id)}
+                            disabled={saving}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-rose-200 bg-rose-50/90 hover:bg-rose-100 text-[10.5px] font-bold text-[#991b1b] transition cursor-pointer disabled:opacity-45"
+                            title="এই কার্ডের পরিবর্তন বাতিল করুন"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>বাতিল</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveSingleCard(item.id)}
+                            disabled={saving || hasFieldError || (willMove && !batchResolution.ok)}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-[10.5px] font-bold shadow-2xs transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                            title="শুধু এই কার্ডের পরিবর্তন সংরক্ষণ ও আপডেট করুন"
+                          >
+                            <Save className="w-3 h-3" />
+                            <span>{isSavingThisCard ? 'সেভ হচ্ছে...' : 'আপডেট ও সেভ'}</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Icon Name / Title Input */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* A. Badge / Icon Text Input */}
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <label
+                          htmlFor={`icon-tag-${item.id}`}
+                          className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#2A0F12]"
+                        >
+                          <Tag className="w-3 h-3 text-[#b91c1c]" />
+                          <span>ব্যাজ টেক্সট (Badge)</span>
+                        </label>
+                        <span
+                          className={`text-[10px] font-bold tabular-nums ${
+                            tagCharCount === 0 || tagCharCount > SELECTOR_ICON_TAG_MAX_LENGTH
+                              ? 'text-red-600'
+                              : 'text-[#6B4C4F]'
+                          }`}
+                        >
+                          {toBengaliNumber(tagCharCount)} / {toBengaliNumber(SELECTOR_ICON_TAG_MAX_LENGTH)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={(el) => {
+                            inputRefs.current[`${item.id}-tag`] = el;
+                          }}
+                          id={`icon-tag-${item.id}`}
+                          type="text"
+                          value={draftLabelVal.tag}
+                          onFocus={() => setActiveFieldKey(`${item.id}-tag`)}
+                          onBlur={() =>
+                            setActiveFieldKey((prev) =>
+                              prev === `${item.id}-tag` ? null : prev
+                            )
+                          }
+                          onChange={(e) =>
+                            handleLabelInputChange(item.id, 'tag', e.target.value)
+                          }
+                          placeholder={defText.tag}
+                          aria-invalid={Boolean(labelCheck.fieldErrors.tag)}
+                          className={`w-full min-w-0 px-3 py-2 rounded-xl border text-xs font-extrabold outline-none shadow-2xs transition ${
+                            labelCheck.fieldErrors.tag
+                              ? 'border-red-500 bg-red-50 text-red-700 focus:border-red-600'
+                              : activeFieldKey === `${item.id}-tag`
+                              ? 'border-[#eb1c24] bg-white text-[#2A0F12] ring-2 ring-rose-100'
+                              : 'border-slate-200 bg-white text-[#2A0F12] focus:border-[#eb1c24]'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => focusAndSelectField(item.id, 'tag')}
+                          disabled={saving}
+                          aria-label={`${livePreviewTitle} ব্যাজ টেক্সট এডিট করুন`}
+                          title="ব্যাজ টেক্সট এডিট করুন"
+                          className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-xl border border-slate-200 bg-white/95 hover:bg-rose-50 hover:border-rose-300 text-[#6B4C4F] hover:text-[#b91c1c] transition cursor-pointer disabled:opacity-45"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        {tagDirty && (
+                          <button
+                            type="button"
+                            onClick={() => handleRevertSingleField(item.id, 'tag')}
+                            disabled={saving}
+                            aria-label="ব্যাজ টেক্সট পরিবর্তন বাতিল করুন"
+                            title="আগের ব্যাজ টেক্সটে ফিরুন"
+                            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] transition cursor-pointer disabled:opacity-45"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      {labelCheck.fieldErrors.tag && (
+                        <p className="mt-1 text-[10.5px] font-bold text-red-600">
+                          {labelCheck.fieldErrors.tag}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* B. Icon Name / Main Title Input */}
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1">
                         <label
@@ -662,21 +947,56 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
                           {toBengaliNumber(titleCharCount)} / {toBengaliNumber(SELECTOR_ICON_TITLE_MAX_LENGTH)}
                         </span>
                       </div>
-                      <input
-                        id={`icon-title-${item.id}`}
-                        type="text"
-                        value={draftLabelVal.title}
-                        onChange={(e) =>
-                          handleLabelInputChange(item.id, 'title', e.target.value)
-                        }
-                        placeholder={defText.title}
-                        aria-invalid={Boolean(labelCheck.fieldErrors.title)}
-                        className={`w-full px-3 py-2 rounded-xl border text-xs font-bold outline-none shadow-2xs transition ${
-                          labelCheck.fieldErrors.title
-                            ? 'border-red-500 bg-red-50 text-red-700 focus:border-red-600'
-                            : 'border-slate-200 bg-white text-[#2A0F12] focus:border-[#eb1c24]'
-                        }`}
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={(el) => {
+                            inputRefs.current[`${item.id}-title`] = el;
+                          }}
+                          id={`icon-title-${item.id}`}
+                          type="text"
+                          value={draftLabelVal.title}
+                          onFocus={() => setActiveFieldKey(`${item.id}-title`)}
+                          onBlur={() =>
+                            setActiveFieldKey((prev) =>
+                              prev === `${item.id}-title` ? null : prev
+                            )
+                          }
+                          onChange={(e) =>
+                            handleLabelInputChange(item.id, 'title', e.target.value)
+                          }
+                          placeholder={defText.title}
+                          aria-invalid={Boolean(labelCheck.fieldErrors.title)}
+                          className={`w-full min-w-0 px-3 py-2 rounded-xl border text-xs font-bold outline-none shadow-2xs transition ${
+                            labelCheck.fieldErrors.title
+                              ? 'border-red-500 bg-red-50 text-red-700 focus:border-red-600'
+                              : activeFieldKey === `${item.id}-title`
+                              ? 'border-[#eb1c24] bg-white text-[#2A0F12] ring-2 ring-rose-100'
+                              : 'border-slate-200 bg-white text-[#2A0F12] focus:border-[#eb1c24]'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => focusAndSelectField(item.id, 'title')}
+                          disabled={saving}
+                          aria-label={`${livePreviewTitle} মূল নাম এডিট করুন`}
+                          title="মূল নাম এডিট করুন"
+                          className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-xl border border-slate-200 bg-white/95 hover:bg-rose-50 hover:border-rose-300 text-[#6B4C4F] hover:text-[#b91c1c] transition cursor-pointer disabled:opacity-45"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        {titleDirty && (
+                          <button
+                            type="button"
+                            onClick={() => handleRevertSingleField(item.id, 'title')}
+                            disabled={saving}
+                            aria-label="মূল নামের পরিবর্তন বাতিল করুন"
+                            title="আগের নামে ফিরুন"
+                            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] transition cursor-pointer disabled:opacity-45"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                       {labelCheck.fieldErrors.title && (
                         <p className="mt-1 text-[10.5px] font-bold text-red-600">
                           {labelCheck.fieldErrors.title}
@@ -684,7 +1004,7 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
                       )}
                     </div>
 
-                    {/* Icon Sub Name / Subtitle Input */}
+                    {/* C. Icon Sub Name / Subtitle Input */}
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1">
                         <label
@@ -704,21 +1024,56 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
                           {toBengaliNumber(subLabelCharCount)} / {toBengaliNumber(SELECTOR_ICON_SUBLABEL_MAX_LENGTH)}
                         </span>
                       </div>
-                      <input
-                        id={`icon-sub-${item.id}`}
-                        type="text"
-                        value={draftLabelVal.subLabel}
-                        onChange={(e) =>
-                          handleLabelInputChange(item.id, 'subLabel', e.target.value)
-                        }
-                        placeholder={defText.subLabel}
-                        aria-invalid={Boolean(labelCheck.fieldErrors.subLabel)}
-                        className={`w-full px-3 py-2 rounded-xl border text-xs font-semibold outline-none shadow-2xs transition ${
-                          labelCheck.fieldErrors.subLabel
-                            ? 'border-red-500 bg-red-50 text-red-700 focus:border-red-600'
-                            : 'border-slate-200 bg-white text-[#2A0F12] focus:border-[#eb1c24]'
-                        }`}
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={(el) => {
+                            inputRefs.current[`${item.id}-subLabel`] = el;
+                          }}
+                          id={`icon-sub-${item.id}`}
+                          type="text"
+                          value={draftLabelVal.subLabel}
+                          onFocus={() => setActiveFieldKey(`${item.id}-subLabel`)}
+                          onBlur={() =>
+                            setActiveFieldKey((prev) =>
+                              prev === `${item.id}-subLabel` ? null : prev
+                            )
+                          }
+                          onChange={(e) =>
+                            handleLabelInputChange(item.id, 'subLabel', e.target.value)
+                          }
+                          placeholder={defText.subLabel}
+                          aria-invalid={Boolean(labelCheck.fieldErrors.subLabel)}
+                          className={`w-full min-w-0 px-3 py-2 rounded-xl border text-xs font-semibold outline-none shadow-2xs transition ${
+                            labelCheck.fieldErrors.subLabel
+                              ? 'border-red-500 bg-red-50 text-red-700 focus:border-red-600'
+                              : activeFieldKey === `${item.id}-subLabel`
+                              ? 'border-[#eb1c24] bg-white text-[#2A0F12] ring-2 ring-rose-100'
+                              : 'border-slate-200 bg-white text-[#2A0F12] focus:border-[#eb1c24]'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => focusAndSelectField(item.id, 'subLabel')}
+                          disabled={saving}
+                          aria-label={`${livePreviewTitle} সাব নাম এডিট করুন`}
+                          title="সাব নাম এডিট করুন"
+                          className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-xl border border-slate-200 bg-white/95 hover:bg-rose-50 hover:border-rose-300 text-[#6B4C4F] hover:text-[#b91c1c] transition cursor-pointer disabled:opacity-45"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        {subLabelDirty && (
+                          <button
+                            type="button"
+                            onClick={() => handleRevertSingleField(item.id, 'subLabel')}
+                            disabled={saving}
+                            aria-label="সাব নামের পরিবর্তন বাতিল করুন"
+                            title="আগের সাব নামে ফিরুন"
+                            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-[#b91c1c] transition cursor-pointer disabled:opacity-45"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                       {labelCheck.fieldErrors.subLabel && (
                         <p className="mt-1 text-[10.5px] font-bold text-red-600">
                           {labelCheck.fieldErrors.subLabel}
@@ -731,11 +1086,11 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
                   {textChanged && labelCheck.valid && (
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-200 bg-amber-50/75 px-3 py-1.5 text-[11px]">
                       <span className="text-[#6B4C4F]">
-                        <strong className="text-[#2A0F12]">আগে:</strong> {item.title} ({item.subLabel})
+                        <strong className="text-[#2A0F12]">আগে:</strong> [{item.tag}] {item.title} ({item.subLabel})
                       </span>
                       <span className="text-amber-700 font-black">→</span>
                       <span className="text-[#b91c1c] font-bold">
-                        <strong>পরে:</strong> {labelCheck.title} ({labelCheck.subLabel})
+                        <strong>পরে:</strong> [{labelCheck.tag}] {labelCheck.title} ({labelCheck.subLabel})
                       </span>
                     </div>
                   )}
@@ -798,16 +1153,29 @@ export const IconSortManager: React.FC<IconSortManagerProps> = ({
         {/* Sticky Bottom Save Footer */}
         <div className="px-6 py-4 border-t border-rose-200/60 bg-rose-50/40 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-xs font-semibold text-[#6B4C4F]">
-            একই সাথে একাধিক আইকনের পজিশন, মূল নাম ও সাব-নাম পরিবর্তন করে এক ক্লিকেই সংরক্ষণ করতে পারবেন।
+            একই সাথে একাধিক আইকনের পজিশন, ব্যাজ টেক্সট, মূল নাম ও সাব-নাম পরিবর্তন করে এক ক্লিকেই সংরক্ষণ করতে পারবেন।
           </div>
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-[0_8px_20px_-4px_rgba(226,43,43,0.45)] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>{saving ? 'সংরক্ষণ হচ্ছে...' : 'সব পরিবর্তন সংরক্ষণ করুন'}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {hasUnsavedChanges && (
+              <button
+                type="button"
+                onClick={handleRevertDraft}
+                disabled={saving}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-[#991b1b] text-xs font-bold transition cursor-pointer disabled:opacity-50"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                <span>বাতিল</span>
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-[0_8px_20px_-4px_rgba(226,43,43,0.45)] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{saving && !savingCardId ? 'সংরক্ষণ হচ্ছে...' : 'সব পরিবর্তন সংরক্ষণ করুন'}</span>
+            </button>
+          </div>
         </div>
       </div>
     </form>

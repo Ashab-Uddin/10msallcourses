@@ -26,7 +26,14 @@ import {
   resolveCategoryNavGroup,
   type NavbarGroupKey,
 } from '../../lib/navbarCategories.ts';
-import { resolveCategoryCardTheme } from '../../lib/categoryIcons.ts';
+import {
+  resolveCategoryCardBatchTitle,
+  resolveCategoryCardTheme,
+} from '../../lib/categoryIcons.ts';
+import type {
+  SelectorIconId,
+  SelectorIconText,
+} from '../../lib/selectorIconOrder.ts';
 import { getCategoryLucideIcon } from '../../lib/categoryIconComponents.ts';
 import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
 import { CourseCard } from './CourseCard.tsx';
@@ -38,6 +45,7 @@ interface NavbarGroupCategoryPageProps {
   categories: Category[];
   courses: Course[];
   categoryCourseOrders?: CategoryCourseOrdersMap;
+  selectorIconLabels?: Partial<Record<SelectorIconId, Partial<SelectorIconText>>>;
   onBack: () => void;
   onOpenStandaloneCategory: (categorySlug: string) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
@@ -48,6 +56,7 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
   categories,
   courses,
   categoryCourseOrders,
+  selectorIconLabels,
   onBack,
   onOpenStandaloneCategory,
   onEnrollClick,
@@ -252,9 +261,10 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
           </div>
         ) : (
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4 p-2 sm:p-5 rounded-2xl sm:rounded-3xl glass-surface items-stretch">
-            {categorySections.map(({ category: cat, courses: catCourses }, idx) => {
+            {categorySections.map(({ category: cat }, idx) => {
               const IconComponent = getCategoryLucideIcon(cat);
               const theme = resolveCategoryCardTheme(cat, idx);
+              const cardBatchTitle = resolveCategoryCardBatchTitle(cat, selectorIconLabels);
 
               return (
                 <button
@@ -322,13 +332,11 @@ export const NavbarGroupCategoryPage: React.FC<NavbarGroupCategoryPageProps> = (
                     </div>
                   </div>
 
-                  {/* Clean Course Count Caption below card */}
+                  {/* Clean Live Batch Title Caption below card matching Home Page style */}
                   <span
-                    className={`mt-1 sm:mt-2 shrink-0 text-[8.5px] min-[390px]:text-[9px] sm:text-[11px] font-bold text-center leading-tight max-w-full truncate tabular-nums bn-digits-fix ${theme.statusColor} opacity-90 group-hover:opacity-100 transition-opacity`}
+                    className={`mt-1.5 sm:mt-2 shrink-0 text-[9px] min-[390px]:text-[9.5px] sm:text-[11px] font-bold text-center leading-tight sm:whitespace-nowrap max-w-full truncate ${theme.statusColor} opacity-90 group-hover:opacity-100 transition-opacity`}
                   >
-                    {catCourses.length > 0
-                      ? `${toBengaliNumber(catCourses.length)}টি কোর্স`
-                      : 'কোর্স দেখুন'}
+                    {cardBatchTitle}
                   </span>
                 </button>
               );

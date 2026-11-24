@@ -13,7 +13,10 @@ import { INITIAL_CATEGORIES, INITIAL_SETTINGS } from './seedData.ts';
 import { computeDiscountPercent, syncTargetStudentsMetadata } from '../lib/courseValidation.ts';
 import { getCourseCategorySlugs } from '../lib/categoryMatching.ts';
 import { normalizeCategoryNavGroup } from '../lib/navbarCategories.ts';
-import { normalizeCategoryIconKey } from '../lib/categoryIcons.ts';
+import {
+  normalizeCategoryCardTitle,
+  normalizeCategoryIconKey,
+} from '../lib/categoryIcons.ts';
 import {
   decodeCourseSlug,
   generateUnicodeCourseSlug,
@@ -1690,6 +1693,7 @@ export async function createNewCategory(input: Record<string, unknown>) {
         typeof input.subtitle === 'string' && input.subtitle.trim()
           ? input.subtitle.trim().slice(0, 250)
           : null,
+      cardTitle: normalizeCategoryCardTitle(input.cardTitle),
       badgeColor: String(input.badgeColor || 'red').trim().slice(0, 30),
       displayOrder,
       status: input.status === 'inactive' ? 'inactive' : 'active',
@@ -1776,6 +1780,10 @@ export async function updateExistingCategory(id: number, input: Record<string, u
             ? input.subtitle.trim().slice(0, 250)
             : null
           : existing.subtitle,
+      cardTitle:
+        input.cardTitle !== undefined
+          ? normalizeCategoryCardTitle(input.cardTitle)
+          : normalizeCategoryCardTitle(existing.cardTitle),
       badgeColor:
         input.badgeColor !== undefined
           ? String(input.badgeColor || 'red').trim().slice(0, 30)

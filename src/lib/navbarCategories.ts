@@ -50,7 +50,7 @@ export const NAVBAR_GROUP_PAGE_META: Record<NavbarGroupKey, NavbarGroupPageMeta>
     emptyCoursesMessage: 'ক্লাস ৬–১২ ক্যাটাগরিতে বর্তমানে কোনো সক্রিয় কোর্স নেই।',
     seoTitle: 'ক্লাস ৬–১২ সকল ক্যাটাগরি ও অনলাইন ব্যাচ — ১০ মিনিট স্কুল',
     seoDescription:
-      '১০ম শ্রেণি (SSC 27), ৯ম শ্রেণি (SSC 28), ৮ম, ৭ম, ৬ষ্ঠ ও ৫ম শ্রেণির সকল একাডেমিক অনলাইন ব্যাচ ও লাইভ ক্লাস।',
+      '১০ম শ্রেণি (SSC 28), ৯ম শ্রেণি (SSC 29), ৮ম, ৭ম, ৬ষ্ঠ ও ৫ম শ্রেণির সকল একাডেমিক অনলাইন ব্যাচ ও লাইভ ক্লাস।',
   },
   hsc27: {
     key: 'hsc27',

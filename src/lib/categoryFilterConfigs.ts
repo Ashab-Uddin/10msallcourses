@@ -31,7 +31,8 @@ export type FilteredCategoryKey =
   | 'hsc-27-bei'
   | 'hsc-27-smp'
   | 'ssc-27'
-  | 'ssc-28';
+  | 'ssc-28'
+  | 'ssc-29';
 
 export type CategoryFilterIconKey =
   | 'bundle'
@@ -381,6 +382,87 @@ export const CATEGORY_FILTER_CONFIGS: Record<FilteredCategoryKey, CategoryFilter
     defaultSubtitle: 'SSC ২০২৭ প্রস্তুতি ও বোর্ড পরীক্ষার পূর্ণাঙ্গ রিভিশন প্রোগ্রাম',
     ariaLabel: '১০ম শ্রেণি (SSC 27) কোর্স ফিল্টার',
     groupAriaLabel: '১০ম শ্রেণি (SSC 27) বিভাগ ও প্রস্তুতি ফিল্টার',
+    options: [
+      {
+        id: 'science',
+        label: 'বিজ্ঞান বিভাগ',
+        group: 'primary',
+        iconKey: 'science',
+        shortHint: 'SSC বিজ্ঞান বিভাগের কোর্সসমূহ',
+      },
+      {
+        id: 'humanities',
+        label: 'মানবিক বিভাগ',
+        group: 'primary',
+        iconKey: 'humanities',
+        shortHint: 'SSC মানবিক বিভাগের কোর্সসমূহ',
+      },
+      {
+        id: 'business',
+        label: 'ব্যবসায় শিক্ষা',
+        group: 'primary',
+        iconKey: 'business',
+        shortHint: 'SSC ব্যবসায় শিক্ষা বিভাগের কোর্সসমূহ',
+      },
+      {
+        id: 'bei',
+        label: 'BEI',
+        group: 'primary',
+        iconKey: 'bei',
+        shortHint: 'বাংলা, ইংরেজি ও ICT কোর্সসমূহ',
+      },
+      {
+        id: 'full-year',
+        label: 'সম্পূর্ণ বছর',
+        group: 'secondary',
+        iconKey: 'full-year',
+        shortHint: 'সারা বছরের পূর্ণাঙ্গ অনলাইন ব্যাচ',
+      },
+      {
+        id: 'board-exam',
+        label: 'বোর্ড পরীক্ষা প্রস্তুতি',
+        group: 'secondary',
+        iconKey: 'board-exam',
+        shortHint: 'বোর্ড পরীক্ষা ও টেস্ট পেপার প্রস্তুতি',
+      },
+      {
+        id: 'smp',
+        label: 'SMP',
+        group: 'secondary',
+        iconKey: 'smp',
+        shortHint: 'শেষ মুহূর্তের প্রস্তুতি কোর্স (SMP)',
+      },
+    ],
+    matchesFilter: (course, filterId) => {
+      const meta = getCoursePrimaryMetaText(course);
+      switch (filterId) {
+        case 'science':
+          return resolveCourseDepartments(course).includes('science');
+        case 'humanities':
+          return resolveCourseDepartments(course).includes('humanities');
+        case 'business':
+          return resolveCourseDepartments(course).includes('business');
+        case 'bei':
+          return hasBeiCombo(meta);
+        case 'full-year':
+          return isFullYearSscCourseText(meta);
+        case 'board-exam':
+          return isBoardExamCourseText(meta);
+        case 'smp':
+          return isSmpCourseText(meta);
+        default:
+          return true;
+      }
+    },
+  },
+
+  'ssc-29': {
+    key: 'ssc-29',
+    defaultSlug: 'class-9',
+    defaultTitle: '৯ম শ্রেণি ( SSC 29 )',
+    defaultSubtitle: 'SSC ২০২৯ প্রস্তুতি ও বোর্ড পরীক্ষার ১০০% রিভিশন প্রোগ্রাম',
+    ariaLabel: '৯ম শ্রেণি (SSC 29) কোর্স ফিল্টার',
+    groupAriaLabel: '৯ম শ্রেণি (SSC 29) বিভাগ ও প্রস্তুতি ফিল্টার',
     options: [
       {
         id: 'science',
@@ -894,7 +976,24 @@ export function resolveFilteredCategoryKey(
         '১০ম-শ্রেণি',
         '১০ম-শ্রেণি-ssc-27',
         '১০ম-শ্রেণি-ssc27',
+        '১০ম-শ্রেণি-ssc-28',
+        '১০ম-শ্রেণি-ssc28',
         'class-10-ssc-27',
+      ],
+    },
+    {
+      key: 'ssc-29',
+      slugs: [
+        'ssc-29',
+        'ssc-2029',
+        'class-9',
+        '৯ম-শ্রেণি',
+        '৯ম-শ্রেণি-ssc-29',
+        '৯ম-শ্রেণি-ssc29',
+        'class-9-ssc-29',
+        '৯ম-শ্রেণি-ssc-28',
+        '৯ম-শ্রেণি-ssc28',
+        'class-9-ssc-28',
       ],
     },
     {
@@ -902,11 +1001,6 @@ export function resolveFilteredCategoryKey(
       slugs: [
         'ssc-28',
         'ssc-2028',
-        'class-9',
-        '৯ম-শ্রেণি',
-        '৯ম-শ্রেণি-ssc-28',
-        '৯ম-শ্রেণি-ssc28',
-        'class-9-ssc-28',
       ],
     },
   ];
@@ -979,7 +1073,23 @@ export function resolveFilteredCategoryKey(
   }
   if (
     !combined.includes('hsc') &&
-    includesNormalizedAny(combined, ['ssc 28', 'ssc-28', 'ssc 2028', '৯ম শ্রেণি', 'নবম শ্রেণি'])
+    includesNormalizedAny(combined, [
+      'ssc 29',
+      'ssc-29',
+      'ssc 2029',
+      'ssc ২৯',
+      'ssc ২০২৯',
+      '৯ম শ্রেণি',
+      'নবম শ্রেণি',
+      'class 9',
+      'class-9',
+    ])
+  ) {
+    return 'ssc-29';
+  }
+  if (
+    !combined.includes('hsc') &&
+    includesNormalizedAny(combined, ['ssc 28', 'ssc-28', 'ssc 2028'])
   ) {
     return 'ssc-28';
   }

@@ -120,6 +120,8 @@ const VIRTUAL_ROOT_CATEGORY_SLUGS = new Set([
   'free-courses',
   'hsc-28',
   'hsc-27',
+  'ssc-29',
+  'class-9',
   'school',
 ]);
 
@@ -208,7 +210,7 @@ function parseCurrentRoute(
     return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-28', sectionHash: cleanHash };
   }
 
-  // 6. SSC Routes: /ssc/ssc-27/ (দশম শ্রেণি), /ssc/ssc-28/ (নবম শ্রেণি)
+  // 6. SSC Routes: /ssc/ssc-27/ (দশম শ্রেণি), /class-9 & /ssc/ssc-29/ (৯ম শ্রেণি SSC 29)
   if (
     clean === '/ssc/ssc-27' ||
     clean === '/academic/ssc/ssc-27' ||
@@ -218,11 +220,22 @@ function parseCurrentRoute(
     return { view: 'academic', level: 'ssc', batchOrClass: 'ssc-27', sectionHash: cleanHash };
   }
   if (
-    clean === '/ssc/ssc-28' ||
-    clean === '/academic/ssc/ssc-28' ||
+    clean === '/ssc/ssc-29' ||
+    clean === '/academic/ssc/ssc-29' ||
+    clean === '/ssc-29' ||
     clean === '/class-9' ||
     clean === '/academic/class-9'
   ) {
+    const matchedClass9Cat = categories.find(
+      (c) =>
+        categorySlugsMatch(c.slug, 'class-9') ||
+        categorySlugsMatch(c.slug, 'ssc-29') ||
+        categorySlugsMatch(c.slug, 'ssc-2029') ||
+        categorySlugsMatch(c.slug, '৯ম-শ্রেণি-ssc-29')
+    );
+    return { view: 'category', slug: matchedClass9Cat?.slug || 'class-9' };
+  }
+  if (clean === '/ssc/ssc-28' || clean === '/academic/ssc/ssc-28') {
     return { view: 'academic', level: 'ssc', batchOrClass: 'ssc-28', sectionHash: cleanHash };
   }
   if (clean === '/ssc' || clean === '/academic/ssc') {
@@ -723,6 +736,8 @@ export default function App({
         ? `${cat.name} — ১০ মিনিট স্কুল`
         : route.slug === 'free-course'
           ? 'ফ্রি কোর্স — ১০ মিনিট স্কুল'
+          : route.slug === 'class-9' || route.slug === 'ssc-29'
+            ? '৯ম শ্রেণি (SSC 29) অনলাইন ব্যাচ — ১০ মিনিট স্কুল'
           : route.slug === 'hsc-28'
             ? 'HSC 28 অনলাইন ব্যাচ ও বিভাগসমূহ — ১০ মিনিট স্কুল'
             : route.slug === 'hsc-27'
@@ -897,6 +912,7 @@ export default function App({
     if (
       clean.includes('/class-') ||
       clean.includes('/ssc/') ||
+      clean.includes('/ssc-29') ||
       clean.includes('/academic/class') ||
       clean.includes('/academic/ssc') ||
       clean === '/school' ||
@@ -1193,6 +1209,7 @@ export default function App({
             categories={orderedCategories}
             courses={courses}
             categoryCourseOrders={categoryCourseOrders}
+            selectorIconLabels={selectorIconLabels}
             onBack={() => navigate('/')}
             onOpenStandaloneCategory={(slug) => navigate(buildReadableCategoryPath(slug))}
             onEnrollClick={handleEnrollClick}

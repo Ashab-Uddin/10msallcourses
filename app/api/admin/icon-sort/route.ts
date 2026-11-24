@@ -7,6 +7,7 @@ import {
 import { authorizeAdminRequest } from '@/src/lib/adminAuth';
 import {
   DEFAULT_SELECTOR_ICON_IDS,
+  DEFAULT_SELECTOR_ICON_TEXTS,
   cloneDefaultSelectorIconLabels,
   isValidSelectorIconId,
   normalizeSelectorIconOrder,
@@ -137,6 +138,9 @@ function validateIconLabelsPart(
         iconId?: unknown;
         icon_id?: unknown;
         id?: unknown;
+        tag?: unknown;
+        badgeText?: unknown;
+        badge_text?: unknown;
         title?: unknown;
         subLabel?: unknown;
         sub_label?: unknown;
@@ -145,14 +149,28 @@ function validateIconLabelsPart(
       if (!isValidSelectorIconId(rawId)) {
         return { ok: false, error: 'আইকন টেক্সট আপডেটে অবৈধ আইকন আইডি পাওয়া গেছে।' };
       }
+      const rawTag =
+        item.tag !== undefined
+          ? item.tag
+          : item.badgeText !== undefined
+          ? item.badgeText
+          : item.badge_text !== undefined
+          ? item.badge_text
+          : existingLabels[rawId]?.tag ?? DEFAULT_SELECTOR_ICON_TEXTS[rawId].tag;
+
       const check = validateSelectorIconTextFields(
         item.title,
-        item.subLabel ?? item.sub_label
+        item.subLabel ?? item.sub_label,
+        rawTag
       );
       if (!check.valid) {
         return { ok: false, error: check.error };
       }
-      mergedLabels[rawId] = { title: check.title, subLabel: check.subLabel };
+      mergedLabels[rawId] = {
+        tag: check.tag,
+        title: check.title,
+        subLabel: check.subLabel,
+      };
     }
     return { ok: true, labels: mergedLabels, provided: true };
   }
@@ -170,17 +188,38 @@ function validateIconLabelsPart(
       }
       const entry = labelRecord[key];
       if (!entry || typeof entry !== 'object') {
-        return { ok: false, error: 'প্রতিটি আইকনের জন্য বৈধ title এবং subLabel প্রদান করুন।' };
+        return { ok: false, error: 'প্রতিটি আইকনের জন্য বৈধ tag, title এবং subLabel প্রদান করুন।' };
       }
-      const item = entry as { title?: unknown; subLabel?: unknown; sub_label?: unknown };
+      const item = entry as {
+        tag?: unknown;
+        badgeText?: unknown;
+        badge_text?: unknown;
+        title?: unknown;
+        subLabel?: unknown;
+        sub_label?: unknown;
+      };
+      const rawTag =
+        item.tag !== undefined
+          ? item.tag
+          : item.badgeText !== undefined
+          ? item.badgeText
+          : item.badge_text !== undefined
+          ? item.badge_text
+          : existingLabels[key]?.tag ?? DEFAULT_SELECTOR_ICON_TEXTS[key].tag;
+
       const check = validateSelectorIconTextFields(
         item.title,
-        item.subLabel ?? item.sub_label
+        item.subLabel ?? item.sub_label,
+        rawTag
       );
       if (!check.valid) {
         return { ok: false, error: check.error };
       }
-      mergedLabels[key] = { title: check.title, subLabel: check.subLabel };
+      mergedLabels[key] = {
+        tag: check.tag,
+        title: check.title,
+        subLabel: check.subLabel,
+      };
     }
     return { ok: true, labels: mergedLabels, provided: true };
   }

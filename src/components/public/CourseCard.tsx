@@ -142,6 +142,8 @@ export const CourseCard: React.FC<CourseCardProps> = ({
       ? 'HSC 27'
       : resolvedBatch === 'hsc-26'
       ? 'HSC 26'
+      : resolvedBatch === 'ssc-2029'
+      ? 'SSC 29'
       : resolvedBatch === 'ssc-2028'
       ? 'SSC 28'
       : resolvedBatch === 'ssc-2027'
@@ -152,8 +154,10 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         : course.title.includes('27')
         ? 'HSC 27'
         : 'HSC 26'
-      : course.categorySlug === 'school'
-      ? course.title.includes('28')
+      : course.categorySlug === 'school' || course.categorySlug === 'class-9'
+      ? course.title.includes('29') || course.title.includes('২৯')
+        ? 'SSC 29'
+        : course.title.includes('28')
         ? 'SSC 28'
         : 'SSC 27'
       : course.categorySlug === 'class-8'

@@ -12,7 +12,7 @@ interface ClassSelectorStripProps {
   onNavigate: (path: string) => void;
   categories?: Category[];
   selectorIconOrder?: SelectorIconId[];
-  selectorIconLabels?: Partial<Record<SelectorIconId, SelectorIconText>>;
+  selectorIconLabels?: Partial<Record<SelectorIconId, Partial<SelectorIconText>>>;
 }
 
 export const ClassSelectorStrip: React.FC<ClassSelectorStripProps> = ({

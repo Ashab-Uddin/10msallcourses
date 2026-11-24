@@ -416,10 +416,8 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
           'ssc28',
           'ssc-2028',
           'ssc2028',
-          '৯ম',
-          'নবম',
-          'class-9',
-          'class9',
+          '১০ম',
+          'দশম',
         ])
       );
     if (!inSsc28Scope) return false;
@@ -436,6 +434,38 @@ export function courseMatchesAcademicBatch(course: Course, targetBatchOrClass: s
       'ssc ২০২৮',
       'এসএসসি ২৮',
       'এসএসসি ২০২৮',
+    ]);
+  }
+
+  if (normalizedTarget === 'ssc-2029') {
+    const inSsc29Scope =
+      assignedSlugs.includes('school') ||
+      assignedSlugs.some((s) =>
+        matchesAnyNormalizedKeyword(s, [
+          'ssc-29',
+          'ssc29',
+          'ssc-2029',
+          'ssc2029',
+          '৯ম',
+          'নবম',
+          'class-9',
+          'class9',
+        ])
+      );
+    if (!inSsc29Scope) return false;
+    if (resolvedBatch !== null) {
+      return resolvedBatch === 'ssc-2029';
+    }
+    return matchesAnyNormalizedKeyword(metaHaystack, [
+      'ssc 29',
+      'ssc29',
+      'ssc-29',
+      'ssc 2029',
+      'ssc-2029',
+      'ssc ২৯',
+      'ssc ২০২৯',
+      'এসএসসি ২৯',
+      'এসএসসি ২০২৯',
       '৯ম',
       'নবম',
       'class 9',
@@ -490,6 +520,16 @@ export function courseMatchesCategorySlug(course: Course, categorySlug: string):
 
   if (slug === 'books' || slug === 'book-store') {
     return assignedSlugs.includes('books');
+  }
+
+  if (slug === 'class-9' || slug === 'ssc-29' || slug === 'ssc-2029') {
+    return (
+      assignedSlugs.includes(slug) ||
+      assignedSlugs.includes('class-9') ||
+      assignedSlugs.includes('ssc-29') ||
+      assignedSlugs.includes('ssc-2029') ||
+      assignedSlugs.includes('৯ম-শ্রেণি-ssc-29')
+    );
   }
 
   return assignedSlugs.includes(slug);

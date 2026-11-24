@@ -18,8 +18,10 @@ import {
   normalizeCategoryNavGroup,
 } from '../../lib/navbarCategories.ts';
 import {
+  CATEGORY_CARD_TITLE_MAX_LENGTH,
   CATEGORY_ICON_OPTIONS,
   normalizeCategoryIconKey,
+  resolveCategoryCardBatchTitle,
   resolveCategoryCardTheme,
   type CategoryIconKey,
 } from '../../lib/categoryIcons.ts';
@@ -371,6 +373,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
   const [catSubtitle, setCatSubtitle] = useState('');
+  const [catCardTitle, setCatCardTitle] = useState('');
   const [catBadgeColor, setCatBadgeColor] = useState('red');
   const [catDisplayOrderInput, setCatDisplayOrderInput] = useState<string>('1');
   const [catNavGroup, setCatNavGroup] = useState<CategoryNavAssignment>('auto');
@@ -919,6 +922,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setCatOrderManuallyEdited(false);
     catOrderManuallyEditedRef.current = false;
     setCatSubtitle('');
+    setCatCardTitle('');
     setCatBadgeColor('red');
     setCatDisplayOrderInput(String(nextAvailableCategoryOrder));
     setCatNavGroup('auto');
@@ -1002,6 +1006,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         name: catName.trim(),
         slug: normalizedSlug,
         subtitle: catSubtitle.trim() || null,
+        cardTitle: catCardTitle.trim() || null,
         badgeColor: catBadgeColor,
         ...(useAutoOrder
           ? { autoOrder: true }
@@ -1053,6 +1058,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setCatOrderManuallyEdited(false);
       catOrderManuallyEditedRef.current = false;
       setCatSubtitle('');
+      setCatCardTitle('');
       setCatDisplayOrderInput('1');
       setCatNavGroup('auto');
       setCatIconKey('auto');
@@ -2751,6 +2757,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {cat.subtitle && (
                               <p className="text-xs text-[#6B4C4F] mt-1 font-medium">{cat.subtitle}</p>
                             )}
+                            <p className="text-[11px] text-[#b91c1c] mt-1 font-bold">
+                              কার্ড ব্যাচ টাইটেল: {resolveCategoryCardBatchTitle(cat, selectorIconLabels)}
+                            </p>
                           </div>
                         </div>
 
@@ -2803,6 +2812,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               setCatSlug(cat.slug);
                               setCatSlugManuallyEdited(false);
                               setCatSubtitle(cat.subtitle || '');
+                              setCatCardTitle(cat.cardTitle || '');
                               setCatBadgeColor(cat.badgeColor || 'red');
                               setCatDisplayOrderInput(String(cat.displayOrder || 1));
                               setCatOrderManuallyEdited(true);
@@ -3387,6 +3397,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 placeholder="যেমন: কলেজ একাডেমিক প্রোগ্রাম"
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-medium"
               />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-bold text-[#2A0F12]">
+                  আইকন কার্ড ব্যাচ টাইটেল (Icon Card Title)
+                </label>
+                <span className="text-[10px] font-bold text-[#6B4C4F] tabular-nums">
+                  {toBengaliNumber(Array.from(catCardTitle.trim()).length)} /{' '}
+                  {toBengaliNumber(CATEGORY_CARD_TITLE_MAX_LENGTH)}
+                </span>
+              </div>
+              <input
+                type="text"
+                maxLength={CATEGORY_CARD_TITLE_MAX_LENGTH}
+                value={catCardTitle}
+                onChange={(e) => setCatCardTitle(e.target.value)}
+                placeholder={resolveCategoryCardBatchTitle(
+                  {
+                    name: catName || 'ক্যাটাগরি',
+                    slug: catSlug || 'category',
+                    subtitle: catSubtitle || null,
+                    navGroup: catNavGroup,
+                    cardTitle: null,
+                  },
+                  selectorIconLabels
+                )}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-[#2A0F12] bg-white focus:border-[#eb1c24] outline-none shadow-2xs font-bold"
+              />
+              <p className="text-[10px] text-[#6B4C4F] mt-1 leading-relaxed">
+                ক্লাস ৬–১২ ও বিভাগীয় পেজের আইকন কার্ডের নিচে এই টাইটেলটি প্রদর্শিত হবে (যেমন: বার্ষিক অনলাইন ব্যাচ, SSC ২০২৯ ব্যাচ)। খালি রাখলে হোম পেজ আইকনের সাব-নাম বা স্বয়ংক্রিয় ব্যাচ টাইটেল দেখাবে।
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

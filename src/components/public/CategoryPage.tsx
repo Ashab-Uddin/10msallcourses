@@ -154,6 +154,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
             { id: 'all', label: 'সকল ব্যাচ' },
             { id: 'ssc-2027', label: 'SSC 2027' },
             { id: 'ssc-2028', label: 'SSC 2028' },
+            { id: 'ssc-2029', label: 'SSC 2029' },
           ]
         : [];
   const groupOptions: ReadonlyArray<{ id: 'all' | CourseGroupKey; label: string }> = [

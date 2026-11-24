@@ -237,6 +237,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     if (
       clean.includes('/class-') ||
       clean.includes('/ssc/') ||
+      clean.includes('/ssc-29') ||
       clean.includes('/academic/class') ||
       clean.includes('/academic/ssc') ||
       clean === '/school' ||
