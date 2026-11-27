@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
   courseMatchesCategorySlug,
@@ -241,7 +242,11 @@ export const SkillsCategoryPage: React.FC<SkillsCategoryPageProps> = ({
           <>
             <div className="border-t border-rose-100/85 my-3.5 sm:my-4" />
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="স্কিলস ট্র্যাক ফিল্টার">
+              <AutoScrollFilterTrack
+                className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto lg:overflow-visible no-scrollbar py-0.5 lg:py-0"
+                role="group"
+                ariaLabel="স্কিলস ট্র্যাক ফিল্টার"
+              >
                 {visibleTracks.map(({ id, label, Icon, count }) => {
                   const active = trackFilter === id;
                   return (
@@ -268,11 +273,15 @@ export const SkillsCategoryPage: React.FC<SkillsCategoryPageProps> = ({
                     </button>
                   );
                 })}
-              </div>
+              </AutoScrollFilterTrack>
 
               {visiblePrices.length > 2 && (
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="স্কিলস কোর্স মূল্য ফিল্টার">
-                  <span className="text-[11px] font-bold text-[#6B4C4F] mr-1">মূল্য:</span>
+                <AutoScrollFilterTrack
+                  className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto lg:overflow-visible no-scrollbar py-0.5 lg:py-0"
+                  role="group"
+                  ariaLabel="স্কিলস কোর্স মূল্য ফিল্টার"
+                >
+                  <span className="text-[11px] font-bold text-[#6B4C4F] mr-1 shrink-0 whitespace-nowrap">মূল্য:</span>
                   {visiblePrices.map(({ id, label, count }) => {
                     const active = priceFilter === id;
                     return (
@@ -294,7 +303,7 @@ export const SkillsCategoryPage: React.FC<SkillsCategoryPageProps> = ({
                       </button>
                     );
                   })}
-                </div>
+                </AutoScrollFilterTrack>
               )}
             </div>
           </>

@@ -7,7 +7,9 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  Check,
   CheckCircle2,
+  Copy,
   Edit,
   ExternalLink,
   FileEdit,
@@ -31,7 +33,10 @@ import type {
   OnlineBatchPageConfig,
 } from '../../types.ts';
 import { toBengaliNumber } from '../../utils/format.ts';
-import { generateUnicodeCourseSlug } from '../../lib/courseSlug.ts';
+import {
+  buildReadableCourseShareUrl,
+  generateUnicodeCourseSlug,
+} from '../../lib/courseSlug.ts';
 import { getCourseFeatureItems } from '../../lib/courseFeatures.ts';
 import {
   cloneDefaultOnlineBatchPageConfig,
@@ -100,6 +105,16 @@ export const OnlineBatchAdminManager: React.FC<OnlineBatchAdminManagerProps> = (
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [reorderingClassId, setReorderingClassId] = useState<number | null>(null);
+
+  // Shareable Link & Copy States
+  const [copiedPageLink, setCopiedPageLink] = useState(false);
+  const [copiedClassId, setCopiedClassId] = useState<number | null>(null);
+  const [copiedCourseId, setCopiedCourseId] = useState<number | null>(null);
+  const copyResetTimersRef = useRef<{
+    page?: ReturnType<typeof setTimeout>;
+    cls?: ReturnType<typeof setTimeout>;
+    course?: ReturnType<typeof setTimeout>;
+  }>({});
 
   // Add / Edit Course Modal
   const [showCourseModal, setShowCourseModal] = useState(false);
@@ -212,6 +227,111 @@ export const OnlineBatchAdminManager: React.FC<OnlineBatchAdminManagerProps> = (
       }
     },
     [onUnauthorized, onCacheUpdated]
+  );
+
+  useEffect(() => {
+    const timers = copyResetTimersRef.current;
+    return () => {
+      if (timers.page) clearTimeout(timers.page);
+      if (timers.cls) clearTimeout(timers.cls);
+      if (timers.course) clearTimeout(timers.course);
+    };
+  }, []);
+
+  const copyTextToClipboard = useCallback(async (text: string): Promise<boolean> => {
+    if (typeof window === 'undefined' || !text) return false;
+    let copied = false;
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+    }
+
+    if (!copied) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.top = '0';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, text.length);
+        copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch {
+        copied = false;
+      }
+    }
+
+    return copied;
+  }, []);
+
+  const handleCopyOnlineBatchPageLink = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    const targetUrl = `${window.location.origin.replace(/\/+$/, '')}/online-batch`;
+    const copied = await copyTextToClipboard(targetUrl);
+    if (copied) {
+      setCopiedPageLink(true);
+      if (copyResetTimersRef.current.page) {
+        clearTimeout(copyResetTimersRef.current.page);
+      }
+      copyResetTimersRef.current.page = setTimeout(() => {
+        setCopiedPageLink(false);
+      }, 2200);
+      onShowToast('অনলাইন ব্যাচ পেজের শেয়ারযোগ্য লিংক কপি হয়েছে!', 'success');
+    } else {
+      onShowToast('লিংক কপি করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
+    }
+  }, [copyTextToClipboard, onShowToast]);
+
+  const handleCopyClassShareLink = useCallback(
+    async (batchClass: OnlineBatchClass) => {
+      if (typeof window === 'undefined') return;
+      const origin = window.location.origin.replace(/\/+$/, '');
+      const url = `${origin}/online-batch?class=${encodeURIComponent(batchClass.classKey)}`;
+      const copied = await copyTextToClipboard(url);
+      if (copied) {
+        setCopiedClassId(batchClass.id);
+        if (copyResetTimersRef.current.cls) {
+          clearTimeout(copyResetTimersRef.current.cls);
+        }
+        copyResetTimersRef.current.cls = setTimeout(() => {
+          setCopiedClassId((prev) => (prev === batchClass.id ? null : prev));
+        }, 2000);
+        onShowToast(`${batchClass.name} ব্যাচের শেয়ার লিংক কপি হয়েছে!`, 'success');
+      } else {
+        onShowToast('লিংক কপি করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
+      }
+    },
+    [copyTextToClipboard, onShowToast]
+  );
+
+  const handleCopyCourseShareLink = useCallback(
+    async (course: Course) => {
+      if (typeof window === 'undefined') return;
+      const url = buildReadableCourseShareUrl(window.location.origin, course.slug);
+      const copied = await copyTextToClipboard(url);
+      if (copied) {
+        setCopiedCourseId(course.id);
+        if (copyResetTimersRef.current.course) {
+          clearTimeout(copyResetTimersRef.current.course);
+        }
+        copyResetTimersRef.current.course = setTimeout(() => {
+          setCopiedCourseId((prev) => (prev === course.id ? null : prev));
+        }, 2000);
+        onShowToast(`কোর্স শেয়ার লিংক কপি হয়েছে: ${course.title}`, 'success');
+      } else {
+        onShowToast('লিংক কপি করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
+      }
+    },
+    [copyTextToClipboard, onShowToast]
   );
 
   useEffect(() => {
@@ -812,6 +932,29 @@ export const OnlineBatchAdminManager: React.FC<OnlineBatchAdminManagerProps> = (
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleCopyOnlineBatchPageLink()}
+              title="অনলাইন ব্যাচ পেজের শেয়ারযোগ্য লিংক কপি করুন"
+              aria-label="অনলাইন ব্যাচ পেজ লিংক কপি করুন"
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] rounded-xl border text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                copiedPageLink
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                  : 'border-rose-200 bg-rose-50/90 hover:bg-[#eb1c24] text-[#b91c1c] hover:text-white hover:border-[#eb1c24]'
+              }`}
+            >
+              {copiedPageLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 shrink-0" />
+                  <span>Copy Link</span>
+                </>
+              )}
+            </button>
             {onOpenPublicAcademicPage && (
               <button
                 type="button"
@@ -1042,10 +1185,32 @@ export const OnlineBatchAdminManager: React.FC<OnlineBatchAdminManagerProps> = (
                 )}
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <span className="text-xs font-bold text-[#6B4C4F] tabular-nums">
                   {toBengaliNumber(classEntries.length)}টি কোর্স
                 </span>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyClassShareLink(batchClass)}
+                  title={`${batchClass.name} ব্যাচের শেয়ারযোগ্য লিংক কপি করুন`}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition cursor-pointer ${
+                    copiedClassId === batchClass.id
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      : 'border-rose-200 bg-white hover:bg-rose-50 text-[#b91c1c]'
+                  }`}
+                >
+                  {copiedClassId === batchClass.id ? (
+                    <>
+                      <Check className="w-3 h-3 shrink-0" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 shrink-0" />
+                      <span>Copy Link</span>
+                    </>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => openAddCourseModal(batchClass.id)}
@@ -1166,6 +1331,30 @@ export const OnlineBatchAdminManager: React.FC<OnlineBatchAdminManagerProps> = (
                           }`}
                         >
                           {entry.status === 'active' ? 'সক্রিয়' : 'হাইড'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyCourseShareLink(course)}
+                          title="শেয়ারযোগ্য কোর্স লিংক কপি করুন"
+                          aria-label={`${course.title} Copy Link`}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition cursor-pointer ${
+                            copiedCourseId === course.id
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : 'border-rose-200 bg-rose-50/80 hover:bg-[#eb1c24] text-[#b91c1c] hover:text-white hover:border-[#eb1c24]'
+                          }`}
+                        >
+                          {copiedCourseId === course.id ? (
+                            <>
+                              <Check className="w-3 h-3 shrink-0" />
+                              <span>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3 shrink-0" />
+                              <span>Copy Link</span>
+                            </>
+                          )}
                         </button>
 
                         <a

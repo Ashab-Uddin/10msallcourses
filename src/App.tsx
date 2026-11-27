@@ -42,6 +42,7 @@ import { CategoryPage } from './components/public/CategoryPage.tsx';
 import { NavbarGroupCategoryPage } from './components/public/NavbarGroupCategoryPage.tsx';
 import { CourseSharePage } from './components/public/CourseSharePage.tsx';
 import { BookStorePage } from './components/public/BookStorePage.tsx';
+import { AutoScrollFilterTrack } from './components/public/AutoScrollFilterTrack.tsx';
 import { AdminLogin } from './components/admin/AdminLogin.tsx';
 import { AdminSessionVerifyingSkeleton } from './components/admin/AdminSkeletons.tsx';
 import { ClassSelectorStrip } from './components/public/ClassSelectorStrip.tsx';
@@ -1472,9 +1473,13 @@ export default function App({
 
               {/* Interactive Discovery & Filter Controls (Frosted Glass Strip) */}
               <div className="glass-surface rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 lg:p-4 mb-5 sm:mb-7 lg:mb-10">
-                <div className="flex flex-nowrap lg:flex-wrap items-center lg:justify-between gap-1.5 sm:gap-2 lg:gap-3 overflow-x-auto lg:overflow-visible no-scrollbar py-0.5 lg:py-0">
+                <AutoScrollFilterTrack
+                  className="flex flex-nowrap lg:flex-wrap items-center lg:justify-between gap-1.5 sm:gap-2 lg:gap-3 overflow-x-auto lg:overflow-visible no-scrollbar py-0.5 lg:py-0"
+                  role="region"
+                  ariaLabel="সব কোর্স ক্যাটাগরি ফিল্টার"
+                >
                   {/* Category Filter Tabs with Distinct Borders */}
-                  <div className="flex items-center gap-1.5 shrink-0 lg:shrink lg:overflow-x-auto no-scrollbar">
+                  <div className="flex items-center gap-1.5 shrink-0 lg:shrink lg:flex-wrap">
                     <button
                       type="button"
                       onClick={() => setSelectedCategory('all')}
@@ -1533,7 +1538,7 @@ export default function App({
                       </button>
                     )}
                   </div>
-                </div>
+                </AutoScrollFilterTrack>
               </div>
 
               {/* Loading Skeleton / Error State */}

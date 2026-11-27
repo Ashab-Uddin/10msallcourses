@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useSyncExternalStore } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -94,7 +94,15 @@ export const AcademicBatchSelectorPage: React.FC<AcademicBatchSelectorPageProps>
   onEnrollClick,
 }) => {
   const heroSectionRef = useCategoryScrollIntoView<HTMLElement>('online-batch-overview');
-  const [selectedBatchClassId, setSelectedBatchClassId] = useState<number | 'all'>('all');
+  const [manualBatchClassId, setManualBatchClassId] = useState<number | 'all' | null>(null);
+  const queryClassParam = useSyncExternalStore(
+    () => () => {},
+    () =>
+      typeof window !== 'undefined'
+        ? (new URLSearchParams(window.location.search).get('class') || '').trim().toLowerCase()
+        : '',
+    () => ''
+  );
 
   const navigateTo = (path: string) => {
     if (onNavigate) {
@@ -212,6 +220,20 @@ export const AcademicBatchSelectorPage: React.FC<AcademicBatchSelectorPageProps>
       ),
     [onlineBatchSections]
   );
+
+  const selectedBatchClassId: number | 'all' = useMemo(() => {
+    if (manualBatchClassId !== null) return manualBatchClassId;
+    if (queryClassParam && activeBatchSections.length > 0) {
+      const matched = activeBatchSections.find(
+        (sec) =>
+          sec.batchClass.classKey.trim().toLowerCase() === queryClassParam ||
+          (sec.batchClass.categorySlug || '').trim().toLowerCase() === queryClassParam ||
+          String(sec.batchClass.id) === queryClassParam
+      );
+      if (matched) return matched.batchClass.id;
+    }
+    return 'all';
+  }, [manualBatchClassId, queryClassParam, activeBatchSections]);
 
   const totalOnlineBatchCoursesCount = useMemo(
     () =>
@@ -500,7 +522,7 @@ export const AcademicBatchSelectorPage: React.FC<AcademicBatchSelectorPageProps>
                         type="button"
                         role="tab"
                         aria-selected={selectedBatchClassId === 'all'}
-                        onClick={() => setSelectedBatchClassId('all')}
+                        onClick={() => setManualBatchClassId('all')}
                         className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-extrabold whitespace-nowrap shrink-0 border transition cursor-pointer ${
                           selectedBatchClassId === 'all'
                             ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm'
@@ -518,7 +540,7 @@ export const AcademicBatchSelectorPage: React.FC<AcademicBatchSelectorPageProps>
                             type="button"
                             role="tab"
                             aria-selected={isSelected}
-                            onClick={() => setSelectedBatchClassId(sec.batchClass.id)}
+                            onClick={() => setManualBatchClassId(sec.batchClass.id)}
                             className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-extrabold whitespace-nowrap shrink-0 border transition cursor-pointer tabular-nums ${
                               isSelected
                                 ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-sm'

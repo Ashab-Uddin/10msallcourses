@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { Category, Course, CourseGroupKey } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
   courseMatchesAcademicBatch,
@@ -267,8 +268,12 @@ export const HscCategoryPage: React.FC<HscCategoryPageProps> = ({
         <div className="space-y-3">
           {/* Batch Row */}
           {visibleBatches.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="HSC ব্যাচ ফিল্টার">
-              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1">ব্যাচ:</span>
+            <AutoScrollFilterTrack
+              className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto lg:overflow-visible no-scrollbar py-0.5 lg:py-0"
+              role="group"
+              ariaLabel="HSC ব্যাচ ফিল্টার"
+            >
+              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1 shrink-0 whitespace-nowrap">ব্যাচ:</span>
               {visibleBatches.map(({ id, label, count }) => {
                 const active = batchFilter === id;
                 return (
@@ -294,13 +299,17 @@ export const HscCategoryPage: React.FC<HscCategoryPageProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </AutoScrollFilterTrack>
           )}
 
           {/* Department Row */}
           {visibleDepartments.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="HSC বিভাগ ফিল্টার">
-              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1">বিভাগ:</span>
+            <AutoScrollFilterTrack
+              className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto lg:overflow-visible no-scrollbar py-0.5 lg:py-0"
+              role="group"
+              ariaLabel="HSC বিভাগ ফিল্টার"
+            >
+              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1 shrink-0 whitespace-nowrap">বিভাগ:</span>
               {visibleDepartments.map(({ id, label, Icon, count }) => {
                 const active = deptFilter === id;
                 return (
@@ -327,13 +336,17 @@ export const HscCategoryPage: React.FC<HscCategoryPageProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </AutoScrollFilterTrack>
           )}
 
           {/* Course Type Row (only when distinct HSC types exist) */}
           {visibleTypes.length > 2 && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="HSC কোর্সের ধরন ফিল্টার">
-              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1">ধরন:</span>
+            <AutoScrollFilterTrack
+              className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto lg:overflow-visible no-scrollbar py-0.5 lg:py-0"
+              role="group"
+              ariaLabel="HSC কোর্সের ধরন ফিল্টার"
+            >
+              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1 shrink-0 whitespace-nowrap">ধরন:</span>
               {visibleTypes.map(({ id, label, Icon, count }) => {
                 const active = typeFilter === id;
                 return (
@@ -356,7 +369,7 @@ export const HscCategoryPage: React.FC<HscCategoryPageProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </AutoScrollFilterTrack>
           )}
         </div>
       </div>

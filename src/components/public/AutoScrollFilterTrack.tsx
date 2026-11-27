@@ -14,50 +14,52 @@ interface AutoScrollFilterTrackProps {
 }
 
 /**
- * Horizontal filter strip wrapper that automatically glides back and forth
- * on Mobile & Tablet viewports (< 1024px) whenever filter items overflow horizontally.
- * Automatically pauses on touch, pointer hover, wheel, focus, or click, smoothly
- * centers clicked filter buttons, and stays static on Desktop (>= 1024px).
+ * Horizontal filter strip wrapper that automatically scrolls smoothly left & right
+ * exclusively on Mobile & Tablet viewports (< 1024px) whenever filter items overflow.
+ * Pauses temporarily during touch, pointer drag, wheel, focus, or click interactions,
+ * smoothly centers clicked filter pills, and remains static on Desktop (>= 1024px).
  */
 export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
   children,
   className = '',
   role,
   ariaLabel,
-  speedPxPerSec = 32,
-  pauseAtEdgesMs = 1100,
-  interactionCooldownMs = 3200,
+  speedPxPerSec = 42,
+  pauseAtEdgesMs = 700,
+  interactionCooldownMs = 2400,
   maxAutoScrollWidth = 1024,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollCursorRef = useRef<number>(0);
   const directionRef = useRef<1 | -1>(1);
   const pauseUntilRef = useRef<number>(0);
-  const isHoveredRef = useRef<boolean>(false);
   const isTouchingRef = useRef<boolean>(false);
   const isFocusedRef = useRef<boolean>(false);
-  const isInViewRef = useRef<boolean>(true);
-  const isProgrammaticWriteRef = useRef<boolean>(false);
+  const lastWrittenAtRef = useRef<number>(0);
+  const lastWrittenPosRef = useRef<number>(0);
   const lastFrameTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el || typeof window === 'undefined') return;
 
-    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     let rafId: number | null = null;
+    let watchdogId: number | null = null;
     let isDisposed = false;
 
-    pauseUntilRef.current = performance.now() + 900;
+    pauseUntilRef.current = performance.now() + 250;
     scrollCursorRef.current = el.scrollLeft;
+    lastWrittenPosRef.current = el.scrollLeft;
+
+    const isMobileOrTabletViewport = () => window.innerWidth < maxAutoScrollWidth;
+
+    const hasHorizontalOverflow = () => el.scrollWidth - el.clientWidth > 2;
 
     const shouldAutoScroll = () => {
-      if (isDisposed) return false;
-      if (reducedMotionQuery.matches) return false;
+      if (isDisposed || !el.isConnected) return false;
       if (document.visibilityState === 'hidden') return false;
-      if (!isInViewRef.current) return false;
-      if (window.innerWidth >= maxAutoScrollWidth) return false;
-      return el.scrollWidth - el.clientWidth > 3;
+      if (!isMobileOrTabletViewport()) return false;
+      return hasHorizontalOverflow();
     };
 
     const stopLoop = () => {
@@ -77,28 +79,29 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
       }
 
       if (
-        isHoveredRef.current ||
         isTouchingRef.current ||
         isFocusedRef.current ||
         now < pauseUntilRef.current
       ) {
+        scrollCursorRef.current = el.scrollLeft;
         lastFrameTimeRef.current = now;
         rafId = window.requestAnimationFrame(tick);
         return;
       }
 
       const prevTime = lastFrameTimeRef.current ?? now;
-      const deltaSec = Math.min(0.064, Math.max(0, (now - prevTime) / 1000));
+      const deltaSec = Math.min(0.064, Math.max(0.001, (now - prevTime) / 1000));
       lastFrameTimeRef.current = now;
 
       const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
-      if (maxScroll <= 3) {
+      if (maxScroll <= 2) {
         stopLoop();
         return;
       }
 
-      // Re-sync cursor if manual/smooth scroll moved it outside our frame
-      if (Math.abs(el.scrollLeft - scrollCursorRef.current) > 3) {
+      // Only re-sync virtual cursor if an external scroll diverged significantly,
+      // preventing fractional DPR / zoom rounding from resetting progress back to 0.
+      if (Math.abs(el.scrollLeft - scrollCursorRef.current) > 12) {
         scrollCursorRef.current = el.scrollLeft;
       }
 
@@ -116,11 +119,13 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
       }
 
       scrollCursorRef.current = nextPos;
-      isProgrammaticWriteRef.current = true;
+      lastWrittenPosRef.current = nextPos;
+      lastWrittenAtRef.current = now;
+
+      if (el.style.scrollBehavior === 'smooth') {
+        el.style.scrollBehavior = 'auto';
+      }
       el.scrollLeft = nextPos;
-      window.requestAnimationFrame(() => {
-        isProgrammaticWriteRef.current = false;
-      });
 
       rafId = window.requestAnimationFrame(tick);
     };
@@ -129,6 +134,7 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
       if (shouldAutoScroll()) {
         if (rafId === null) {
           scrollCursorRef.current = el.scrollLeft;
+          lastWrittenPosRef.current = el.scrollLeft;
           lastFrameTimeRef.current = null;
           rafId = window.requestAnimationFrame(tick);
         }
@@ -143,25 +149,34 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
             ensureLoopState();
           })
         : null;
-    resizeObserver?.observe(el);
 
-    const intersectionObserver =
-      typeof IntersectionObserver !== 'undefined'
-        ? new IntersectionObserver(
-            (entries) => {
-              const entry = entries[0];
-              if (!entry) return;
-              isInViewRef.current = entry.isIntersecting;
-              ensureLoopState();
-            },
-            { threshold: 0.05 }
-          )
+    const observeElements = () => {
+      if (!resizeObserver) return;
+      resizeObserver.observe(el);
+      for (let i = 0; i < el.children.length; i += 1) {
+        const child = el.children[i];
+        if (child instanceof Element) {
+          resizeObserver.observe(child);
+        }
+      }
+    };
+    observeElements();
+
+    const mutationObserver =
+      typeof MutationObserver !== 'undefined'
+        ? new MutationObserver(() => {
+            observeElements();
+            window.requestAnimationFrame(() => {
+              if (!isDisposed) ensureLoopState();
+            });
+          })
         : null;
-    intersectionObserver?.observe(el);
+    mutationObserver?.observe(el, { childList: true, subtree: true });
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        pauseUntilRef.current = performance.now() + 600;
+        isTouchingRef.current = false;
+        pauseUntilRef.current = performance.now() + 300;
       }
       ensureLoopState();
     };
@@ -170,42 +185,65 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
       ensureLoopState();
     };
 
-    const handleMotionChange = () => {
-      ensureLoopState();
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('resize', handleWindowResize, { passive: true });
-    reducedMotionQuery.addEventListener?.('change', handleMotionChange);
+    window.addEventListener('orientationchange', handleWindowResize, { passive: true });
+
+    if (typeof document !== 'undefined' && 'fonts' in document) {
+      (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts?.ready
+        ?.then(() => {
+          if (!isDisposed) ensureLoopState();
+        })
+        .catch(() => undefined);
+    }
+
+    // Lightweight watchdog ensures async data loads, viewport toggles, or deferred paints
+    // always activate the loop when overflowing on Mobile/Tablet (< 1024px).
+    watchdogId = window.setInterval(() => {
+      if (!isDisposed && rafId === null) {
+        ensureLoopState();
+      }
+    }, 350);
 
     ensureLoopState();
 
     return () => {
       isDisposed = true;
       stopLoop();
+      if (watchdogId !== null) {
+        window.clearInterval(watchdogId);
+      }
       resizeObserver?.disconnect();
-      intersectionObserver?.disconnect();
+      mutationObserver?.disconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('resize', handleWindowResize);
-      reducedMotionQuery.removeEventListener?.('change', handleMotionChange);
+      window.removeEventListener('orientationchange', handleWindowResize);
     };
   }, [maxAutoScrollWidth, pauseAtEdgesMs, speedPxPerSec]);
 
   const handleManualScroll = () => {
     const el = containerRef.current;
-    if (!el || isProgrammaticWriteRef.current) return;
-    const movedExternally =
-      isTouchingRef.current || Math.abs(el.scrollLeft - scrollCursorRef.current) > 2.5;
+    if (!el) return;
+
+    const now = performance.now();
+    const isRecentOwnWrite =
+      !isTouchingRef.current &&
+      now - lastWrittenAtRef.current < 160 &&
+      Math.abs(el.scrollLeft - lastWrittenPosRef.current) <= 10;
+
+    if (isRecentOwnWrite) return;
+
     scrollCursorRef.current = el.scrollLeft;
-    if (movedExternally) {
-      pauseUntilRef.current = performance.now() + interactionCooldownMs;
-    }
+    lastWrittenPosRef.current = el.scrollLeft;
+    pauseUntilRef.current = now + interactionCooldownMs;
   };
 
   const handleInteractionClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = containerRef.current;
     if (!el) return;
-    pauseUntilRef.current = performance.now() + interactionCooldownMs;
+
+    const now = performance.now();
+    pauseUntilRef.current = now + interactionCooldownMs;
 
     const target = (e.target as HTMLElement | null)?.closest(
       'button, a, [role="tab"], [role="radio"]'
@@ -226,6 +264,8 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
     );
 
     scrollCursorRef.current = centeredLeft;
+    lastWrittenPosRef.current = centeredLeft;
+    lastWrittenAtRef.current = now;
     el.scrollTo({ left: centeredLeft, behavior: 'smooth' });
   };
 
@@ -246,7 +286,6 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
       }}
       onTouchCancel={() => {
         isTouchingRef.current = false;
-        pauseUntilRef.current = performance.now() + interactionCooldownMs;
       }}
       onPointerDown={() => {
         isTouchingRef.current = true;
@@ -259,13 +298,6 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
       onPointerCancel={() => {
         isTouchingRef.current = false;
       }}
-      onMouseEnter={() => {
-        isHoveredRef.current = true;
-      }}
-      onMouseLeave={() => {
-        isHoveredRef.current = false;
-        pauseUntilRef.current = performance.now() + 900;
-      }}
       onWheel={() => {
         pauseUntilRef.current = performance.now() + interactionCooldownMs;
       }}
@@ -274,7 +306,7 @@ export const AutoScrollFilterTrack: React.FC<AutoScrollFilterTrackProps> = ({
       }}
       onBlurCapture={() => {
         isFocusedRef.current = false;
-        pauseUntilRef.current = performance.now() + 1400;
+        pauseUntilRef.current = performance.now() + 1200;
       }}
       className={className}
     >
