@@ -211,3 +211,95 @@ export interface BookStoreAdminPayload {
     totalCategories: number;
   };
 }
+
+export type OnlineBatchClassTheme =
+  | 'indigo'
+  | 'emerald'
+  | 'teal'
+  | 'purple'
+  | 'orange'
+  | 'blue'
+  | 'rose';
+
+export interface OnlineBatchClass {
+  id: number;
+  classKey: string;
+  name: string;
+  sectionTitle: string;
+  badgeText: string;
+  subtitle: string | null;
+  theme: OnlineBatchClassTheme;
+  iconKey: string;
+  categorySlug: string | null;
+  displayOrder: number;
+  status: 'active' | 'inactive';
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface OnlineBatchCourseEntry {
+  id: number;
+  batchClassId: number;
+  courseId: number;
+  customBadge: string;
+  displayOrder: number;
+  status: 'active' | 'inactive';
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  course?: Course;
+}
+
+export interface OnlineBatchSection {
+  batchClass: OnlineBatchClass;
+  courses: Course[];
+  entries: OnlineBatchCourseEntry[];
+}
+
+export type OnlineBatchSectionKey = 'academic_program' | 'online_batch';
+
+export interface OnlineBatchPageHeaderConfig {
+  title: string;
+  subtitle: string;
+  description: string;
+}
+
+export interface OnlineBatchPageSectionConfig {
+  id: OnlineBatchSectionKey;
+  title: string;
+  description: string;
+  position: number;
+  isVisible: boolean;
+}
+
+export interface OnlineBatchPageIconItem {
+  id: string;
+  tag: string;
+  title: string;
+  subLabel: string;
+  iconKey: CategoryIconKey;
+  position: number;
+  isVisible: boolean;
+}
+
+export interface OnlineBatchPageConfig {
+  header: OnlineBatchPageHeaderConfig;
+  sections: OnlineBatchPageSectionConfig[];
+  classIcons: OnlineBatchPageIconItem[];
+  updatedAt?: string | null;
+}
+
+export interface OnlineBatchAdminPayload {
+  classes: OnlineBatchClass[];
+  entries: OnlineBatchCourseEntry[];
+  availableCourses: Course[];
+  categories: Category[];
+  pageConfig?: OnlineBatchPageConfig;
+  stats: {
+    totalClasses: number;
+    activeClasses: number;
+    totalAssignments: number;
+    activeAssignments: number;
+  };
+}
+
+

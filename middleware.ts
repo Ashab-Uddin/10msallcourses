@@ -7,6 +7,11 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
+  // 301 Permanent Redirect from legacy /academic to canonical /online-batch
+  if (pathname === '/academic' || pathname === '/academic/') {
+    return NextResponse.redirect(new URL(`/online-batch${search || ''}`, req.url), 301);
+  }
+
   // 301 Permanent Redirect from legacy /category/{slug} and /categories/{slug} to /{slug}
   if (
     pathname === '/category' ||
@@ -77,6 +82,7 @@ export const config = {
   matcher: [
     '/admin/:path*',
     '/api/admin/:path*',
+    '/academic',
     '/courses/:path*',
     '/category',
     '/category/:path*',

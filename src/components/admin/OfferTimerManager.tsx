@@ -30,6 +30,7 @@ import {
   toLocalDateTimeInputValue,
 } from '../../lib/offerTimerUtils.ts';
 import { getCourseCategorySlugs } from '../../lib/categoryMatching.ts';
+import { AdminModalPortal } from './AdminModalPortal.tsx';
 
 interface OfferTimerManagerProps {
   authToken?: string;
@@ -1229,41 +1230,43 @@ export const OfferTimerManager: React.FC<OfferTimerManagerProps> = ({
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmTimer && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-sm w-full p-6 space-y-4 border border-white/90 shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
+        <AdminModalPortal>
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-sm w-full p-6 space-y-4 border border-white/90 shadow-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
+                <Trash2 className="w-6 h-6" />
+              </div>
 
-            <div className="text-center space-y-1.5">
-              <h3 className="text-base font-black text-[#2A0F12]">
-                অফার টাইমারটি মুছে ফেলতে চান?
-              </h3>
-              <p className="text-xs text-[#6B4C4F]">
-                <strong>&ldquo;{deleteConfirmTimer.courseTitle}&rdquo;</strong>{' '}
-                কোর্সের এই কাউন্টডাউন টাইমারটি স্থায়ীভাবে মুছে ফেলা হবে।
-              </p>
-            </div>
+              <div className="text-center space-y-1.5">
+                <h3 className="text-base font-black text-[#2A0F12]">
+                  অফার টাইমারটি মুছে ফেলতে চান?
+                </h3>
+                <p className="text-xs text-[#6B4C4F]">
+                  <strong>&ldquo;{deleteConfirmTimer.courseTitle}&rdquo;</strong>{' '}
+                  কোর্সের এই কাউন্টডাউন টাইমারটি স্থায়ীভাবে মুছে ফেলা হবে।
+                </p>
+              </div>
 
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmTimer(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
-              >
-                না, বাতিল
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={actionLoadingId === deleteConfirmTimer.id}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-md cursor-pointer disabled:opacity-60"
-              >
-                হ্যাঁ, ডিলিট করুন
-              </button>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmTimer(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
+                >
+                  না, বাতিল
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={actionLoadingId === deleteConfirmTimer.id}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-md cursor-pointer disabled:opacity-60"
+                >
+                  হ্যাঁ, ডিলিট করুন
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </AdminModalPortal>
       )}
     </div>
   );

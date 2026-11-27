@@ -34,6 +34,7 @@ import {
   type CategoryFilterIconKey,
   type CategoryFilterOption,
 } from '../../../lib/categoryFilterConfigs.ts';
+import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 
 interface CategoryFilterBarProps {
   config: CategoryFilterConfig;
@@ -96,15 +97,10 @@ export const CategoryFilterBar: React.FC<CategoryFilterBarProps> = ({
 
   const isAllActive = selectedFilter === 'all';
 
-  const handleChipClick = (filterId: string, buttonEl: HTMLButtonElement) => {
+  const handleChipClick = (filterId: string) => {
     const nextFilter =
       filterId === 'all' || selectedFilter === filterId ? 'all' : filterId;
     onSelectFilter(nextFilter);
-    buttonEl.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'nearest',
-      block: 'nearest',
-    });
   };
 
   const renderFilterChip = (option: CategoryFilterOption) => {
@@ -117,7 +113,7 @@ export const CategoryFilterBar: React.FC<CategoryFilterBarProps> = ({
       <button
         key={option.id}
         type="button"
-        onClick={(e) => handleChipClick(option.id, e.currentTarget)}
+        onClick={() => handleChipClick(option.id)}
         aria-pressed={active}
         title={option.shortHint}
         className={`h-[31px] sm:h-[33px] px-2.5 sm:px-2.5 rounded-full text-[11px] sm:text-[11.5px] font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0 inline-flex items-center justify-center gap-1 border active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
@@ -155,10 +151,10 @@ export const CategoryFilterBar: React.FC<CategoryFilterBarProps> = ({
   };
 
   return (
-    <div
-      className="w-full overflow-x-auto no-scrollbar scroll-smooth"
+    <AutoScrollFilterTrack
+      className="w-full overflow-x-auto no-scrollbar"
       role="region"
-      aria-label={config.ariaLabel}
+      ariaLabel={config.ariaLabel}
     >
       <div
         className="flex flex-nowrap items-center justify-start gap-1 sm:gap-1.5 w-max min-w-full py-0.5"
@@ -168,7 +164,7 @@ export const CategoryFilterBar: React.FC<CategoryFilterBarProps> = ({
         {/* All Courses Reset Chip */}
         <button
           type="button"
-          onClick={(e) => handleChipClick('all', e.currentTarget)}
+          onClick={() => handleChipClick('all')}
           aria-pressed={isAllActive}
           className={`h-[31px] sm:h-[33px] px-2.5 sm:px-3 rounded-full text-[11px] sm:text-[11.5px] font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0 inline-flex items-center justify-center gap-1 border active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
             isAllActive
@@ -212,6 +208,6 @@ export const CategoryFilterBar: React.FC<CategoryFilterBarProps> = ({
           </>
         )}
       </div>
-    </div>
+    </AutoScrollFilterTrack>
   );
 };

@@ -6,6 +6,7 @@ import { Book, BookCategory, BookShelfTheme, BookStoreAdminPayload } from '../..
 import { toBengaliNumber } from '../../utils/format.ts';
 import { useHistoryViewState } from '../../lib/navigationHistory.ts';
 import { BookStoreListSkeleton } from './AdminSkeletons.tsx';
+import { AdminModalPortal } from './AdminModalPortal.tsx';
 import {
   BookOpen,
   PlusCircle,
@@ -1053,101 +1054,105 @@ export const BookStoreAdminManager: React.FC<BookStoreAdminManagerProps> = ({
 
       {/* BookCard Quick Preview Modal (Glassmorphism matching CourseCard preview) */}
       {previewBook && (
-        <div
-          className="fixed inset-0 z-50 bg-rose-950/35 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setPreviewBook(null)}
-        >
+        <AdminModalPortal>
           <div
-            className="glass-strong rounded-3xl max-w-md w-full p-5 space-y-4 border border-white/95 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[90] bg-rose-950/35 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setPreviewBook(null)}
           >
-            <div className="flex items-center justify-between border-b border-rose-200/50 pb-3">
-              <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2">
-                <Eye className="w-4 h-4 text-[#eb1c24]" />
-                <span>পাবলিক বুক কার্ড প্রিভিউ</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setPreviewBook(null)}
-                aria-label="বন্ধ করুন"
-                className="p-1.5 rounded-full glass-inset text-[#6B4C4F] hover:text-[#eb1c24] hover:bg-white cursor-pointer transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="pt-1 flex justify-center">
-              <div className="w-full max-w-[252px]">
-                <BookCard
-                  book={previewBook}
-                  categoryName={
-                    categoryNameBySlug.get(previewBook.categorySlug) || previewBook.categorySlug
-                  }
-                  showAdminStatusBadge
-                />
+            <div
+              className="glass-strong rounded-3xl max-w-md w-full p-5 space-y-4 border border-white/95 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-rose-200/50 pb-3">
+                <h3 className="text-sm font-black text-[#2A0F12] flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-[#eb1c24]" />
+                  <span>পাবলিক বুক কার্ড প্রিভিউ</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setPreviewBook(null)}
+                  aria-label="বন্ধ করুন"
+                  className="p-1.5 rounded-full glass-inset text-[#6B4C4F] hover:text-[#eb1c24] hover:bg-white cursor-pointer transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="pt-1 flex justify-center">
+                <div className="w-full max-w-[252px]">
+                  <BookCard
+                    book={previewBook}
+                    categoryName={
+                      categoryNameBySlug.get(previewBook.categorySlug) || previewBook.categorySlug
+                    }
+                    showAdminStatusBadge
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-[#6B4C4F] pt-1 border-t border-white/75">
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>স্ট্যাটাস: {previewBook.status === 'active' ? 'Active' : 'Inactive'}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = previewBook;
+                    setPreviewBook(null);
+                    setEditingBook(target);
+                    setSubView('add');
+                  }}
+                  className="font-bold text-[#b91c1c] hover:underline cursor-pointer"
+                >
+                  এডিট করুন →
+                </button>
               </div>
             </div>
-            <div className="flex items-center justify-between text-xs text-[#6B4C4F] pt-1 border-t border-white/75">
-              <span className="flex items-center gap-1.5 font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>স্ট্যাটাস: {previewBook.status === 'active' ? 'Active' : 'Inactive'}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  const target = previewBook;
-                  setPreviewBook(null);
-                  setEditingBook(target);
-                  setSubView('add');
-                }}
-                className="font-bold text-[#b91c1c] hover:underline cursor-pointer"
-              >
-                এডিট করুন →
-              </button>
-            </div>
           </div>
-        </div>
+        </AdminModalPortal>
       )}
 
       {/* Delete Book Confirmation Modal */}
       {deleteTargetBook && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setDeleteTargetBook(null)}
-        >
+        <AdminModalPortal>
           <div
-            className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-rose-100"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+            onClick={() => setDeleteTargetBook(null)}
           >
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-2xl bg-rose-100 text-rose-600 shrink-0">
-                <Trash2 className="w-5 h-5" />
+            <div
+              className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-rose-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-2xl bg-rose-100 text-rose-600 shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-black text-[#2A0F12]">বইটি মুছে ফেলবেন?</h3>
+                  <p className="text-xs text-[#6B4C4F] leading-relaxed">
+                    <strong>“{deleteTargetBook.title}”</strong> বইটি ডাটাবেস থেকে স্থায়ীভাবে মুছে ফেলা হবে। এই কাজটি আর ফিরিয়ে আনা যাবে না।
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-black text-[#2A0F12]">বইটি মুছে ফেলবেন?</h3>
-                <p className="text-xs text-[#6B4C4F] leading-relaxed">
-                  <strong>“{deleteTargetBook.title}”</strong> বইটি ডাটাবেস থেকে স্থায়ীভাবে মুছে ফেলা হবে। এই কাজটি আর ফিরিয়ে আনা যাবে না।
-                </p>
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTargetBook(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  বাতিল করুন
+                </button>
+                <button
+                  type="button"
+                  disabled={busyBookId === deleteTargetBook.id}
+                  onClick={() => void handleConfirmDeleteBook()}
+                  className="px-4 py-2 rounded-xl bg-[#eb1c24] hover:bg-[#b91c1c] text-white text-xs font-bold shadow-sm cursor-pointer disabled:opacity-60"
+                >
+                  {busyBookId === deleteTargetBook.id ? 'মুছে ফেলা হচ্ছে...' : 'হ্যাঁ, মুছে ফেলুন'}
+                </button>
               </div>
-            </div>
-            <div className="flex items-center justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteTargetBook(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                বাতিল করুন
-              </button>
-              <button
-                type="button"
-                disabled={busyBookId === deleteTargetBook.id}
-                onClick={() => void handleConfirmDeleteBook()}
-                className="px-4 py-2 rounded-xl bg-[#eb1c24] hover:bg-[#b91c1c] text-white text-xs font-bold shadow-sm cursor-pointer disabled:opacity-60"
-              >
-                {busyBookId === deleteTargetBook.id ? 'মুছে ফেলা হচ্ছে...' : 'হ্যাঁ, মুছে ফেলুন'}
-              </button>
             </div>
           </div>
-        </div>
+        </AdminModalPortal>
       )}
     </div>
   );

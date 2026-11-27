@@ -4,6 +4,11 @@ import App from '@/src/App';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import {
+  getOnlineBatchPageConfig,
+  getPublicOnlineBatchSections,
+} from '@/src/db/onlineBatchRepository';
+import { cloneDefaultOnlineBatchPageConfig } from '@/src/lib/onlineBatchPageConfig';
+import {
   buildSeoMetadata,
   buildStructuredData,
   resolveSiteOriginFromHeaders,
@@ -28,11 +33,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const [data, bookData, origin] = await Promise.all([
+  const [data, bookData, origin, onlineBatchPageConfig] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
     headers().then((h) => resolveSiteOriginFromHeaders(h)),
+    getOnlineBatchPageConfig().catch(() => cloneDefaultOnlineBatchPageConfig()),
   ]);
+  const onlineBatchSections = await getPublicOnlineBatchSections(data.courses).catch(() => []);
   const structuredData = buildStructuredData(
     '/',
     data.categories,
@@ -63,6 +70,8 @@ export default async function Page() {
         initialServerNow={data.serverNow}
         initialBookCategories={bookData.bookCategories}
         initialBooks={bookData.books}
+        initialOnlineBatchSections={onlineBatchSections}
+        initialOnlineBatchPageConfig={onlineBatchPageConfig}
       />
     </>
   );

@@ -28,6 +28,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { decodeCourseSlug } from '../../lib/courseSlug.ts';
+import { AutoScrollFilterTrack } from './AutoScrollFilterTrack.tsx';
 
 interface BookStorePageProps {
   bookCategories: BookCategory[];
@@ -411,7 +412,11 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
       {/* 2. CATEGORY FILTER BAR (Interactive Segmented Controls)   */}
       {/* ========================================================= */}
       <section className="max-w-[1260px] mx-auto px-4 sm:px-6 pt-6 sm:pt-7">
-        <div className="inline-flex flex-wrap sm:flex-nowrap items-center gap-2 glass-strong border border-white/95 rounded-2xl p-2 max-w-full overflow-x-auto shadow-sm">
+        <AutoScrollFilterTrack
+          className="inline-flex flex-nowrap items-center gap-2 glass-strong border border-white/95 rounded-2xl p-2 max-w-full overflow-x-auto no-scrollbar shadow-sm"
+          role="region"
+          ariaLabel="বইয়ের ক্যাটাগরি ফিল্টার"
+        >
           <button
             type="button"
             onClick={() => navigateToBookCategory('all')}
@@ -443,7 +448,7 @@ export const BookStorePage: React.FC<BookStorePageProps> = ({
               </button>
             );
           })}
-        </div>
+        </AutoScrollFilterTrack>
       </section>
 
       {/* ========================================================= */}

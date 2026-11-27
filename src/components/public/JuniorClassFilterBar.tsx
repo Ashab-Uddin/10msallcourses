@@ -19,6 +19,7 @@ import {
   getJuniorClassFilterCounts,
   type JuniorClassFilterId,
 } from '../../lib/juniorClassFilters.ts';
+import { AutoScrollFilterTrack } from './AutoScrollFilterTrack.tsx';
 
 interface JuniorClassFilterBarProps {
   classLabel: string;
@@ -59,7 +60,7 @@ export const JuniorClassFilterBar: React.FC<JuniorClassFilterBarProps> = ({
       role="region"
       aria-label={`${classLabel} কোর্স ফিল্টার`}
     >
-      <div className="w-full overflow-x-auto no-scrollbar scroll-smooth">
+      <AutoScrollFilterTrack className="w-full overflow-x-auto no-scrollbar">
         <div
           className="flex flex-nowrap items-center justify-center gap-1 sm:gap-1.5 w-max min-w-full"
           role="group"
@@ -111,7 +112,7 @@ export const JuniorClassFilterBar: React.FC<JuniorClassFilterBarProps> = ({
             );
           })}
         </div>
-      </div>
+      </AutoScrollFilterTrack>
     </div>
   );
 };

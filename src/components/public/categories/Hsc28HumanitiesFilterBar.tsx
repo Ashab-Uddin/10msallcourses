@@ -26,6 +26,7 @@ import {
   type Hsc28HumanitiesFilterId,
   type Hsc28HumanitiesFilterOption,
 } from '../../../lib/hsc28HumanitiesFilters.ts';
+import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 
 interface Hsc28HumanitiesFilterBarProps {
   courses: Course[];
@@ -71,16 +72,8 @@ export const Hsc28HumanitiesFilterBar: React.FC<Hsc28HumanitiesFilterBarProps> =
     []
   );
 
-  const handleChipClick = (
-    filterId: Hsc28HumanitiesFilterId | 'all',
-    buttonEl: HTMLButtonElement
-  ) => {
+  const handleChipClick = (filterId: Hsc28HumanitiesFilterId | 'all') => {
     onSelectFilter(filterId);
-    buttonEl.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'nearest',
-      block: 'nearest',
-    });
   };
 
   const renderFilterChip = (option: Hsc28HumanitiesFilterOption) => {
@@ -93,7 +86,7 @@ export const Hsc28HumanitiesFilterBar: React.FC<Hsc28HumanitiesFilterBarProps> =
       <button
         key={option.id}
         type="button"
-        onClick={(e) => handleChipClick(option.id, e.currentTarget)}
+        onClick={() => handleChipClick(option.id)}
         aria-pressed={active}
         title={option.shortHint}
         className={`w-auto lg:w-full shrink-0 lg:shrink h-[29px] sm:h-[31px] lg:h-[33px] px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
@@ -168,15 +161,15 @@ export const Hsc28HumanitiesFilterBar: React.FC<Hsc28HumanitiesFilterBarProps> =
 
       {/* Mobile & Tablet (<lg): 1 Single Horizontal Line | Laptop (lg+): 2 Equal Lines (5x2 Grid) */}
       <div className="rounded-xl sm:rounded-2xl bg-white/65 border border-rose-100/95 p-1 sm:p-1.5 shadow-2xs">
-        <div
-          className="min-w-0 w-full flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth lg:grid lg:grid-cols-5 lg:gap-1.5 lg:overflow-visible"
+        <AutoScrollFilterTrack
+          className="min-w-0 w-full flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar lg:grid lg:grid-cols-5 lg:gap-1.5 lg:overflow-visible"
           role="group"
-          aria-label="HSC 28 মানবিক কোর্সের ধরন ও বিষয় ফিল্টার"
+          ariaLabel="HSC 28 মানবিক কোর্সের ধরন ও বিষয় ফিল্টার"
         >
           {/* Button 1: All Courses */}
           <button
             type="button"
-            onClick={(e) => handleChipClick('all', e.currentTarget)}
+            onClick={() => handleChipClick('all')}
             aria-pressed={isAllActive}
             className={`w-auto lg:w-full shrink-0 lg:shrink h-[29px] sm:h-[31px] lg:h-[33px] px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
               isAllActive
@@ -202,7 +195,7 @@ export const Hsc28HumanitiesFilterBar: React.FC<Hsc28HumanitiesFilterBarProps> =
 
           {/* Buttons 2-10: Types + Subjects */}
           {orderedOptions.map(renderFilterChip)}
-        </div>
+        </AutoScrollFilterTrack>
       </div>
     </div>
   );

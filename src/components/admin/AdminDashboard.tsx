@@ -10,6 +10,7 @@ import {
   ClickRecord,
   Course,
   OfferTimer,
+  OnlineBatchAdminPayload,
   SiteSettings,
 } from '../../types.ts';
 import {
@@ -65,6 +66,7 @@ import { AdminNavbar } from './AdminNavbar.tsx';
 import { AdminFooter } from './AdminFooter.tsx';
 import { AdminMobileBottomNav } from './AdminMobileBottomNav.tsx';
 import { AdminDashboardSkeleton } from './AdminSkeletons.tsx';
+import { AdminModalPortal } from './AdminModalPortal.tsx';
 
 const CourseEditorPage = dynamic(
   () => import('./CourseEditorPage.tsx').then((m) => m.CourseEditorPage),
@@ -130,6 +132,18 @@ const CourseSortManager = dynamic(
     ),
   }
 );
+
+const OnlineBatchAdminManager = dynamic(
+  () => import('./OnlineBatchAdminManager.tsx').then((m) => m.OnlineBatchAdminManager),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-strong rounded-3xl p-10 text-center text-sm font-bold text-[#6B4C4F]">
+        অনলাইন ব্যাচ ম্যানেজার লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
 import {
   LayoutDashboard,
   BookOpen,
@@ -161,6 +175,7 @@ import {
   ListOrdered,
   Copy,
   Check,
+  GraduationCap,
 } from 'lucide-react';
 
 const COURSES_PER_PAGE = 12;
@@ -179,6 +194,8 @@ function preloadTabChunk(tab: AdminPageTab): void {
     void import('./OfferTimerManager.tsx').catch(() => preloadedTabs.delete(tab));
   } else if (tab === 'icon_sort') {
     void import('./IconSortManager.tsx').catch(() => preloadedTabs.delete(tab));
+  } else if (tab === 'online_batches') {
+    void import('./OnlineBatchAdminManager.tsx').catch(() => preloadedTabs.delete(tab));
   }
 }
 
@@ -206,6 +223,7 @@ export type AdminPageTab =
   | 'book_store'
   | 'book_categories'
   | 'offer_timers'
+  | 'online_batches'
   | 'settings'
   | 'icon_sort'
   | 'course_editor';
@@ -231,6 +249,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (p.includes('/admin/book-categories')) return 'book_categories';
     if (p.includes('/admin/books')) return 'book_store';
     if (p.includes('/admin/categories')) return 'categories';
+    if (p.includes('/admin/online-batches')) return 'online_batches';
     if (p.includes('/admin/offer-timers')) return 'offer_timers';
     if (p.includes('/admin/settings/icon-sort')) return 'icon_sort';
     if (p.includes('/admin/settings')) return 'settings';
@@ -244,6 +263,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [cachedBookStoreData, setCachedBookStoreData] = useState<BookStoreAdminPayload | null>(null);
+  const [cachedOnlineBatchData, setCachedOnlineBatchData] =
+    useState<OnlineBatchAdminPayload | null>(null);
 
   // Core Data States (hydrated synchronously when SSR or login preload supplies initialData)
   const [stats, setStats] = useState(() => ({
@@ -538,6 +559,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         book_add: '/admin/books/new',
         book_store: '/admin/books',
         book_categories: '/admin/book-categories',
+        online_batches: '/admin/online-batches',
         offer_timers: '/admin/offer-timers',
         settings: '/admin/settings',
         icon_sort: '/admin/settings/icon-sort',
@@ -1254,6 +1276,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [onNavigate]);
 
+  const handleOpenPublicAcademicPage = useCallback(() => {
+    if (onNavigate) {
+      onNavigate('/online-batch');
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/online-batch';
+    }
+  }, [onNavigate]);
+
   const navbarStats = useMemo(
     () => ({ ...stats, totalBooks: bookStats.totalBooks }),
     [stats, bookStats.totalBooks]
@@ -1315,6 +1345,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       badge: bookStats.totalBooks,
     },
     {
+      id: 'online_batches' as AdminPageTab,
+      label: 'Online Batch',
+      icon: <GraduationCap className="w-4 h-4 shrink-0" />,
+    },
+    {
       id: 'offer_timers' as AdminPageTab,
       label: 'Offer Timer',
       icon: <AlarmClock className="w-4 h-4 shrink-0" />,
@@ -1337,7 +1372,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Toast Notification Container */}
       {toast && (
-        <div className="fixed top-20 right-4 sm:right-6 z-[60] animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="fixed top-20 right-4 sm:right-6 z-[110] animate-in fade-in slide-in-from-top-3 duration-200">
           <div
             className={`px-4 py-3 rounded-2xl shadow-xl border backdrop-blur-xl text-xs sm:text-sm font-bold flex items-center gap-2.5 max-w-md ${
               toast.type === 'success'
@@ -1423,7 +1458,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* 2. MIDDLE WORKSPACE: GLASS SIDEBAR + MAIN CONTENT */}
-      <div className="relative z-10 flex-1 max-w-[1440px] w-full mx-auto px-3 sm:px-6 py-5 sm:py-7 flex flex-col lg:flex-row gap-6 items-start">
+      <div className="relative flex-1 max-w-[1440px] w-full mx-auto px-3 sm:px-6 py-5 sm:py-7 flex flex-col lg:flex-row gap-6 items-start">
         {/* LEFT SIDEBAR (7 Admin Views) */}
         <aside
           className={`w-full lg:w-72 shrink-0 lg:sticky lg:top-24 space-y-4 ${
@@ -1545,6 +1580,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     : 'book_add'
                 )
               }
+            />
+          ) : activeTab === 'online_batches' ? (
+            <OnlineBatchAdminManager
+              cachedData={cachedOnlineBatchData}
+              onCacheUpdated={setCachedOnlineBatchData}
+              onUnauthorized={handleBookStoreUnauthorized}
+              onDataMutated={onDataMutated}
+              onShowToast={showToast}
+              onOpenPublicAcademicPage={handleOpenPublicAcademicPage}
             />
           ) : error && courses.length === 0 ? (
             <div className="glass-strong rounded-3xl p-8 text-center space-y-3">
@@ -3229,90 +3273,98 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* CourseCard Live Preview Modal */}
       {previewingCourse && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-md w-full p-6 space-y-4 border border-white/90 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
-              <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2">
-                <Eye className="w-4 h-4 text-[#eb1c24]" />
-                <span>পাবলিক কোর্স কার্ড প্রিভিউ</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setPreviewingCourse(null)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-rose-50 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <AdminModalPortal>
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm overflow-y-auto p-3 sm:p-6 animate-in fade-in">
+            <div className="min-h-full flex items-center justify-center">
+              <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-md w-full p-6 space-y-4 border border-white/90 shadow-2xl relative">
+                <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+                  <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-[#eb1c24]" />
+                    <span>পাবলিক কোর্স কার্ড প্রিভিউ</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewingCourse(null)}
+                    className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-rose-50 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-            <div className="flex justify-center py-2">
-              <div className="w-full max-w-[340px]">
-                <CourseCard
-                  course={previewingCourse}
-                  whatsappNumber={whatsappNumber}
-                  whatsappLink={whatsappLink}
-                  onEnrollClick={() =>
-                    window.open(previewingCourse.affiliateUrl, '_blank', 'noopener,noreferrer')
-                  }
-                />
+                <div className="flex justify-center py-2">
+                  <div className="w-full max-w-[340px]">
+                    <CourseCard
+                      course={previewingCourse}
+                      whatsappNumber={whatsappNumber}
+                      whatsappLink={whatsappLink}
+                      onEnrollClick={() =>
+                        window.open(previewingCourse.affiliateUrl, '_blank', 'noopener,noreferrer')
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewingCourse(null)}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
+                  >
+                    বন্ধ করুন
+                  </button>
+                </div>
               </div>
             </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setPreviewingCourse(null)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white text-xs font-bold cursor-pointer shadow-sm"
-              >
-                বন্ধ করুন
-              </button>
-            </div>
           </div>
-        </div>
+        </AdminModalPortal>
       )}
 
       {/* Delete Course Confirmation Modal */}
       {deleteModalCourse && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-sm w-full p-6 space-y-4 border border-white/90 shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
+        <AdminModalPortal>
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-sm w-full p-6 space-y-4 border border-white/90 shadow-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
+                <Trash2 className="w-6 h-6" />
+              </div>
 
-            <div className="text-center space-y-1.5">
-              <h3 className="text-base font-black text-[#2A0F12]">কোর্সটি মুছে ফেলতে চান?</h3>
-              <p className="text-xs text-[#6B4C4F]">
-                <strong>&ldquo;{deleteModalCourse.title}&rdquo;</strong> কোর্সটি ডাটাবেস এবং ওয়েবসাইট থেকে মুছে ফেলা হবে।
-              </p>
-            </div>
+              <div className="text-center space-y-1.5">
+                <h3 className="text-base font-black text-[#2A0F12]">কোর্সটি মুছে ফেলতে চান?</h3>
+                <p className="text-xs text-[#6B4C4F]">
+                  <strong>&ldquo;{deleteModalCourse.title}&rdquo;</strong> কোর্সটি ডাটাবেস এবং ওয়েবসাইট থেকে মুছে ফেলা হবে।
+                </p>
+              </div>
 
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteModalCourse(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
-              >
-                না, বাতিল
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDeleteCourse}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-md cursor-pointer"
-              >
-                হ্যাঁ, নিশ্চিত ডিলিট
-              </button>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalCourse(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
+                >
+                  না, বাতিল
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteCourse}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-md cursor-pointer"
+                >
+                  হ্যাঁ, নিশ্চিত ডিলিট
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </AdminModalPortal>
       )}
 
       {/* Category Modal (Create / Edit) */}
       {showCategoryModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <form
-            onSubmit={handleSaveCategory}
-            className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 space-y-4 border border-white/90 shadow-2xl relative"
-          >
+        <AdminModalPortal>
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm overflow-y-auto p-3 sm:p-6 animate-in fade-in">
+            <div className="min-h-full flex items-center justify-center">
+              <form
+                onSubmit={handleSaveCategory}
+                className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 space-y-4 border border-white/90 shadow-2xl relative"
+              >
             <div className="flex items-center justify-between border-b border-rose-100 pb-3">
               <h3 className="text-sm font-bold text-[#2A0F12] flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#eb1c24]" />
@@ -3593,81 +3645,87 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {savingCat ? 'সংরক্ষণ হচ্ছে...' : editingCategory ? 'আপডেট করুন' : 'যোগ করুন'}
               </button>
             </div>
-          </form>
-        </div>
+              </form>
+            </div>
+          </div>
+        </AdminModalPortal>
       )}
 
       {/* Delete Category Confirmation Modal */}
       {deleteModalCat && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-sm w-full p-6 space-y-4 border border-white/90 shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
+        <AdminModalPortal>
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-sm w-full p-6 space-y-4 border border-white/90 shadow-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
+                <Trash2 className="w-6 h-6" />
+              </div>
 
-            <div className="text-center space-y-1.5">
-              <h3 className="text-base font-black text-[#2A0F12]">ক্যাটাগরি মুছে ফেলতে চান?</h3>
-              <p className="text-xs text-[#6B4C4F]">
-                <strong>&ldquo;{deleteModalCat.name}&rdquo;</strong> ক্যাটাগরি মুছে ফেলা হবে।
-              </p>
-            </div>
+              <div className="text-center space-y-1.5">
+                <h3 className="text-base font-black text-[#2A0F12]">ক্যাটাগরি মুছে ফেলতে চান?</h3>
+                <p className="text-xs text-[#6B4C4F]">
+                  <strong>&ldquo;{deleteModalCat.name}&rdquo;</strong> ক্যাটাগরি মুছে ফেলা হবে।
+                </p>
+              </div>
 
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteModalCat(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
-              >
-                বাতিল
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDeleteCategory}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-md cursor-pointer"
-              >
-                ডিলিট করুন
-              </button>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalCat(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteCategory}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] text-white text-xs font-bold shadow-md cursor-pointer"
+                >
+                  ডিলিট করুন
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </AdminModalPortal>
       )}
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-xs w-full p-6 space-y-4 border border-white/90 shadow-2xl text-center">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-[#b91c1c] mx-auto">
-              <LogOut className="w-6 h-6" />
-            </div>
+        <AdminModalPortal>
+          <div className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-3xl max-w-xs w-full p-6 space-y-4 border border-white/90 shadow-2xl text-center">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-[#b91c1c] mx-auto">
+                <LogOut className="w-6 h-6" />
+              </div>
 
-            <div>
-              <h3 className="text-sm font-black text-[#2A0F12]">অ্যাডমিন লগআউট</h3>
-              <p className="text-xs text-[#6B4C4F] mt-1">
-                আপনি কি নিশ্চিতভাবে অ্যাডমিন প্যানেল থেকে বের হতে চান?
-              </p>
-            </div>
+              <div>
+                <h3 className="text-sm font-black text-[#2A0F12]">অ্যাডমিন লগআউট</h3>
+                <p className="text-xs text-[#6B4C4F] mt-1">
+                  আপনি কি নিশ্চিতভাবে অ্যাডমিন প্যানেল থেকে বের হতে চান?
+                </p>
+              </div>
 
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
-              >
-                না
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowLogoutConfirm(false);
-                  onLogout();
-                }}
-                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] hover:shadow-[0_6px_16px_-4px_rgba(226,43,43,0.45)] text-white text-xs font-bold transition cursor-pointer"
-              >
-                লগআউট
-              </button>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 py-2 rounded-xl border border-slate-200 text-xs font-bold text-[#2A0F12] hover:border-[#eb1c24] hover:text-[#eb1c24] hover:bg-rose-50/60 transition cursor-pointer"
+                >
+                  না
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLogoutConfirm(false);
+                    onLogout();
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#ff5252] to-[#b91c1c] hover:from-[#eb1c24] hover:to-[#991b1b] hover:shadow-[0_6px_16px_-4px_rgba(226,43,43,0.45)] text-white text-xs font-bold transition cursor-pointer"
+                >
+                  লগআউট
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </AdminModalPortal>
       )}
     </div>
   );

@@ -10,7 +10,7 @@ export function GET() {
 
 ## Main pages
 - [Home](${base}/): all courses
-- [Academic Batches](${base}/academic)
+- [Online Batch](${base}/online-batch)
 - [HSC 27](${base}/hsc/hsc-27)
 - [HSC 26](${base}/hsc/hsc-26)
 - [SSC 27](${base}/ssc/ssc-27)

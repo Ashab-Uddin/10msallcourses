@@ -24,6 +24,7 @@ import {
   type Hsc28ScienceFilterId,
   type Hsc28ScienceFilterOption,
 } from '../../../lib/hsc28ScienceFilters.ts';
+import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 
 interface Hsc28ScienceFilterBarProps {
   courses: Course[];
@@ -104,10 +105,10 @@ export const Hsc28ScienceFilterBar: React.FC<Hsc28ScienceFilterBarProps> = ({
   };
 
   return (
-    <div
-      className="w-full overflow-x-auto no-scrollbar scroll-smooth"
+    <AutoScrollFilterTrack
+      className="w-full overflow-x-auto no-scrollbar"
       role="region"
-      aria-label="HSC 28 বিজ্ঞান কোর্স ফিল্টার"
+      ariaLabel="HSC 28 বিজ্ঞান কোর্স ফিল্টার"
     >
       <div
         className="flex flex-nowrap items-center justify-start lg:justify-between gap-1 sm:gap-1.5 w-max min-w-full py-0.5"
@@ -157,6 +158,6 @@ export const Hsc28ScienceFilterBar: React.FC<Hsc28ScienceFilterBarProps> = ({
         {/* Subject & Track Filters (PCMB, বায়োলজি, ফিজিক্স, কেমিস্ট্রি, ম্যাথ, BEI, বাংলা, ইংরেজি, ICT) */}
         {HSC28_SUBJECT_FILTERS.map(renderFilterChip)}
       </div>
-    </div>
+    </AutoScrollFilterTrack>
   );
 };

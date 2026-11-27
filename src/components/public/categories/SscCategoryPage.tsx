@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { Category, Course, CourseGroupKey } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
   courseMatchesAcademicBatch,
@@ -208,8 +209,12 @@ export const SscCategoryPage: React.FC<SscCategoryPageProps> = ({
 
         <div className="space-y-3">
           {visibleBatches.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="SSC ব্যাচ ফিল্টার">
-              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1">শ্রেণি/ব্যাচ:</span>
+            <AutoScrollFilterTrack
+              className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto lg:overflow-visible no-scrollbar"
+              role="group"
+              ariaLabel="SSC ব্যাচ ফিল্টার"
+            >
+              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1 shrink-0 whitespace-nowrap">শ্রেণি/ব্যাচ:</span>
               {visibleBatches.map(({ id, label, count }) => {
                 const active = batchFilter === id;
                 return (
@@ -235,12 +240,16 @@ export const SscCategoryPage: React.FC<SscCategoryPageProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </AutoScrollFilterTrack>
           )}
 
           {visibleDepartments.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="SSC বিভাগ ফিল্টার">
-              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1">বিভাগ:</span>
+            <AutoScrollFilterTrack
+              className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto lg:overflow-visible no-scrollbar"
+              role="group"
+              ariaLabel="SSC বিভাগ ফিল্টার"
+            >
+              <span className="text-[11px] font-bold text-[#6B4C4F] mr-1 shrink-0 whitespace-nowrap">বিভাগ:</span>
               {visibleDepartments.map(({ id, label, Icon, count }) => {
                 const active = deptFilter === id;
                 return (
@@ -267,7 +276,7 @@ export const SscCategoryPage: React.FC<SscCategoryPageProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </AutoScrollFilterTrack>
           )}
         </div>
       </div>

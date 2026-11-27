@@ -1,5 +1,11 @@
 import type { Metadata } from 'next';
-import { BookCategory, Category, Course, SiteSettings } from '@/src/types';
+import {
+  BookCategory,
+  Category,
+  Course,
+  OnlineBatchPageConfig,
+  SiteSettings,
+} from '@/src/types';
 import { toBengaliNumber } from '@/src/utils/format';
 import {
   CLASS_BENGALI_ORDINALS,
@@ -242,7 +248,8 @@ function resolveRouteSeo(
   settings?: SiteSettings | null,
   bookCategories: BookCategory[] = [],
   courses: Course[] = [],
-  baseUrlOverride?: string
+  baseUrlOverride?: string,
+  onlineBatchPageConfig?: OnlineBatchPageConfig | null
 ): ResolvedRouteSeo {
   const clean = pathname.replace(/\/+$/, '') || '/';
   const effectiveBaseUrl = normalizePublicOrigin(baseUrlOverride) || getSiteBaseUrl();
@@ -343,23 +350,32 @@ function resolveRouteSeo(
   }
 
   if (
+    clean === '/online-batch' ||
     clean === '/hsc/hsc-28' ||
     clean === '/academic/hsc/hsc-28' ||
     clean === '/hsc' ||
     clean === '/academic/hsc' ||
     clean === '/academic'
   ) {
+    const headerTitle = sanitizeOgText(onlineBatchPageConfig?.header?.title);
+    const headerDesc = sanitizeOgText(onlineBatchPageConfig?.header?.description);
     return withCourseOgFallback({
-      title: 'একাডেমিক অনলাইন ব্যাচ (HSC 27, HSC 28, SSC 28, SSC 29) — ১০ মিনিট স্কুল',
+      title: headerTitle
+        ? `${headerTitle} — ১০ মিনিট স্কুল`
+        : 'একাডেমিক অনলাইন ব্যাচ 2027 — ১০ মিনিট স্কুল',
       description:
-        'HSC 27, HSC 28, SSC 28 ও SSC 29 একাডেমিক অনলাইন ব্যাচের বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা ও সকল শ্রেণির পূর্ণাঙ্গ কোর্সসমূহ।',
-      canonicalPath: '/academic',
+        headerDesc ||
+        'HSC 27, HSC 28 ও ৬ষ্ঠ–১০ম শ্রেণি (SSC 28 ও SSC 29) একাডেমিক অনলাইন ব্যাচের বিজ্ঞান, মানবিক, ব্যবসায় শিক্ষা ও সকল শ্রেণির পূর্ণাঙ্গ কোর্সসমূহ।',
+      canonicalPath: '/online-batch',
       filterCourses: (all) =>
         all.filter(
           (c) =>
             isPublicVisibleCourse(c) &&
             (courseMatchesAcademicBatch(c, 'hsc-28') ||
               courseMatchesAcademicBatch(c, 'hsc-27') ||
+              courseMatchesAcademicBatch(c, 'class-6') ||
+              courseMatchesAcademicBatch(c, 'class-7') ||
+              courseMatchesAcademicBatch(c, 'class-8') ||
               courseMatchesAcademicBatch(c, 'ssc-2028') ||
               courseMatchesAcademicBatch(c, 'ssc-2029'))
         ),
@@ -739,7 +755,8 @@ export function buildSeoMetadata(
   settings?: SiteSettings | null,
   bookCategories: BookCategory[] = [],
   courses: Course[] = [],
-  originOverride?: string
+  originOverride?: string,
+  onlineBatchPageConfig?: OnlineBatchPageConfig | null
 ): Metadata {
   const baseUrl = normalizePublicOrigin(originOverride) || getSiteBaseUrl();
   const resolved = resolveRouteSeo(
@@ -748,7 +765,8 @@ export function buildSeoMetadata(
     settings,
     bookCategories,
     courses,
-    baseUrl
+    baseUrl,
+    onlineBatchPageConfig
   );
 
   if (resolved.isAdmin) {
@@ -819,10 +837,19 @@ export function buildStructuredData(
   categories: Category[],
   courses: Course[],
   settings?: SiteSettings | null,
-  originOverride?: string
+  originOverride?: string,
+  onlineBatchPageConfig?: OnlineBatchPageConfig | null
 ) {
   const baseUrl = normalizePublicOrigin(originOverride) || getSiteBaseUrl();
-  const resolved = resolveRouteSeo(pathname, categories, settings, [], courses, baseUrl);
+  const resolved = resolveRouteSeo(
+    pathname,
+    categories,
+    settings,
+    [],
+    courses,
+    baseUrl,
+    onlineBatchPageConfig
+  );
   if (resolved.isAdmin) return null;
 
   const matched = resolved

@@ -18,6 +18,7 @@ import {
 } from '../../lib/courseSorting.ts';
 import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
+import { AutoScrollFilterTrack } from './AutoScrollFilterTrack.tsx';
 import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
 import {
   Search,
@@ -370,10 +371,10 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               </div>
             )}
 
-            <div
+            <AutoScrollFilterTrack
               className={`${
                 level === 'ssc' ? 'hidden sm:flex' : 'flex'
-              } items-center gap-1.5 sm:gap-2.5 p-1.5 sm:p-2 rounded-2xl glass-strong max-w-full overflow-x-auto no-scrollbar scroll-smooth justify-start sm:justify-center mx-auto shadow-sm`}
+              } items-center gap-1.5 sm:gap-2.5 p-1.5 sm:p-2 rounded-2xl glass-strong max-w-full overflow-x-auto no-scrollbar justify-start sm:justify-center mx-auto shadow-sm`}
             >
               {toggleOptions.map((opt) => {
                 const isActive = opt.id === batchOrClass;
@@ -407,7 +408,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </AutoScrollFilterTrack>
           </div>
         </div>
       </section>
@@ -417,13 +418,13 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
         <div className="bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl p-3 sm:p-4 border border-rose-100/90 sm:border-rose-100 shadow-[0_10px_28px_rgba(185,28,28,0.08)] sm:shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3">
           
           {level === 'hsc' ? (
-            /* HSC DEPARTMENT TABS (Balanced 2x2 Bangla Grid on Mobile, Scroll Strip on Tablet/Desktop) */
-            <div className="grid grid-cols-2 sm:flex sm:flex-nowrap items-center gap-2 sm:gap-2 sm:overflow-x-auto pb-0 sm:pb-1 md:pb-0 no-scrollbar scroll-smooth w-full md:w-auto">
+            /* HSC DEPARTMENT TABS (Auto-scroll strip on Mobile/Tablet) */
+            <AutoScrollFilterTrack className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 sm:pb-1 md:pb-0 no-scrollbar w-full md:w-auto">
               {/* All */}
               <button
                 type="button"
                 onClick={() => handleDepartmentJump('')}
-                className={`w-full sm:w-auto px-2.5 sm:px-4 py-2 sm:py-2 rounded-xl sm:rounded-full text-[11.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-between sm:justify-center gap-1.5 border active:scale-[0.97] ${
+                className={`w-auto px-3 sm:px-4 py-2 rounded-full text-[11.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'all'
                     ? 'border-[#b91c1c] sm:border-red-600 bg-gradient-to-r from-[#ff4b4b] sm:from-[#eb1c24] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.45)] sm:shadow-md shadow-red-500/20'
                     : 'border-rose-200/80 sm:border-slate-200/90 bg-rose-50/40 sm:bg-white text-[#2A0F12] sm:text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/60 shadow-2xs'
@@ -453,7 +454,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               <button
                 type="button"
                 onClick={() => handleDepartmentJump('science')}
-                className={`w-full sm:w-auto px-2.5 sm:px-4 py-2 sm:py-2 rounded-xl sm:rounded-full text-[11.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-between sm:justify-center gap-1.5 border active:scale-[0.97] ${
+                className={`w-auto px-3 sm:px-4 py-2 rounded-full text-[11.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'science'
                     ? 'border-[#b91c1c] sm:border-red-600 bg-gradient-to-r from-[#ff4b4b] sm:from-[#eb1c24] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.45)] sm:shadow-md shadow-red-500/20'
                     : 'border-rose-200/80 sm:border-slate-200/90 bg-rose-50/40 sm:bg-white text-[#2A0F12] sm:text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/60 shadow-2xs'
@@ -483,7 +484,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               <button
                 type="button"
                 onClick={() => handleDepartmentJump('business-studies')}
-                className={`w-full sm:w-auto px-2.5 sm:px-4 py-2 sm:py-2 rounded-xl sm:rounded-full text-[11.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-between sm:justify-center gap-1.5 border active:scale-[0.97] ${
+                className={`w-auto px-3 sm:px-4 py-2 rounded-full text-[11.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'business'
                     ? 'border-[#b91c1c] sm:border-red-600 bg-gradient-to-r from-[#ff4b4b] sm:from-[#eb1c24] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.45)] sm:shadow-md shadow-red-500/20'
                     : 'border-rose-200/80 sm:border-slate-200/90 bg-rose-50/40 sm:bg-white text-[#2A0F12] sm:text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/60 shadow-2xs'
@@ -513,7 +514,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
               <button
                 type="button"
                 onClick={() => handleDepartmentJump('humanities')}
-                className={`w-full sm:w-auto px-2.5 sm:px-4 py-2 sm:py-2 rounded-xl sm:rounded-full text-[11.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-between sm:justify-center gap-1.5 border active:scale-[0.97] ${
+                className={`w-auto px-3 sm:px-4 py-2 rounded-full text-[11.5px] sm:text-sm font-bold transition cursor-pointer whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5 border active:scale-[0.97] ${
                   selectedDept === 'humanities'
                     ? 'border-[#b91c1c] sm:border-red-600 bg-gradient-to-r from-[#ff4b4b] sm:from-[#eb1c24] to-[#b91c1c] text-white shadow-[0_6px_14px_-4px_rgba(185,28,28,0.45)] sm:shadow-md shadow-red-500/20'
                     : 'border-rose-200/80 sm:border-slate-200/90 bg-rose-50/40 sm:bg-white text-[#2A0F12] sm:text-slate-700 hover:border-rose-300 hover:text-[#eb1c24] hover:bg-rose-50/60 shadow-2xs'
@@ -538,10 +539,10 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                   {toBengaliNumber(humanitiesCourses.length)}
                 </span>
               </button>
-            </div>
+            </AutoScrollFilterTrack>
           ) : level === 'ssc' ? (
             /* SSC SUBJECT / STREAM FILTER TABS */
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 sm:overflow-x-auto pb-0.5 sm:pb-1 md:pb-0 no-scrollbar scroll-smooth w-full md:w-auto">
+            <AutoScrollFilterTrack className="flex flex-nowrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 sm:pb-1 md:pb-0 no-scrollbar w-full md:w-auto">
               <button
                 type="button"
                 onClick={() => setSelectedDept('all')}
@@ -634,7 +635,7 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
                   </span>
                 </button>
               )}
-            </div>
+            </AutoScrollFilterTrack>
           ) : (
             /* CLASS 5 - CLEAN SUBJECT LABEL */
             <div className="flex items-center gap-2">

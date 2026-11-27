@@ -27,6 +27,7 @@ import type {
 } from '../../lib/selectorIconOrder.ts';
 import { resolveCategoryNavGroup } from '../../lib/navbarCategories.ts';
 import { ScienceBackdropAccent } from './ScienceBackdropAccent.tsx';
+import { AutoScrollFilterTrack } from './AutoScrollFilterTrack.tsx';
 import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
 import { Search, Sparkles } from 'lucide-react';
 
@@ -337,7 +338,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
             </div>
 
             {showBatchAndGroupFilters && (
-              <div className="flex flex-wrap items-center gap-1.5">
+              <AutoScrollFilterTrack className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 overflow-x-auto lg:overflow-visible no-scrollbar">
                 {batchOptions.map((opt) => {
                   const active = batchFilter === opt.id;
                   return (
@@ -346,7 +347,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
                       type="button"
                       onClick={() => setBatchFilter(opt.id)}
                       aria-pressed={active}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer whitespace-nowrap shrink-0 ${
                         active
                           ? 'bg-gradient-to-r from-[#ff5252] to-[#b91c1c] text-white border-[#b91c1c] shadow-xs'
                           : 'bg-white/90 text-[#2A0F12] border-rose-200/90 hover:border-[#E22B2B] hover:text-[#B91C1C]'
@@ -356,12 +357,12 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
                     </button>
                   );
                 })}
-              </div>
+              </AutoScrollFilterTrack>
             )}
           </div>
 
           {showBatchAndGroupFilters && (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <AutoScrollFilterTrack className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 overflow-x-auto lg:overflow-visible no-scrollbar">
               {groupOptions.map((opt) => {
                 const active = groupFilter === opt.id;
                 return (
@@ -370,7 +371,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
                     type="button"
                     onClick={() => setGroupFilter(opt.id)}
                     aria-pressed={active}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer whitespace-nowrap shrink-0 ${
                       active
                         ? 'bg-[#2A0F12] text-white border-[#2A0F12] shadow-xs'
                         : 'bg-white/85 text-[#4A2528] border-rose-200/80 hover:border-[#E22B2B] hover:text-[#B91C1C]'
@@ -380,7 +381,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
                   </button>
                 );
               })}
-            </div>
+            </AutoScrollFilterTrack>
           )}
       </div>
 

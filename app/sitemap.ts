@@ -12,7 +12,7 @@ type Freq = MetadataRoute.Sitemap[number]['changeFrequency'];
 // /ssc/ssc-29, /hsc, /ssc, /class-10 and /academic/* redirect (301) and are excluded.
 const STATIC_PATHS: Array<{ path: string; freq: Freq; priority: number }> = [
   { path: '/', freq: 'daily', priority: 1.0 },
-  { path: '/academic', freq: 'weekly', priority: 0.9 },
+  { path: '/online-batch', freq: 'weekly', priority: 0.9 },
   { path: '/hsc/hsc-27', freq: 'weekly', priority: 0.9 },
   { path: '/hsc/hsc-26', freq: 'weekly', priority: 0.9 },
   { path: '/ssc/ssc-27', freq: 'weekly', priority: 0.9 },

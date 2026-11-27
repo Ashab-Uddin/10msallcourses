@@ -4,6 +4,11 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import App from '@/src/App';
 import { getCourseBySlug, getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
+import {
+  getOnlineBatchPageConfig,
+  getPublicOnlineBatchSections,
+} from '@/src/db/onlineBatchRepository';
+import { cloneDefaultOnlineBatchPageConfig } from '@/src/lib/onlineBatchPageConfig';
 import { decodeCourseSlug, generateUnicodeCourseSlug } from '@/src/lib/courseSlug';
 import {
   buildCourseSeoMetadata,
@@ -68,9 +73,10 @@ export default async function CoursePage({ params }: CoursePageProps) {
   const decodedSlug = decodeCourseSlug(slug);
   const origin = resolveSiteOriginFromHeaders(await headers());
 
-  const [data, bookData] = await Promise.all([
+  const [data, bookData, onlineBatchPageConfig] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
+    getOnlineBatchPageConfig().catch(() => cloneDefaultOnlineBatchPageConfig()),
   ]);
 
   let matchedCourse = findMatchingCourse(data.courses, slug, decodedSlug);
@@ -89,6 +95,8 @@ export default async function CoursePage({ params }: CoursePageProps) {
   ) {
     permanentRedirect(`/courses/${encodeURIComponent(matchedCourse.slug)}`);
   }
+
+  const onlineBatchSections = await getPublicOnlineBatchSections(data.courses).catch(() => []);
 
   const initialCourses =
     matchedCourse && !data.courses.some((c) => c.id === matchedCourse.id)
@@ -129,6 +137,8 @@ export default async function CoursePage({ params }: CoursePageProps) {
         initialServerNow={data.serverNow}
         initialBookCategories={bookData.bookCategories}
         initialBooks={bookData.books}
+        initialOnlineBatchSections={onlineBatchSections}
+        initialOnlineBatchPageConfig={onlineBatchPageConfig}
       />
     </>
   );

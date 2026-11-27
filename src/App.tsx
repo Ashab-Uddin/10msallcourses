@@ -14,7 +14,21 @@ import {
   useNavigationLocation,
   type NavigateOptions,
 } from './lib/navigationHistory.ts';
-import { AdminOverviewData, Book, BookCategory, Category, Course, OfferTimer, SiteSettings } from './types.ts';
+import {
+  AdminOverviewData,
+  Book,
+  BookCategory,
+  Category,
+  Course,
+  OfferTimer,
+  OnlineBatchPageConfig,
+  OnlineBatchSection,
+  SiteSettings,
+} from './types.ts';
+import {
+  cloneDefaultOnlineBatchPageConfig,
+  normalizeOnlineBatchPageConfig,
+} from './lib/onlineBatchPageConfig.ts';
 import { buildAffiliateRedirectUrl } from './lib/affiliateUrl.ts';
 import { CourseCard } from './components/public/CourseCard.tsx';
 import { MobileCategoryCarousel } from './components/public/MobileCategoryCarousel.tsx';
@@ -101,6 +115,8 @@ export interface AppProps {
   initialServerNow?: string;
   initialBookCategories?: BookCategory[];
   initialBooks?: Book[];
+  initialOnlineBatchSections?: OnlineBatchSection[];
+  initialOnlineBatchPageConfig?: OnlineBatchPageConfig;
 }
 
 function cleanFdProcessedAttrs() {
@@ -133,6 +149,8 @@ export default function App({
   initialServerNow,
   initialBookCategories = [],
   initialBooks = [],
+  initialOnlineBatchSections = [],
+  initialOnlineBatchPageConfig,
 }: AppProps) {
   useState(() => {
     cleanFdProcessedAttrs();
@@ -257,6 +275,14 @@ export default function App({
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [bookCategories, setBookCategories] = useState<BookCategory[]>(initialBookCategories);
   const [books, setBooks] = useState<Book[]>(initialBooks);
+  const [onlineBatchSections, setOnlineBatchSections] = useState<OnlineBatchSection[]>(
+    initialOnlineBatchSections
+  );
+  const [onlineBatchPageConfig, setOnlineBatchPageConfig] = useState<OnlineBatchPageConfig>(() =>
+    initialOnlineBatchPageConfig
+      ? normalizeOnlineBatchPageConfig(initialOnlineBatchPageConfig)
+      : cloneDefaultOnlineBatchPageConfig()
+  );
   const [settings, setSettings] = useState<SiteSettings | null>(initialSettings);
   const [offerTimers, setOfferTimers] = useState<OfferTimer[]>(initialOfferTimers);
   const [hasOfferTimers, setHasOfferTimers] = useState<boolean>(
@@ -335,6 +361,14 @@ export default function App({
       }
       if (Array.isArray(data.courses)) {
         setCourses(data.courses);
+      }
+      if (Array.isArray(data.onlineBatchSections)) {
+        setOnlineBatchSections(data.onlineBatchSections);
+      }
+      if (data.onlineBatchPageConfig && typeof data.onlineBatchPageConfig === 'object') {
+        setOnlineBatchPageConfig(
+          normalizeOnlineBatchPageConfig(data.onlineBatchPageConfig)
+        );
       }
       if (Array.isArray(data.offerTimers)) {
         setOfferTimers(data.offerTimers);
@@ -528,6 +562,8 @@ export default function App({
         const bnOrdinal = CLASS_BENGALI_ORDINALS[cNum] || `${toBengaliNumber(cNum)}ম`;
         document.title = `${bnOrdinal} শ্রেণি অনলাইন ব্যাচ — ১০ মিনিট স্কুল`;
       }
+    } else if (route.view === 'academic_overview') {
+      document.title = `${onlineBatchPageConfig.header.title || 'একাডেমিক অনলাইন ব্যাচ 2027'} — ১০ মিনিট স্কুল`;
     } else if (route.view === 'navgroup') {
       const groupMeta = NAVBAR_GROUP_PAGE_META[route.groupKey];
       const selectedCat = route.categorySlug
@@ -553,7 +589,14 @@ export default function App({
       document.title =
         settings?.siteTitle || '১০ মিনিট স্কুল কোর্স — ৩D ক্লাস সিলেক্টর ও মডার্ন কোর্স পোর্টাল';
     }
-  }, [route, matchedSharedCourse, categories, bookCategories, settings?.siteTitle]);
+  }, [
+    route,
+    matchedSharedCourse,
+    categories,
+    bookCategories,
+    settings?.siteTitle,
+    onlineBatchPageConfig.header.title,
+  ]);
 
   // Record outbound click in background without blocking direct link navigation
   const recordCourseOutboundClick = (course: Pick<Course, 'id' | 'slug'>, referrer = 'course_card') => {
@@ -716,6 +759,8 @@ export default function App({
     if (clean.includes('hsc-27') || clean.includes('/academic/hsc/hsc-27')) return 'hsc27';
     if (clean.includes('hsc-28') || clean.includes('/academic/hsc/hsc-28')) return 'hsc28';
     if (
+      clean === '/online-batch' ||
+      clean === '/academic' ||
       clean.includes('/class-') ||
       clean.includes('/ssc/') ||
       clean.includes('/ssc-29') ||
@@ -1158,8 +1203,17 @@ export default function App({
             categories={orderedCategories}
             courses={courses}
             selectorIconLabels={selectorIconLabels}
+            sections={onlineBatchSections}
+            pageConfig={onlineBatchPageConfig}
+            loading={loading}
+            error={fetchError}
+            onRetry={() => {
+              setLoading(true);
+              void fetchPublicData();
+            }}
             onBack={() => navigate('/')}
             onNavigate={navigate}
+            onEnrollClick={handleEnrollClick}
           />
         </main>
 

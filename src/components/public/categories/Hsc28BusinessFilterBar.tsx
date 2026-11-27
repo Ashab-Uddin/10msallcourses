@@ -27,6 +27,7 @@ import {
   type Hsc28BusinessFilterId,
   type Hsc28BusinessFilterOption,
 } from '../../../lib/hsc28BusinessFilters.ts';
+import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 
 interface Hsc28BusinessFilterBarProps {
   courses: Course[];
@@ -73,16 +74,8 @@ export const Hsc28BusinessFilterBar: React.FC<Hsc28BusinessFilterBarProps> = ({
     []
   );
 
-  const handleChipClick = (
-    filterId: Hsc28BusinessFilterId | 'all',
-    buttonEl: HTMLButtonElement
-  ) => {
+  const handleChipClick = (filterId: Hsc28BusinessFilterId | 'all') => {
     onSelectFilter(filterId);
-    buttonEl.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'nearest',
-      block: 'nearest',
-    });
   };
 
   // Total 11 buttons: Top row 6 buttons (lg:col-span-5), Bottom row 5 buttons (lg:col-span-6)
@@ -99,7 +92,7 @@ export const Hsc28BusinessFilterBar: React.FC<Hsc28BusinessFilterBarProps> = ({
       <button
         key={option.id}
         type="button"
-        onClick={(e) => handleChipClick(option.id, e.currentTarget)}
+        onClick={() => handleChipClick(option.id)}
         aria-pressed={active}
         title={option.shortHint}
         className={`w-auto lg:w-full ${desktopSpanClass} shrink-0 lg:shrink h-[29px] sm:h-[31px] lg:h-[33px] px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
@@ -174,15 +167,15 @@ export const Hsc28BusinessFilterBar: React.FC<Hsc28BusinessFilterBarProps> = ({
 
       {/* Mobile & Tablet (<lg): 1 Single Horizontal Line | Laptop (lg+): 2 Equal Full-Width Lines (6 + 5) */}
       <div className="rounded-xl sm:rounded-2xl bg-white/65 border border-rose-100/95 p-1 sm:p-1.5 shadow-2xs">
-        <div
-          className="min-w-0 w-full flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth lg:grid lg:grid-cols-[repeat(30,minmax(0,1fr))] lg:gap-1.5 lg:overflow-visible"
+        <AutoScrollFilterTrack
+          className="min-w-0 w-full flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar lg:grid lg:grid-cols-[repeat(30,minmax(0,1fr))] lg:gap-1.5 lg:overflow-visible"
           role="group"
-          aria-label="HSC 28 ব্যবসায় শিক্ষা কোর্সের ধরন ও বিষয় ফিল্টার"
+          ariaLabel="HSC 28 ব্যবসায় শিক্ষা কোর্সের ধরন ও বিষয় ফিল্টার"
         >
           {/* Button 1: All Courses (Row 1, slot 1 of 6) */}
           <button
             type="button"
-            onClick={(e) => handleChipClick('all', e.currentTarget)}
+            onClick={() => handleChipClick('all')}
             aria-pressed={isAllActive}
             className={`w-auto lg:w-full lg:col-span-5 shrink-0 lg:shrink h-[29px] sm:h-[31px] lg:h-[33px] px-2 sm:px-2.5 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold leading-none transition-all duration-150 cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 border active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E22B2B]/40 ${
               isAllActive
@@ -208,7 +201,7 @@ export const Hsc28BusinessFilterBar: React.FC<Hsc28BusinessFilterBarProps> = ({
 
           {/* Buttons 2-11: Types + Subjects */}
           {orderedOptions.map(renderFilterChip)}
-        </div>
+        </AutoScrollFilterTrack>
       </div>
     </div>
   );

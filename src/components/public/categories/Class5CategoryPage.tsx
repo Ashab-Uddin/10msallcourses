@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
   courseHasAssignedCategorySlug,
@@ -197,7 +198,11 @@ export const Class5CategoryPage: React.FC<Class5CategoryPageProps> = ({
 
         <div className="border-t border-rose-100/85 my-3.5 sm:my-4" />
 
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="৫ম শ্রেণির কোর্স ফিল্টার">
+        <AutoScrollFilterTrack
+          className="flex flex-nowrap lg:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto lg:overflow-visible no-scrollbar"
+          role="group"
+          ariaLabel="৫ম শ্রেণির কোর্স ফিল্টার"
+        >
           {visibleFilters.map(({ id, label, Icon, count }) => {
             const active = activeFilter === id;
             return (
@@ -224,7 +229,7 @@ export const Class5CategoryPage: React.FC<Class5CategoryPageProps> = ({
               </button>
             );
           })}
-        </div>
+        </AutoScrollFilterTrack>
       </div>
 
       <section aria-label={pageTitle}>

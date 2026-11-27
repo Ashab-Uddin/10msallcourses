@@ -5,6 +5,11 @@ import App from '@/src/App';
 import { getPublicPortalData } from '@/src/db/repository';
 import { getPublicBookStoreData } from '@/src/db/bookRepository';
 import {
+  getOnlineBatchPageConfig,
+  getPublicOnlineBatchSections,
+} from '@/src/db/onlineBatchRepository';
+import { cloneDefaultOnlineBatchPageConfig } from '@/src/lib/onlineBatchPageConfig';
+import {
   buildSeoMetadata,
   buildStructuredData,
   resolveSiteOriginFromHeaders,
@@ -23,10 +28,11 @@ export async function generateMetadata({ params }: CatchAllRouteProps): Promise<
   if (pathname.startsWith('/admin')) {
     return buildSeoMetadata(pathname, []);
   }
-  const [data, bookData, origin] = await Promise.all([
+  const [data, bookData, origin, onlineBatchPageConfig] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
     headers().then((h) => resolveSiteOriginFromHeaders(h)),
+    getOnlineBatchPageConfig().catch(() => cloneDefaultOnlineBatchPageConfig()),
   ]);
   if (!isKnownPublicRoute(pathname, data.categories, bookData.bookCategories)) {
     return { title: 'পেজ পাওয়া যায়নি', robots: { index: false, follow: false } };
@@ -37,7 +43,8 @@ export async function generateMetadata({ params }: CatchAllRouteProps): Promise<
     data.settings,
     bookData.bookCategories,
     data.courses,
-    origin
+    origin,
+    onlineBatchPageConfig
   );
 }
 
@@ -49,20 +56,23 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
     return <App />;
   }
 
-  const [data, bookData, origin] = await Promise.all([
+  const [data, bookData, origin, onlineBatchPageConfig] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
     headers().then((h) => resolveSiteOriginFromHeaders(h)),
+    getOnlineBatchPageConfig().catch(() => cloneDefaultOnlineBatchPageConfig()),
   ]);
   if (!isKnownPublicRoute(pathname, data.categories, bookData.bookCategories)) {
     notFound();
   }
+  const onlineBatchSections = await getPublicOnlineBatchSections(data.courses).catch(() => []);
   const structuredData = buildStructuredData(
     pathname,
     data.categories,
     data.courses,
     data.settings,
-    origin
+    origin,
+    onlineBatchPageConfig
   );
 
   return (
@@ -87,6 +97,8 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
         initialServerNow={data.serverNow}
         initialBookCategories={bookData.bookCategories}
         initialBooks={bookData.books}
+        initialOnlineBatchSections={onlineBatchSections}
+        initialOnlineBatchPageConfig={onlineBatchPageConfig}
       />
     </>
   );

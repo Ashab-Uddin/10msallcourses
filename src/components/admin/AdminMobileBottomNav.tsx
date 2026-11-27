@@ -19,6 +19,7 @@ import {
   X,
   ListOrdered,
   ArrowUpDown,
+  GraduationCap,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
@@ -40,6 +41,7 @@ interface AdminMobileBottomNavProps {
 }
 
 const MORE_MENU_TABS: AdminPageTab[] = [
+  'online_batches',
   'course_sort',
   'active_courses',
   'inactive_courses',
@@ -144,6 +146,12 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = React.m
     icon: React.ComponentType<{ className?: string }>;
     badge?: number;
   }> = [
+    {
+      id: 'online_batches',
+      label: 'Online Batch',
+      description: 'Online Batch পেজ, সেকশন, ক্লাস আইকন ও কোর্স পরিচালনা',
+      icon: GraduationCap,
+    },
     {
       id: 'course_sort',
       label: 'Course Sort',

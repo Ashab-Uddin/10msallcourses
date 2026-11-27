@@ -18,6 +18,7 @@ import {
   AlarmClock,
   ShoppingBag,
   ArrowUpDown,
+  GraduationCap,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
@@ -133,6 +134,11 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = React.memo(({
       label: 'All Books Directory',
       icon: <BookOpen className="w-4 h-4" />,
       badge: stats.totalBooks,
+    },
+    {
+      id: 'online_batches',
+      label: 'Online Batch',
+      icon: <GraduationCap className="w-4 h-4" />,
     },
     {
       id: 'offer_timers',
@@ -314,6 +320,21 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = React.memo(({
               }`}
             />
             <span>Categories</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleNavClick('online_batches')}
+            className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-full transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'online_batches' ? activePillClass : inactivePillClass
+            }`}
+          >
+            <GraduationCap
+              className={`w-3.5 h-3.5 ${
+                activeTab === 'online_batches' ? 'text-[#eb1c24]' : 'text-[#6B4C4F]'
+              }`}
+            />
+            <span>Online Batch</span>
           </button>
 
           <button

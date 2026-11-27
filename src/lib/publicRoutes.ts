@@ -105,7 +105,7 @@ export function parseCurrentRoute(
     return { view: 'bookstore', categorySlug: bookCatSlug || undefined };
   }
 
-  // 5. Academic Batch Selector Overview (/academic, /hsc, /hsc/hsc-28) & Dedicated HSC 26/27 routes
+  // 5. Academic Batch Selector Overview (/online-batch, /academic, /hsc, /hsc/hsc-28) & Dedicated HSC 26/27 routes
   if (clean === '/hsc/hsc-26' || clean === '/academic/hsc/hsc-26') {
     return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-26', sectionHash: cleanHash };
   }
@@ -113,6 +113,7 @@ export function parseCurrentRoute(
     return { view: 'academic', level: 'hsc', batchOrClass: 'hsc-27', sectionHash: cleanHash };
   }
   if (
+    clean === '/online-batch' ||
     clean === '/academic' ||
     clean === '/hsc' ||
     clean === '/academic/hsc' ||
