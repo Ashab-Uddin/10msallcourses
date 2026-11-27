@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Category, Course } from '../../types.ts';
+import { Category, ClassGuidesMap, Course } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
 import {
@@ -17,6 +17,10 @@ import {
   type CategoryCourseOrdersMap,
 } from '../../lib/courseSorting.ts';
 import type { JuniorClassNumber5To8 } from '../../lib/juniorClassFilters.ts';
+import type {
+  SelectorIconId,
+  SelectorIconText,
+} from '../../lib/selectorIconOrder.ts';
 import { JuniorClassSection } from './JuniorClassSection.tsx';
 import { AutoScrollFilterTrack } from './AutoScrollFilterTrack.tsx';
 import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
@@ -42,6 +46,8 @@ interface AcademicPageProps {
   courses: Course[];
   categories?: Category[];
   categoryCourseOrders?: CategoryCourseOrdersMap;
+  selectorIconLabels?: Partial<Record<SelectorIconId, Partial<SelectorIconText>>>;
+  classGuides?: ClassGuidesMap;
   onNavigate: (path: string, options?: NavigateOptions) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   sectionHash?: string;
@@ -60,6 +66,8 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
   courses,
   categories = [],
   categoryCourseOrders,
+  selectorIconLabels,
+  classGuides,
   onNavigate,
   onEnrollClick,
   sectionHash,
@@ -272,8 +280,12 @@ export const AcademicPage: React.FC<AcademicPageProps> = ({
       <JuniorClassSection
         classNum={juniorClassNum}
         courses={batchCourses}
+        categories={categories}
+        selectorIconLabels={selectorIconLabels}
+        classGuides={classGuides}
         breadcrumbParentLabel="স্কুল"
         onNavigateHome={() => onNavigate('/')}
+        onNavigate={(path) => onNavigate(path)}
         onEnrollClick={onEnrollClick}
       />
     );

@@ -4,6 +4,8 @@ import {
   getOnlineBatchPageConfig,
   getPublicOnlineBatchSections,
 } from '@/src/db/onlineBatchRepository';
+import { getPublicClassGuides } from '@/src/db/classGuideRepository';
+import { cloneDefaultClassGuidesMap } from '@/src/lib/classGuideDefaults';
 import { cloneDefaultOnlineBatchPageConfig } from '@/src/lib/onlineBatchPageConfig';
 
 export const dynamic = 'force-dynamic';
@@ -11,15 +13,17 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const data = await getPublicPortalData();
-    const [onlineBatchSections, onlineBatchPageConfig] = await Promise.all([
+    const [onlineBatchSections, onlineBatchPageConfig, classGuides] = await Promise.all([
       getPublicOnlineBatchSections(data.courses).catch(() => []),
       getOnlineBatchPageConfig().catch(() => cloneDefaultOnlineBatchPageConfig()),
+      getPublicClassGuides().catch(() => cloneDefaultClassGuidesMap()),
     ]);
     return NextResponse.json(
       {
         ...data,
         onlineBatchSections,
         onlineBatchPageConfig,
+        classGuides,
       },
       {
         headers: {

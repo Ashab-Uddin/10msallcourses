@@ -20,6 +20,7 @@ import {
   ListOrdered,
   ArrowUpDown,
   GraduationCap,
+  BookOpenCheck,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/format.ts';
 import type { AdminPageTab } from './AdminDashboard.tsx';
@@ -42,6 +43,7 @@ interface AdminMobileBottomNavProps {
 
 const MORE_MENU_TABS: AdminPageTab[] = [
   'online_batches',
+  'guides',
   'course_sort',
   'active_courses',
   'inactive_courses',
@@ -151,6 +153,12 @@ export const AdminMobileBottomNav: React.FC<AdminMobileBottomNavProps> = React.m
       label: 'Online Batch',
       description: 'Online Batch পেজ, সেকশন, ক্লাস আইকন ও কোর্স পরিচালনা',
       icon: GraduationCap,
+    },
+    {
+      id: 'guides',
+      label: 'Guide Management',
+      description: 'Class 6, 7 ও 8-এর Guide Section আইটেম পরিচালনা',
+      icon: BookOpenCheck,
     },
     {
       id: 'course_sort',

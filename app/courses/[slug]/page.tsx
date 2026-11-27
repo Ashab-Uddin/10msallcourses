@@ -8,6 +8,8 @@ import {
   getOnlineBatchPageConfig,
   getPublicOnlineBatchSections,
 } from '@/src/db/onlineBatchRepository';
+import { getPublicClassGuides } from '@/src/db/classGuideRepository';
+import { cloneDefaultClassGuidesMap } from '@/src/lib/classGuideDefaults';
 import { cloneDefaultOnlineBatchPageConfig } from '@/src/lib/onlineBatchPageConfig';
 import { decodeCourseSlug, generateUnicodeCourseSlug } from '@/src/lib/courseSlug';
 import {
@@ -73,10 +75,11 @@ export default async function CoursePage({ params }: CoursePageProps) {
   const decodedSlug = decodeCourseSlug(slug);
   const origin = resolveSiteOriginFromHeaders(await headers());
 
-  const [data, bookData, onlineBatchPageConfig] = await Promise.all([
+  const [data, bookData, onlineBatchPageConfig, classGuides] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
     getOnlineBatchPageConfig().catch(() => cloneDefaultOnlineBatchPageConfig()),
+    getPublicClassGuides().catch(() => cloneDefaultClassGuidesMap()),
   ]);
 
   let matchedCourse = findMatchingCourse(data.courses, slug, decodedSlug);
@@ -139,6 +142,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
         initialBooks={bookData.books}
         initialOnlineBatchSections={onlineBatchSections}
         initialOnlineBatchPageConfig={onlineBatchPageConfig}
+        initialClassGuides={classGuides}
       />
     </>
   );

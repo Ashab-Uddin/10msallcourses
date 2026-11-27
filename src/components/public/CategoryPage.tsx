@@ -1,5 +1,5 @@
 import React from 'react';
-import { Category, Course, CourseGroupKey } from '../../types.ts';
+import { Category, ClassGuidesMap, Course, CourseGroupKey } from '../../types.ts';
 import { CourseCard } from './CourseCard.tsx';
 import { toBengaliNumber } from '../../utils/format.ts';
 import { useHistoryViewState } from '../../lib/navigationHistory.ts';
@@ -37,6 +37,7 @@ interface CategoryPageProps {
   courses: Course[];
   categoryCourseOrders?: CategoryCourseOrdersMap;
   selectorIconLabels?: Partial<Record<SelectorIconId, Partial<SelectorIconText>>>;
+  classGuides?: ClassGuidesMap;
   onBack: () => void;
   onEnrollClick: (course: Course, referrer: string) => void;
   onSelectCategory: (slug: string) => void;
@@ -49,9 +50,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   courses,
   categoryCourseOrders,
   selectorIconLabels,
+  classGuides,
   onBack,
   onEnrollClick,
   onSelectCategory,
+  onNavigate,
 }) => {
   const decodedCategorySlug = normalizeCategorySlugKey(categorySlug);
   const normalizedSlug = decodedCategorySlug === 'free' ? 'free-course' : decodedCategorySlug;
@@ -173,8 +176,12 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
       <JuniorClassSection
         classNum={juniorClassNum}
         courses={categoryCourses}
+        categories={categories}
+        selectorIconLabels={selectorIconLabels}
+        classGuides={classGuides}
         breadcrumbParentLabel="কোর্স ক্যাটালগ"
         onNavigateHome={onBack}
+        onNavigate={onNavigate}
         onEnrollClick={onEnrollClick}
       />
     );

@@ -302,4 +302,164 @@ export interface OnlineBatchAdminPayload {
   };
 }
 
+export type ClassGuideKey = 'class-6' | 'class-7' | 'class-8';
+
+export type ClassGuideIconKey =
+  | 'play-circle'
+  | 'book-open'
+  | 'file-check'
+  | 'list-checks'
+  | 'bot'
+  | 'user-check'
+  | 'bar-chart'
+  | 'users'
+  | 'graduation-cap'
+  | 'gift'
+  | 'award'
+  | 'book-check'
+  | 'clock'
+  | 'calendar-days'
+  | 'calendar-clock'
+  | 'target'
+  | 'video'
+  | 'sparkles'
+  | 'zap'
+  | 'layers'
+  | 'check-circle';
+
+export interface ClassGuideStructureItem {
+  id: string;
+  title: string;
+  description: string;
+  linkUrl: string;
+  imageUrl: string;
+  iconKey: ClassGuideIconKey;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ClassGuideBonusItem {
+  id: string;
+  title: string;
+  description: string;
+  highlights: string[];
+  linkUrl: string;
+  imageUrl: string;
+  imageAlt: string;
+  iconKey: ClassGuideIconKey;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ClassGuideScheduleColumn {
+  id: string;
+  heading: string;
+  description: string;
+  points: string[];
+  linkUrl: string;
+  imageUrl: string;
+  iconKey: ClassGuideIconKey;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ClassGuideExclusiveFeature {
+  id: string;
+  badge: string;
+  title: string;
+  tagline: string;
+  bullets: string[];
+  linkUrl: string;
+  imageUrl: string;
+  imageAlt: string;
+  iconKey: ClassGuideIconKey;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ClassGuideBundleItem {
+  id: string;
+  name: string;
+  timeframe: string;
+  focusSummary: string;
+  linkUrl: string;
+  imageUrl: string;
+  iconKey: ClassGuideIconKey;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ClassGuidePhaseItem {
+  id: string;
+  label: string;
+  detail: string;
+  linkUrl: string;
+  imageUrl: string;
+  iconKey: ClassGuideIconKey;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ClassGuidePlanAccordionItem {
+  id: string;
+  title: string;
+  answer: string;
+  linkUrl: string;
+  imageUrl: string;
+  iconKey: ClassGuideIconKey;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ClassGuidePillarItem {
+  id: string;
+  title: string;
+  description: string;
+  linkUrl: string;
+  imageUrl: string;
+  iconKey: ClassGuideIconKey;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ClassGuideConfig {
+  classKey: ClassGuideKey;
+  guideName: string;
+  guideIconKey: ClassGuideIconKey;
+  isEnabled: boolean;
+  headerBadge: string;
+  headerTitlePrefix: string;
+  headerTitleHighlight: string;
+  headerDescription: string;
+  headerSummaryPill: string;
+  structureHeading: string;
+  structureSubheading: string;
+  structureItems: ClassGuideStructureItem[];
+  bonusHeading: string;
+  bonusItems: ClassGuideBonusItem[];
+  scheduleHeading: string;
+  scheduleSubheading: string;
+  scheduleColumns: ClassGuideScheduleColumn[];
+  exclusiveHeading: string;
+  exclusiveSubheading: string;
+  exclusiveFeatures: ClassGuideExclusiveFeature[];
+  bundleHeading: string;
+  bundleIntro: string;
+  bundles: ClassGuideBundleItem[];
+  fiveMonthHeading: string;
+  fiveMonthItems: ClassGuidePhaseItem[];
+  oneMonthHeading: string;
+  oneMonthItems: ClassGuidePhaseItem[];
+  planHeading: string;
+  planSubheading: string;
+  planAccordionItems: ClassGuidePlanAccordionItem[];
+  batch2027Heading: string;
+  pillars: ClassGuidePillarItem[];
+  closingStatement: string;
+  updatedAt?: string | null;
+}
+
+export type ClassGuidesMap = Record<ClassGuideKey, ClassGuideConfig>;
+
+
 

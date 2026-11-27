@@ -2,7 +2,12 @@
 
 import React, { useMemo } from 'react';
 import { BookOpen, RotateCcw } from 'lucide-react';
-import type { Course } from '../../types.ts';
+import type { Category, ClassGuidesMap, Course } from '../../types.ts';
+import type {
+  SelectorIconId,
+  SelectorIconText,
+} from '../../lib/selectorIconOrder.ts';
+import { getClassGuideKeyFromNumber } from '../../lib/classGuideDefaults.ts';
 import { useHistoryViewState } from '../../lib/navigationHistory.ts';
 import {
   JUNIOR_CLASS_FILTERS,
@@ -13,24 +18,34 @@ import {
 } from '../../lib/juniorClassFilters.ts';
 import { JuniorClassFilterBar } from './JuniorClassFilterBar.tsx';
 import { CourseCard } from './CourseCard.tsx';
+import { Class6CourseGuideSection } from './categories/Class6CourseGuideSection.tsx';
 import { useCategoryScrollIntoView } from '../../lib/useCategoryScrollIntoView.ts';
 
 interface JuniorClassSectionProps {
   classNum: JuniorClassNumber5To8;
   courses: Course[];
+  categories?: Category[];
+  selectorIconLabels?: Partial<Record<SelectorIconId, Partial<SelectorIconText>>>;
+  classGuides?: ClassGuidesMap;
   breadcrumbParentLabel: string;
   onNavigateHome: () => void;
+  onNavigate?: (path: string) => void;
   onEnrollClick: (course: Course, referrer: string) => void;
 }
 
 export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
   classNum,
   courses,
+  categories,
+  selectorIconLabels,
+  classGuides,
   breadcrumbParentLabel,
   onNavigateHome,
+  onNavigate,
   onEnrollClick,
 }) => {
   const meta = JUNIOR_CLASS_PAGE_META[classNum];
+  const guideKey = getClassGuideKeyFromNumber(classNum);
   const classKey = meta.slug;
   const classSectionRef = useCategoryScrollIntoView<HTMLDivElement>(
     `junior-class-${classKey}`
@@ -163,6 +178,17 @@ export const JuniorClassSection: React.FC<JuniorClassSectionProps> = ({
           </div>
         )}
       </section>
+
+      {guideKey && (
+        <Class6CourseGuideSection
+          key={`course-guide-${guideKey}`}
+          classKey={guideKey}
+          guideConfig={classGuides?.[guideKey] ?? null}
+          categories={categories}
+          selectorIconLabels={selectorIconLabels}
+          onNavigate={onNavigate}
+        />
+      )}
     </div>
   );
 };

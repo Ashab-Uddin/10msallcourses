@@ -19,12 +19,17 @@ import {
   Book,
   BookCategory,
   Category,
+  ClassGuidesMap,
   Course,
   OfferTimer,
   OnlineBatchPageConfig,
   OnlineBatchSection,
   SiteSettings,
 } from './types.ts';
+import {
+  cloneDefaultClassGuidesMap,
+  normalizeClassGuidesMap,
+} from './lib/classGuideDefaults.ts';
 import {
   cloneDefaultOnlineBatchPageConfig,
   normalizeOnlineBatchPageConfig,
@@ -118,6 +123,7 @@ export interface AppProps {
   initialBooks?: Book[];
   initialOnlineBatchSections?: OnlineBatchSection[];
   initialOnlineBatchPageConfig?: OnlineBatchPageConfig;
+  initialClassGuides?: ClassGuidesMap;
 }
 
 function cleanFdProcessedAttrs() {
@@ -152,6 +158,7 @@ export default function App({
   initialBooks = [],
   initialOnlineBatchSections = [],
   initialOnlineBatchPageConfig,
+  initialClassGuides,
 }: AppProps) {
   useState(() => {
     cleanFdProcessedAttrs();
@@ -284,6 +291,11 @@ export default function App({
       ? normalizeOnlineBatchPageConfig(initialOnlineBatchPageConfig)
       : cloneDefaultOnlineBatchPageConfig()
   );
+  const [classGuides, setClassGuides] = useState<ClassGuidesMap>(() =>
+    initialClassGuides
+      ? normalizeClassGuidesMap(initialClassGuides)
+      : cloneDefaultClassGuidesMap()
+  );
   const [settings, setSettings] = useState<SiteSettings | null>(initialSettings);
   const [offerTimers, setOfferTimers] = useState<OfferTimer[]>(initialOfferTimers);
   const [hasOfferTimers, setHasOfferTimers] = useState<boolean>(
@@ -370,6 +382,9 @@ export default function App({
         setOnlineBatchPageConfig(
           normalizeOnlineBatchPageConfig(data.onlineBatchPageConfig)
         );
+      }
+      if (data.classGuides && typeof data.classGuides === 'object') {
+        setClassGuides(normalizeClassGuidesMap(data.classGuides));
       }
       if (Array.isArray(data.offerTimers)) {
         setOfferTimers(data.offerTimers);
@@ -1133,6 +1148,7 @@ export default function App({
             courses={courses}
             categoryCourseOrders={categoryCourseOrders}
             selectorIconLabels={selectorIconLabels}
+            classGuides={classGuides}
             onBack={() => navigate('/')}
             onEnrollClick={handleEnrollClick}
             onSelectCategory={(slug) => navigate(buildReadableCategoryPath(slug))}
@@ -1284,6 +1300,8 @@ export default function App({
             courses={courses}
             categories={orderedCategories}
             categoryCourseOrders={categoryCourseOrders}
+            selectorIconLabels={selectorIconLabels}
+            classGuides={classGuides}
             onNavigate={navigate}
             onEnrollClick={handleEnrollClick}
           />

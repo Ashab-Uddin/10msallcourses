@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { Category, Course } from '../../../types.ts';
 import { CourseCard } from '../CourseCard.tsx';
+import { Class6CourseGuideSection } from './Class6CourseGuideSection.tsx';
 import { AutoScrollFilterTrack } from '../AutoScrollFilterTrack.tsx';
 import { toBengaliNumber } from '../../../utils/format.ts';
 import {
@@ -298,6 +299,8 @@ export const Class6CategoryPage: React.FC<Class6CategoryPageProps> = ({
           </div>
         )}
       </section>
+
+      <Class6CourseGuideSection />
     </div>
   );
 };

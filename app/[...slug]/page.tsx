@@ -8,6 +8,8 @@ import {
   getOnlineBatchPageConfig,
   getPublicOnlineBatchSections,
 } from '@/src/db/onlineBatchRepository';
+import { getPublicClassGuides } from '@/src/db/classGuideRepository';
+import { cloneDefaultClassGuidesMap } from '@/src/lib/classGuideDefaults';
 import { cloneDefaultOnlineBatchPageConfig } from '@/src/lib/onlineBatchPageConfig';
 import {
   buildSeoMetadata,
@@ -56,11 +58,12 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
     return <App />;
   }
 
-  const [data, bookData, origin, onlineBatchPageConfig] = await Promise.all([
+  const [data, bookData, origin, onlineBatchPageConfig, classGuides] = await Promise.all([
     getPublicPortalData(),
     getPublicBookStoreData(),
     headers().then((h) => resolveSiteOriginFromHeaders(h)),
     getOnlineBatchPageConfig().catch(() => cloneDefaultOnlineBatchPageConfig()),
+    getPublicClassGuides().catch(() => cloneDefaultClassGuidesMap()),
   ]);
   if (!isKnownPublicRoute(pathname, data.categories, bookData.bookCategories)) {
     notFound();
@@ -99,6 +102,7 @@ export default async function CatchAllPage({ params }: CatchAllRouteProps) {
         initialBooks={bookData.books}
         initialOnlineBatchSections={onlineBatchSections}
         initialOnlineBatchPageConfig={onlineBatchPageConfig}
+        initialClassGuides={classGuides}
       />
     </>
   );

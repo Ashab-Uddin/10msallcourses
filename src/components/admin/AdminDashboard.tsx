@@ -7,6 +7,7 @@ import {
   BookStoreAdminPayload,
   Category,
   CategoryNavAssignment,
+  ClassGuidesMap,
   ClickRecord,
   Course,
   OfferTimer,
@@ -144,6 +145,18 @@ const OnlineBatchAdminManager = dynamic(
     ),
   }
 );
+
+const GuideManagementAdmin = dynamic(
+  () => import('./GuideManagementAdmin.tsx').then((m) => m.GuideManagementAdmin),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="glass-strong rounded-3xl p-10 text-center text-sm font-bold text-[#6B4C4F]">
+        Guide Management লোড হচ্ছে...
+      </div>
+    ),
+  }
+);
 import {
   LayoutDashboard,
   BookOpen,
@@ -176,6 +189,7 @@ import {
   Copy,
   Check,
   GraduationCap,
+  BookOpenCheck,
 } from 'lucide-react';
 
 const COURSES_PER_PAGE = 12;
@@ -196,6 +210,8 @@ function preloadTabChunk(tab: AdminPageTab): void {
     void import('./IconSortManager.tsx').catch(() => preloadedTabs.delete(tab));
   } else if (tab === 'online_batches') {
     void import('./OnlineBatchAdminManager.tsx').catch(() => preloadedTabs.delete(tab));
+  } else if (tab === 'guides') {
+    void import('./GuideManagementAdmin.tsx').catch(() => preloadedTabs.delete(tab));
   }
 }
 
@@ -224,6 +240,7 @@ export type AdminPageTab =
   | 'book_categories'
   | 'offer_timers'
   | 'online_batches'
+  | 'guides'
   | 'settings'
   | 'icon_sort'
   | 'course_editor';
@@ -250,6 +267,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (p.includes('/admin/books')) return 'book_store';
     if (p.includes('/admin/categories')) return 'categories';
     if (p.includes('/admin/online-batches')) return 'online_batches';
+    if (p.includes('/admin/guides')) return 'guides';
     if (p.includes('/admin/offer-timers')) return 'offer_timers';
     if (p.includes('/admin/settings/icon-sort')) return 'icon_sort';
     if (p.includes('/admin/settings')) return 'settings';
@@ -265,6 +283,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [cachedBookStoreData, setCachedBookStoreData] = useState<BookStoreAdminPayload | null>(null);
   const [cachedOnlineBatchData, setCachedOnlineBatchData] =
     useState<OnlineBatchAdminPayload | null>(null);
+  const [cachedGuidesData, setCachedGuidesData] = useState<ClassGuidesMap | null>(null);
 
   // Core Data States (hydrated synchronously when SSR or login preload supplies initialData)
   const [stats, setStats] = useState(() => ({
@@ -560,6 +579,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         book_store: '/admin/books',
         book_categories: '/admin/book-categories',
         online_batches: '/admin/online-batches',
+        guides: '/admin/guides',
         offer_timers: '/admin/offer-timers',
         settings: '/admin/settings',
         icon_sort: '/admin/settings/icon-sort',
@@ -1350,6 +1370,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       icon: <GraduationCap className="w-4 h-4 shrink-0" />,
     },
     {
+      id: 'guides' as AdminPageTab,
+      label: 'Guide Management',
+      icon: <BookOpenCheck className="w-4 h-4 shrink-0" />,
+    },
+    {
       id: 'offer_timers' as AdminPageTab,
       label: 'Offer Timer',
       icon: <AlarmClock className="w-4 h-4 shrink-0" />,
@@ -1589,6 +1614,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onDataMutated={onDataMutated}
               onShowToast={showToast}
               onOpenPublicAcademicPage={handleOpenPublicAcademicPage}
+            />
+          ) : activeTab === 'guides' ? (
+            <GuideManagementAdmin
+              cachedData={cachedGuidesData}
+              onCacheUpdated={setCachedGuidesData}
+              onUnauthorized={handleBookStoreUnauthorized}
+              onDataMutated={onDataMutated}
+              onShowToast={showToast}
+              onOpenPublicPath={(path) => {
+                if (onNavigate) {
+                  onNavigate(path);
+                } else if (typeof window !== 'undefined') {
+                  window.location.href = path;
+                }
+              }}
             />
           ) : error && courses.length === 0 ? (
             <div className="glass-strong rounded-3xl p-8 text-center space-y-3">
