@@ -644,10 +644,9 @@ function createClassGuideDefaults(classKey: ClassGuideKey): ClassGuideConfig {
       ],
       linkUrl: '',
       imageUrl: '',
-      iconKeyFallback: 'clock',
       displayOrder: 2,
       isActive: true,
-    } as ClassGuideScheduleColumn,
+    },
     {
       id: 'schedule-duration',
       heading: 'ক্লাস কতদিন চলবে',
@@ -662,17 +661,7 @@ function createClassGuideDefaults(classKey: ClassGuideKey): ClassGuideConfig {
       displayOrder: 3,
       isActive: true,
     },
-  ].map(({ id, heading, description, iconKey, points, linkUrl, imageUrl, displayOrder, isActive }) => ({
-    id,
-    heading,
-    description,
-    iconKey,
-    points,
-    linkUrl,
-    imageUrl,
-    displayOrder,
-    isActive,
-  }));
+  ];
 
   return {
     classKey,

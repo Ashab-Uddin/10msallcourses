@@ -576,7 +576,11 @@ export const Class6CourseGuideSection: React.FC<Class6CourseGuideSectionProps> =
                         />
                       ) : (
                         <div className="flex flex-col items-center gap-2 text-rose-100 p-4">
-                          <Icon className="w-8 h-8" />
+                          <ClassGuideIcon
+                            iconKey={feat.iconKey}
+                            fallback="zap"
+                            className="w-8 h-8"
+                          />
                           <span className="text-sm font-black">{feat.title}</span>
                         </div>
                       )}
